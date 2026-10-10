@@ -631,6 +631,7 @@ export const ENGINE_IT = {
   "roll.spell_attack_with": "tiro per colpire con incantesimo con {spell}",
   "roll.save": "tiro salvezza su {ability}",
   "roll.check": "prova di {label}",
+  "override.applied": "Decisione del Master: {reason}",
   "roll.dice": "{dice}",
   "roll.d20": "un tiro di d20",
   "roll.damage": "danni {type}",

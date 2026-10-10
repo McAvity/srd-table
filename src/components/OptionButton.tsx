@@ -2,7 +2,8 @@
  * An option the engine lists, available or not. An unavailable one is never hidden: it stays in
  * place, with a dashed outline and still focusable (`aria-disabled`), with the engine's reason word
  * for word under the label (on a quick-bar tile too, where hover also shows it whole), and always
- * read by screen readers (`aria-describedby`).
+ * read by screen readers (`aria-describedby`). The GM's view may still open an unavailable one
+ * (`onUnavailable`), to override the refusal.
  */
 
 import { Tooltip } from "radix-ui";
@@ -14,6 +15,7 @@ export function OptionButton({
   children,
   reason,
   onClick,
+  onUnavailable,
   icon,
   on,
   detail,
@@ -24,6 +26,8 @@ export function OptionButton({
   /** Why it can't be chosen (the engine's words); `null` when it can. */
   reason: string | null;
   onClick?: () => void;
+  /** Clicked while unavailable (the GM's "Do it anyway"); otherwise nothing happens. */
+  onUnavailable?: () => void;
   icon?: IconName;
   on?: boolean;
   /** A second line (a cost, uses left). */
@@ -43,6 +47,7 @@ export function OptionButton({
       data-on={on ? "true" : undefined}
       onClick={() => {
         if (!unavailable) onClick?.();
+        else onUnavailable?.();
       }}
       className={cx(
         "btn",

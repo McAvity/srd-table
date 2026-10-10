@@ -5,7 +5,8 @@
  * starts from the engine's ready-to-send action and only fills in fields; whether the result is
  * legal is the engine's dry run (`checkAction`), shown before sending, with the option's odds.
  * It's sent the way the quick bar's Play switch says (automatic or by hand); the other way is the
- * second button.
+ * second button. In the GM's view a refused action the engine can override (its dry run with
+ * `force`) gets "Do it anyway", sent with `force: true`; the log notes the override.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -240,6 +241,12 @@ export function ActionComposer({
     ],
   );
   const check = useActionCheck(encounterId, playedAs(action, way));
+  const refused = check.data?.ok === false;
+  const forced = useActionCheck(
+    encounterId,
+    gm && refused ? ({ ...playedAs(action, way), force: true } as EncounterAction) : null,
+  );
+  const forceable = gm && refused && forced.data?.ok === true;
   const otherWay: PlayWay | null = canPlayByHand(base)
     ? way === "auto"
       ? "manual"
@@ -288,10 +295,14 @@ export function ActionComposer({
     return () => useTableUi.setState({ onToken: null });
   });
 
-  async function go(as: PlayWay) {
+  async function go(as: PlayWay, force = false) {
     setBusy(true);
     try {
-      const result = await send(encounterId, playedAs(action, as));
+      const played = playedAs(action, as);
+      const result = await send(
+        encounterId,
+        force ? ({ ...played, force: true } as EncounterAction) : played,
+      );
       if (result.ok) onClose();
       else setReasons(result.reasons);
     } finally {
@@ -687,6 +698,11 @@ export function ActionComposer({
       </div>
       <footer className="mt-3 flex justify-end gap-2">
         <Button onClick={onClose}>{t("common.cancel")}</Button>
+        {forceable && (
+          <Button variant="danger" disabled={busy} onClick={() => void go(way, true)}>
+            {t("table.forceAction")}
+          </Button>
+        )}
         {otherWay && (
           <Button disabled={busy || check.data?.ok === false} onClick={() => void go(otherWay)}>
             {otherWay === "manual" ? t("table.wayManual") : t("table.wayAuto")}

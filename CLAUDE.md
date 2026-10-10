@@ -292,16 +292,8 @@ docs/            # ARCHITECTURE.md (decisions), ENGINE-GAPS.md (what the UI need
 
 ## Handoff (2026-10-10)
 
-Where work stands, for the next session:
-
-1. **R15 (declared actions, "by hand"): picked up and committed.** Play switch in the quick bar,
-   the composer's other-way button, "Waiting for an outcome" (`DeclaredPanel.tsx`), per-combatant
-   way and campaign defaults. See `docs/ENGINE-GAPS.md` > Done.
-2. **R16 (dice rolled at the table): picked up and committed.** A per-combatant "Dice" setting
-   (engine's `dice`), `RollDialog.tsx`, campaign defaults. See `docs/ENGINE-GAPS.md` > Done.
-3. Open after that: R17 (engine), R18 (engine).
-
-Delete this section once these are picked up.
+Manual play (R15–R17) is built and merged; see `docs/ENGINE-GAPS.md` > Done. Open: R18
+(engine), then the dice results' roll labels in Italian. Delete this section once picked up.
 
 ## Milestones
 
@@ -316,12 +308,13 @@ Delete this section once these are picked up.
 6. **Later** — offline (service worker precache), shared sessions (one authority applies
    actions — the GM's client or a server running the engine's `createHandler` — and others
    receive documents), private packs managed in the app.
-   - **Manual play** (designed 2026-10-10, see "Manual play" in `docs/ARCHITECTURE.md`):
+   - **Manual play** (built 2026-10-10, see "Manual play" in `docs/ARCHITECTURE.md`):
      each action played automatically, with the players' own dice (the engine still resolves),
      or by hand (the engine spends the costs, the outcome is applied with `effects`); a default
      per combatant; only the GM applies by-hand outcomes to other creatures and overrides a
-     refusal. Needs three engine requests, filed as R15 (declared actions, monster limited uses
-     included), R16 (rolls that wait for entered numbers) and R17 (`force`), then the app's controls.
+     refusal. Engine requests R15 (declared actions), R16 (rolls entered at the table) and R17
+     (`force`): done, wired in the app (Play switch, "Waiting for an outcome", `RollDialog`,
+     "Do it anyway").
 
 ## Commands
 

@@ -360,6 +360,7 @@ export const it: Messages = {
   "table.areaPoint": "Punto",
   "table.areaToward": "Verso",
   "table.send": "Fallo",
+  "table.forceAction": "Fallo comunque",
   "table.dice": "Dadi",
   "table.diceEngine": "Tira il motore",
   "table.diceTable": "Tirati al tavolo",

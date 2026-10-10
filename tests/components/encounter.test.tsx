@@ -407,6 +407,48 @@ describe("encounter table", () => {
       r.encounter.combatants[1]?.hp ?? 0,
     );
   });
+
+  it("lets the GM override a refusal: Do it anyway, logged as an override", async () => {
+    const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
+    if (!aerin.ok) throw new Error("import");
+    const record = useDocuments.getState().characters[aerin.id];
+    if (!record) throw new Error("import");
+    const party = { [aerin.id]: { build: record.build, state: record.state } };
+    const r = await engine.applyEncounterAction(await engine.newEncounter(), party, [
+      { type: "add_character", character: aerin.id },
+      { type: "add_monster", monster: "goblin-warrior", hp: 200 },
+      { type: "set_initiative", id: "aerin", value: 20 },
+      { type: "set_initiative", id: "goblin-warrior", value: 5 },
+      { type: "start" },
+      { type: "attack", id: "aerin", attack: "Greatsword", target: "goblin-warrior" },
+    ]);
+    if (!r.ok) throw new Error(r.reasons.join("; "));
+    const options = await engine.combatantOptions(r.encounter, party, "aerin");
+    const attack = options.attacks.find((a) => a.action.type === "attack" && !a.available);
+    if (!attack) throw new Error("no refused attack");
+    const id = storeEncounter(r.encounter);
+    await renderApp(`/encounters/${id}`);
+
+    const bar = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+    const tile = within(bar).getAllByRole("button", {
+      name: new RegExp(`^${literal(attack.label)}`),
+    })[0];
+    if (!tile) throw new Error("no tile");
+    await userEvent.click(tile);
+    const composer = await screen.findByRole("region", { name: attack.label });
+    await userEvent.click(await within(composer).findByRole("button", { name: "Do it anyway" }));
+    expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(/GM override/);
+
+    // A player never gets the composer for a refused option.
+    useUi.setState({ role: { kind: "player", character: aerin.id } });
+    const again = await screen.findByRole("region", { name: "Options" });
+    const refused = within(again)
+      .getAllByRole("button", { name: new RegExp(`^${literal(attack.label)}`) })
+      .find((b) => b.getAttribute("aria-disabled") === "true");
+    if (!refused) throw new Error("no refused tile");
+    await userEvent.click(refused);
+    expect(screen.queryByRole("button", { name: "Do it anyway" })).toBeNull();
+  });
 });
 
 /** A label as a literal pattern. */
