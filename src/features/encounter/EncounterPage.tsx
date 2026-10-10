@@ -11,7 +11,7 @@ import { BackLink } from "@/components/BackLink";
 import { Button, Empty, Spinner } from "@/components/ui";
 import type { CombatantView } from "@/engine/facade";
 import { t } from "@/i18n";
-import { useCombatantOptions, useEncounterView } from "@/queries";
+import { useCombatantOptions, useEncounterView, usePlayView } from "@/queries";
 import { canRedo, canUndo, type EncounterRecord, useDocuments } from "@/store/documents";
 import { type PlayWay, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
@@ -22,7 +22,7 @@ import { CombatPanel } from "./CombatPanel";
 import { DecisionDialog } from "./DecisionDialog";
 import { ExplorationPanel } from "./ExplorationPanel";
 import { InitiativeRail } from "./InitiativeRail";
-import { wayOf } from "./manual";
+import { canPlayByHand, needsComposerByHand, wayOf } from "./manual";
 import { OffMapNotice } from "./OffMapNotice";
 import { PointDialog, PointPanel } from "./PointPanel";
 import { QuickBar } from "./QuickBar";
@@ -100,6 +100,8 @@ function Table({ record }: { record: EncounterRecord }) {
   const selectedView = view?.combatants.find((c) => c.id === selected) ?? null;
   const actor = selectedView && canControl(selectedView) ? selectedView : !gm ? own : null;
   const options = useCombatantOptions(record.id, actor?.id ?? null);
+  // A character's attack lines (riders, Versatile): by hand, the composer opens only for those.
+  const actorSheet = usePlayView(actor?.character ?? undefined).data?.sheet ?? null;
   const way: PlayWay | null = actor
     ? switched?.id === actor.id
       ? switched.way
@@ -230,7 +232,11 @@ function Table({ record }: { record: EncounterRecord }) {
               onWay={(w) => setSwitched({ id: actor.id, way: w })}
               gm={gm}
               onCompose={(entry, way) => setComposing({ entry, way })}
-              needsComposer={needsComposer}
+              needsComposer={(entry: OptionEntry, w: PlayWay) =>
+                w === "manual" && canPlayByHand(entry.action)
+                  ? needsComposerByHand(entry, actorSheet)
+                  : needsComposer(entry)
+              }
             />
           </>
         )}

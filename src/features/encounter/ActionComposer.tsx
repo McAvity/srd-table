@@ -5,7 +5,8 @@
  * starts from the engine's ready-to-send action and only fills in fields; whether the result is
  * legal is the engine's dry run (`checkAction`), shown before sending, with the option's odds.
  * It's sent the way the quick bar's Play switch says (automatic or by hand); the other way is the
- * second button. In the GM's view a refused action the engine can override (its dry run with
+ * second button ("By hand" sends at once, "Automatic" shows the targets to pick). By hand it asks
+ * only what the engine still reads: a slot level, Advantage, riders, strike effects, a damage type. In the GM's view a refused action the engine can override (its dry run with
  * `force`) gets "Do it anyway", sent with `force: true`; the log notes the override.
  */
 
@@ -132,6 +133,9 @@ export function ActionComposer({
   const [unaffected, setUnaffected] = useState<string[]>([]);
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The way it's played: by hand there are no targets, areas or cover to pick. */
+  const [as, setAs] = useState<PlayWay>(way);
+  const byHand = as === "manual" && canPlayByHand(base);
 
   // Riders and Versatile damage come from the character's attack line.
   const play = usePlayView(actor?.character ?? undefined);
@@ -144,9 +148,11 @@ export function ActionComposer({
   const designate = spell?.mechanics?.zone?.designate === true;
   const wallDef = spell?.mechanics?.wall ?? null;
   // Without positions an area can't be aimed: the caller names who's in it (`targets`).
-  const area = spec?.kind === "area" && actor?.position ? spec.area : null;
+  const area = !byHand && spec?.kind === "area" && actor?.position ? spec.area : null;
   const pickCreatures =
-    !wallDef && (spec?.kind === "creature" || (spec?.kind === "area" && !actor?.position));
+    !byHand &&
+    !wallDef &&
+    (spec?.kind === "creature" || (spec?.kind === "area" && !actor?.position));
   const areaMode: "point" | "toward" | null = area
     ? area.shape === "cone" || area.shape === "line"
       ? "toward"
@@ -240,18 +246,14 @@ export function ActionComposer({
       unaffected,
     ],
   );
-  const check = useActionCheck(encounterId, playedAs(action, way));
+  const check = useActionCheck(encounterId, playedAs(action, as));
   const refused = check.data?.ok === false;
   const forced = useActionCheck(
     encounterId,
-    gm && refused ? ({ ...playedAs(action, way), force: true } as EncounterAction) : null,
+    gm && refused ? ({ ...playedAs(action, as), force: true } as EncounterAction) : null,
   );
   const forceable = gm && refused && forced.data?.ok === true;
-  const otherWay: PlayWay | null = canPlayByHand(base)
-    ? way === "auto"
-      ? "manual"
-      : "auto"
-    : null;
+  const otherWay: PlayWay | null = canPlayByHand(base) ? (as === "auto" ? "manual" : "auto") : null;
 
   const startAiming = () => {
     if (!area || !areaMode) return;
@@ -304,14 +306,17 @@ export function ActionComposer({
         force ? ({ ...played, force: true } as EncounterAction) : played,
       );
       if (result.ok) onClose();
-      else setReasons(result.reasons);
+      else {
+        setAs(as);
+        setReasons(result.reasons);
+      }
     } finally {
       setBusy(false);
     }
   }
 
   const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view) : [];
-  const odds = oddsText(entry);
+  const odds = byHand ? null : oddsText(entry);
 
   return (
     <section
@@ -416,7 +421,7 @@ export function ActionComposer({
           </div>
         )}
 
-        {wallDef && (
+        {wallDef && !byHand && (
           <div className="space-y-2">
             <p className="text-sm text-ink-muted">
               {t("table.wallHint", { feet: wallDef.length })}
@@ -450,7 +455,7 @@ export function ActionComposer({
           </div>
         )}
 
-        {spec?.kind === "point" && (
+        {spec?.kind === "point" && !byHand && (
           <div className="flex flex-wrap items-end gap-2">
             <Button icon="target" onClick={aimPoint}>
               {t("table.areaPoint")}
@@ -491,7 +496,7 @@ export function ActionComposer({
                 ))}
               </div>
             </fieldset>
-            {base.type !== "legendary" && (
+            {base.type !== "legendary" && !byHand && (
               <label className="flex flex-col gap-1 text-sm text-ink-muted">
                 {t("table.cover")}
                 <select
@@ -666,7 +671,7 @@ export function ActionComposer({
           </label>
         )}
 
-        {designate && (
+        {designate && !byHand && (
           <fieldset className="space-y-1">
             <legend className="mb-1 text-sm text-ink-muted">{t("table.unaffected")}</legend>
             <div className="flex flex-wrap gap-1.5">
@@ -699,22 +704,27 @@ export function ActionComposer({
       <footer className="mt-3 flex justify-end gap-2">
         <Button onClick={onClose}>{t("common.cancel")}</Button>
         {forceable && (
-          <Button variant="danger" disabled={busy} onClick={() => void go(way, true)}>
+          <Button variant="danger" disabled={busy} onClick={() => void go(as, true)}>
             {t("table.forceAction")}
           </Button>
         )}
-        {otherWay && (
-          <Button disabled={busy || check.data?.ok === false} onClick={() => void go(otherWay)}>
-            {otherWay === "manual" ? t("table.wayManual") : t("table.wayAuto")}
+        {otherWay === "manual" && (
+          <Button disabled={busy} onClick={() => void go("manual")}>
+            {t("table.wayManual")}
+          </Button>
+        )}
+        {otherWay === "auto" && (
+          <Button disabled={busy} onClick={() => setAs("auto")}>
+            {t("table.wayAuto")}
           </Button>
         )}
         <Button
           variant="primary"
-          icon={way === "manual" && otherWay ? "check" : "d20"}
+          icon="d20"
           disabled={busy || check.data?.ok === false}
-          onClick={() => void go(way)}
+          onClick={() => void go(as)}
         >
-          {way === "manual" && otherWay ? t("table.sendManual") : t("table.send")}
+          {byHand ? t("table.sendManual") : t("table.send")}
         </Button>
       </footer>
     </section>

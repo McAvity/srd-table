@@ -65,7 +65,7 @@ function DiceCard({ item }: { item: DiceShown }) {
       ) : item.kind === "damage" ? (
         <Damage damage={item.damage} />
       ) : (
-        <ActionRolls result={item.result} names={item.names} />
+        <ActionRolls result={item.result} />
       )}
     </div>
   );
@@ -257,14 +257,8 @@ function SaveLine({ save, label }: { save: SaveResult; label: ReactNode }) {
   );
 }
 
-export function ActionRolls({
-  result,
-  names,
-}: {
-  result: RolledResult;
-  names?: Readonly<Record<string, string>> | undefined;
-}) {
-  if ("manual" in result) return <Declared result={result} names={names ?? {}} />;
+export function ActionRolls({ result }: { result: RolledResult }) {
+  if ("manual" in result) return <Declared result={result} />;
   if ("target_ac" in result) return <Attack result={result} />;
   if ("spell" in result) {
     return (
@@ -324,18 +318,11 @@ export function ActionRolls({
 }
 
 /**
- * An action played by hand with the engine's dice: what it rolled, nothing applied. An attack's
- * hit or miss is the engine's "would hit" against the target's AC, for the table to rule on.
+ * An action played by hand: what the engine rolled, with no target and nothing applied. The
+ * table rules on hits and saves; whoever is affected applies the result.
  */
-function Declared({
-  result,
-  names,
-}: {
-  result: DeclaredResult;
-  names: Readonly<Record<string, string>>;
-}) {
-  const rolls = result.rolls;
-  if (!rolls) return null;
+function Declared({ result }: { result: DeclaredResult }) {
+  const { rolls } = result;
   return (
     <div className="space-y-1">
       <div className="text-sm font-semibold">
@@ -344,23 +331,15 @@ function Declared({
       {rolls.attacks.map((a, i) => (
         <div key={i} className="space-y-1">
           <D20
-            label={
-              <>
-                <TargetName target={{ id: a.target, name: names[a.target] ?? a.target }} /> ·{" "}
-                {t("dice.vsAc", { ac: a.target_ac })}
-              </>
-            }
+            label={a.attack}
             roll={a.roll}
             bonus={a.bonus}
             total={a.total}
-            outcome={
-              a.critical_hit
-                ? t("dice.wouldCrit")
-                : a.hit
-                  ? t("dice.wouldHit")
-                  : t("dice.wouldMiss")
-            }
-            tone={a.hit ? "good" : "bad"}
+            {...(a.critical_hit
+              ? { outcome: t("dice.critical"), tone: "good" as const }
+              : a.critical_miss
+                ? { outcome: t("dice.naturalOne"), tone: "bad" as const }
+                : {})}
           />
           {a.reasons.length > 0 && (
             <ul className="text-[13px] text-ink-muted">
@@ -380,7 +359,9 @@ function Declared({
       )}
       {rolls.save && (
         <div className="text-sm">
-          {t("dice.saveToMake", { ability: abilityName(rolls.save.ability), dc: rolls.save.dc })}
+          {rolls.save.ability
+            ? t("dice.saveToMake", { ability: abilityName(rolls.save.ability), dc: rolls.save.dc })
+            : t("dice.saveStrOrDex", { dc: rolls.save.dc })}
         </div>
       )}
     </div>

@@ -470,20 +470,10 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         const who = (aid: string | undefined) =>
           result.encounter.combatants.find((c) => c.id === aid)?.name ?? "";
         const actions = Array.isArray(action) ? action : [action];
-        const names = Object.fromEntries(result.encounter.combatants.map((c) => [c.id, c.name]));
-        // A declared action shows in the tray only when the engine rolled its dice.
         useUi.getState().showDice(
-          result.results.flatMap((r, i) => {
-            if ("manual" in r && !r.rolls) return [];
+          result.results.map((r, i) => {
             const a = actions[Math.min(i, actions.length - 1)] as EncounterAction;
-            return [
-              {
-                kind: "action" as const,
-                who: who("id" in a ? a.id : undefined),
-                result: r,
-                ...("manual" in r ? { names } : {}),
-              },
-            ];
+            return { kind: "action" as const, who: who("id" in a ? a.id : undefined), result: r };
           }),
         );
         return result;

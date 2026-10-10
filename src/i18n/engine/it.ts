@@ -661,24 +661,6 @@ export const ENGINE_IT = {
   "stat.speed": "Velocità",
   "stat.passive_perception": "Percezione passiva",
   "override.applied": "Decisione del Master: {reason}",
-  "roll.dice": "{dice}",
-  "roll.d20": "un tiro di d20",
-  "roll.damage": "danni {type}",
-  "roll.damage_for": "danni {type} per {what}",
-  "roll.healing": "guarigione",
-  "roll.healing_for": "guarigione per {what}",
-  "roll.initiative": "Iniziativa",
-  "roll.inspiration": "il dado di Bardic Inspiration",
-  "roll.recharge": "la Ricarica di {action}",
-  "roll.death_save": "un tiro salvezza contro la morte",
-  "roll.hit_die": "un Dado Vita",
-  "roll.hit_points": "i Punti Ferita di {name}",
-  "dice.question":
-    "{name}: tira {count}d{sides}{keep, select, higher { e tieni il più alto} lower { e tieni il più basso} other {}} per {purpose}.",
-  "refusal.no_roll_to_enter": "Non c'è nessun tiro da inserire",
-  "refusal.roll_count": "Inserisci {count, plural, one {# dado} other {# dadi}}, non {given}",
-  "refusal.roll_range": "Un d{sides} tira da 1 a {sides}, non {value}",
-  "refusal.encounter_dice_mode": "I dadi dell'incontro sono del motore o del tavolo",
   "decision.inspiration":
     "{name}: {what} {total} contro {target}. Aggiungere il dado di Bardic Inspiration (d{die})?",
   "decision.legendary_resistance":
@@ -840,14 +822,14 @@ export const ENGINE_IT = {
   "save.result":
     "Tiro salvezza su {ability} di {name}: {automatic, select, none {{total}{dc, select, none {} other { contro CD {dc}}}{count, plural, =0 {} other {; {reasons, list, semicolon}}}} other {fallisce automaticamente ({automatic})}}{outcome, select, true {: successo} false {: fallimento} other {}}.",
   "manual.attack":
-    "Tiro per colpire contro {target}: {roll}{hit, select, true {, colpirebbe} other {, mancherebbe}}{critical, select, true { (colpo critico)} other {}}.",
+    "Tiro per colpire con {attack}: {total} ({d20} sul dado){critical, select, hit {, un colpo critico} miss {, un 1 naturale} other {}}{count, plural, =0 {} other {; {reasons, list, semicolon}}}.",
   "manual.damage":
     "Danni di {what} tirati{critical, select, true { (colpo critico)} other {}}: {parts, list, plus}.",
   "manual.damage_part": "{total} {type} ({rolls, list, plus})",
   "manual.healing": "Guarigione di {what} tirata: {amount}.",
-  "manual.save": "{what}: tiro salvezza su {ability} con CD {dc}.",
-  "manual.declared":
-    "{name} dichiara {what}{level, plural, =0 {} other { al livello #}}{count, plural, =0 {} other { su {targets}}}, a mano.",
+  "manual.save":
+    "{what}: tiro salvezza su {ability, select, none {Forza o Destrezza (a scelta del bersaglio)} other {{ability}}} con CD {dc}.",
+  "manual.declared": "{name} usa {what}{level, plural, =0 {} other { al livello #}}, a mano.",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */
