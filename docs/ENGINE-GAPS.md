@@ -22,9 +22,9 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R22 | Options judged for play by hand (`available` / `reason` with `manual`) | open |
+| R22 | Every refusal reason with a category, `rollable`, one `roll` action and `rollByHand` (by-hand policy in the app; sheet rolls by hand) | open (design agreed) |
 
-### R22. Options judged for play by hand
+### R22. Refusal reasons by category, and a by-hand roller
 
 - **Missing.** `combatantOptions`' `available` / `reason` are for automatic play; by hand the
   economy, the turn and targets don't count.
@@ -33,8 +33,14 @@ The app never works around a gap with rules of its own.
   composer, which dry-runs the by-hand action (`checkAction`) and shows the engine's reason
   ("Do it anyway" for the GM). `canPlayByHand` (`manual.ts`) is the app's own list of action
   types the engine takes by hand.
-- **When done.** Grey out by-hand tiles with `manual.reason`; drop `byHand`'s override and, if
-  the engine says which options can be played by hand, `MANUAL_ACTIONS`.
+- **Design agreed** (engine's proposal, 2026-10-10): options carry every reason with a
+  category and `rollable`; by hand is one `{ type: "roll", id, what }` action; `rollByHand` works
+  outside an encounter too. The by-hand policy is the app's.
+- **When done.** Send by-hand tiles as `roll` (`playedAs` / `MANUAL_ACTIONS` replaced by
+  `rollable`); by hand, grey a tile out on its `resource` / `state` reasons and ignore `economy`,
+  `turn`, `target` (`QuickBar.tsx` `byHand`); the composer's by-hand dry run on `roll`. On the
+  sheet: by-hand roll buttons for attacks, spells and features (`rollByHand` + the costs applied),
+  replacing the heal-only "By hand" in `CombatTab.tsx` if `roll` covers it.
 
 ### Notes: manual play
 
