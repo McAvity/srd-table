@@ -10,10 +10,12 @@ import type {
   CheckResult,
   D20Roll,
   D20TestResult,
+  DeclaredResult,
   RolledDamage,
   RollResult,
   SaveResult,
 } from "srd-rules-engine";
+import { abilityName } from "@/engine/constants";
 import type { RolledResult } from "@/engine/facade";
 import { signed, t } from "@/i18n";
 import { type DiceShown, useUi } from "@/store/ui";
@@ -63,7 +65,7 @@ function DiceCard({ item }: { item: DiceShown }) {
       ) : item.kind === "damage" ? (
         <Damage damage={item.damage} />
       ) : (
-        <ActionRolls result={item.result} />
+        <ActionRolls result={item.result} names={item.names} />
       )}
     </div>
   );
@@ -255,7 +257,14 @@ function SaveLine({ save, label }: { save: SaveResult; label: ReactNode }) {
   );
 }
 
-export function ActionRolls({ result }: { result: RolledResult }) {
+export function ActionRolls({
+  result,
+  names,
+}: {
+  result: RolledResult;
+  names?: Readonly<Record<string, string>> | undefined;
+}) {
+  if ("manual" in result) return <Declared result={result} names={names ?? {}} />;
   if ("target_ac" in result) return <Attack result={result} />;
   if ("spell" in result) {
     return (
@@ -309,8 +318,73 @@ export function ActionRolls({ result }: { result: RolledResult }) {
       </div>
     );
   }
+  if ("kind" in result) return <Test test={result} />;
   if ("skill" in result) return <Check result={result} />;
   return <SaveLine save={result} label={result.name} />;
+}
+
+/**
+ * An action played by hand with the engine's dice: what it rolled, nothing applied. An attack's
+ * hit or miss is the engine's "would hit" against the target's AC, for the table to rule on.
+ */
+function Declared({
+  result,
+  names,
+}: {
+  result: DeclaredResult;
+  names: Readonly<Record<string, string>>;
+}) {
+  const rolls = result.rolls;
+  if (!rolls) return null;
+  return (
+    <div className="space-y-1">
+      <div className="text-sm font-semibold">
+        {result.name} · {t("table.wayManual")}
+      </div>
+      {rolls.attacks.map((a, i) => (
+        <div key={i} className="space-y-1">
+          <D20
+            label={
+              <>
+                <TargetName target={{ id: a.target, name: names[a.target] ?? a.target }} /> ·{" "}
+                {t("dice.vsAc", { ac: a.target_ac })}
+              </>
+            }
+            roll={a.roll}
+            bonus={a.bonus}
+            total={a.total}
+            outcome={
+              a.critical_hit
+                ? t("dice.wouldCrit")
+                : a.hit
+                  ? t("dice.wouldHit")
+                  : t("dice.wouldMiss")
+            }
+            tone={a.hit ? "good" : "bad"}
+          />
+          {a.reasons.length > 0 && (
+            <ul className="text-[13px] text-ink-muted">
+              {a.reasons.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+          )}
+          {a.damage && <Damage damage={a.damage} />}
+        </div>
+      ))}
+      {rolls.damage && <Damage damage={rolls.damage} />}
+      {rolls.healing !== null && (
+        <div className="text-sm">
+          {t("dice.healingRolled")}: <span className="font-bold text-green">{rolls.healing}</span>
+        </div>
+      )}
+      {rolls.save && (
+        <div className="text-sm">
+          {t("dice.saveToMake", { ability: abilityName(rolls.save.ability), dc: rolls.save.dc })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**

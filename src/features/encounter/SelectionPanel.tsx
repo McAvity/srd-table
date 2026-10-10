@@ -1,6 +1,7 @@
 /**
  * The selected combatant: its numbers and conditions, effects on it, and the controls that apply
- * to it. Checks roll through the encounter's `check` action. GM only: set Initiative, the
+ * to it. Checks and saving throws roll through the encounter's `check` action (`skill`, `ability`
+ * or `save`; nothing applied). GM only: set Initiative, the
  * decision mode, who rolls its dice, how its actions are played (automatic or by hand), effects by hand (damage,
  * healing, conditions, timed), end an effect, remove.
  */
@@ -158,13 +159,14 @@ function CheckForm({ id, act }: { id: string; act: Act }) {
   const [what, setWhat] = useState("perception");
   const [dc, setDc] = useState("");
   const isAbility = (abilities() as readonly string[]).includes(what);
+  const save = what.startsWith("save:") ? (what.slice(5) as Ability) : null;
   const n = Number.parseInt(dc, 10);
   return (
     <details className="mb-2 border-t border-edge pt-2">
       <summary className="cursor-pointer text-sm font-semibold">{t("table.check")}</summary>
       <div className="mt-2 flex flex-wrap items-end gap-2">
         <label className="flex flex-col text-[13px] text-ink-muted">
-          {t("table.checkSkill")}
+          {t("table.checkWhat")}
           <select className="field" value={what} onChange={(e) => setWhat(e.target.value)}>
             <optgroup label={t("table.checkSkill")}>
               {skills().map((s) => (
@@ -177,6 +179,13 @@ function CheckForm({ id, act }: { id: string; act: Act }) {
               {abilities().map((a) => (
                 <option key={a} value={a}>
                   {abilityName(a)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={t("table.checkSave")}>
+              {abilities().map((a) => (
+                <option key={a} value={`save:${a}`}>
+                  {t("table.saveOf", { ability: abilityName(a) })}
                 </option>
               ))}
             </optgroup>
@@ -198,7 +207,11 @@ function CheckForm({ id, act }: { id: string; act: Act }) {
             void act({
               type: "check",
               id,
-              ...(isAbility ? { ability: what as Ability } : { skill: what as Skill }),
+              ...(save
+                ? { save }
+                : isAbility
+                  ? { ability: what as Ability }
+                  : { skill: what as Skill }),
               ...(Number.isInteger(n) ? { dc: n } : {}),
             })
           }

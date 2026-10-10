@@ -23,6 +23,8 @@ export type DiceShown =
       readonly kind: "action";
       readonly who: string;
       readonly result: RolledResult;
+      /** Combatant names by id, for results that name targets only by id (by-hand attacks). */
+      readonly names?: Readonly<Record<string, string>>;
     }
   | { readonly id: number; readonly kind: "roll"; readonly who: string; readonly roll: RollResult }
   | {
@@ -39,7 +41,12 @@ export type DiceShown =
     };
 
 type DiceInput =
-  | { readonly kind: "action"; readonly who: string; readonly result: RolledResult }
+  | {
+      readonly kind: "action";
+      readonly who: string;
+      readonly result: RolledResult;
+      readonly names?: Readonly<Record<string, string>>;
+    }
   | { readonly kind: "roll"; readonly who: string; readonly roll: RollResult }
   | { readonly kind: "test"; readonly who: string; readonly test: D20TestResult }
   | { readonly kind: "damage"; readonly who: string; readonly damage: RolledDamage };

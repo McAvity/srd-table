@@ -22,18 +22,7 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R19 | Rolls shown for actions played by hand; saves on demand (Roll20-style) | open |
 | R20 | Engine cleanup: unused code and unused public exports removed (the app imports none of them: nothing changes here; check the typecheck after the bump) | open |
-
-### R19. Roll20-style rolls by hand
-
-- **Meanwhile.** A declared action rolls nothing; outside an encounter the sheet rolls checks,
-  saves and attack rolls (`rollCheck`) and an attack's damage (`rollDamage`). In an encounter the
-  selection panel rolls checks (skill or ability), not saves.
-- **When done.** Show a declared action's rolls in the dice tray (attack per target with the
-  would-hit as information, damage, healing, save DC) and in "Waiting for an outcome", the
-  damage amount pre-filled from the rolled total (the GM still applies it). The selection panel's
-  roll form gets saving throws (`check` with `save`), for monsters too.
 
 ### Notes: manual play (R15–R17)
 
@@ -69,4 +58,5 @@ The app never works around a gap with rules of its own.
 | R16 | Dice rolled at the table | `dccdd51` (main) | `RollDialog.tsx` for `pending.kind: "roll"` (one box per die, `enter_roll`, the engine's refusals shown), to the roll's controller, others see the wait; "Dice" (engine / at the table) per combatant in `SelectionPanel.tsx` and for the encounter in `CombatPanel.tsx` (`set_dice`); campaign defaults `character_dice` / `monster_dice`, sent as `dice` on `add_character` / `add_monster`; the question an action stops for is logged once (as the decision entry) |
 | R17 | GM override | `23a3143` (main) | in the GM's view an unavailable option opens the composer (`OptionButton` `onUnavailable`), which dry-runs the action with `force` and, when the engine can override, offers "Do it anyway" (danger) sending `force: true`; the engine's `override.applied` note is in the log; players never see it |
 | R18 | Messages for any language | `d9394d7` (main) | `EngineLanguage` is `{ locale, messages }` and `renderMessage` gets the locale (Italian plurals by `Intl.PluralRules`); the Italian templates use `list, or` / `list, and` with the catalog's `list.*` joiners; step titles, alignments and stat labels are catalog codes (`step.*`, `alignment.*`, `stat.*`: the app's own name tables are gone); a sheet roll's label is rendered from `label_message` |
+| R19 | Roll20-style rolls by hand, saves on demand | `801bf1a` (main) | a declared action with the engine's dice shows its rolls in the dice tray (`DiceTray.tsx` `Declared`: each attack roll against its target's AC with "would hit / miss" as information, damage, healing, the save to make; target names passed by the store); "Waiting for an outcome" lists the attack rolls (a click picks that target and its damage), starts the amount on the rolled damage or healing and the damage type on its first part; the selection panel's roll form has saving throws (`check` with `save`) for any combatant; check results that are `D20TestResult` show as tests |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |
