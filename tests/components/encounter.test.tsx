@@ -294,7 +294,7 @@ describe("encounter table", () => {
     }
   });
 
-  it("plays an attack by hand: costs spent, nothing rolled, the GM applies the outcome", async () => {
+  it("plays an attack by hand: costs spent, dice shown, nothing applied, the GM applies it", async () => {
     const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
     if (!aerin.ok) throw new Error("import");
     const record = useDocuments.getState().characters[aerin.id];
@@ -329,19 +329,26 @@ describe("encounter table", () => {
     if (goblin) await userEvent.click(goblin);
     await userEvent.click(await within(composer).findByRole("button", { name: "Do it by hand" }));
 
-    // The attack is spent, nothing is rolled or applied; it waits for the GM.
+    // The attack is spent and its dice rolled (the engine's), nothing applied; it waits for the GM.
     await waitFor(() => expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(1));
     const after = useDocuments.getState().encounters[id];
-    expect(after?.declared?.[0]?.result).toMatchObject({ manual: true, by: "aerin" });
+    const declared = after?.declared?.[0]?.result;
+    expect(declared).toMatchObject({ manual: true, by: "aerin" });
+    const rolled = declared?.rolls?.attacks[0]?.damage?.total;
+    if (rolled === undefined) throw new Error("no damage rolled");
+    const [tray] = screen.getAllByRole("region", { name: "Dice results" });
+    expect(tray).toHaveTextContent(/Would (hit|miss|be a Critical Hit)/);
     expect(after?.encounter.combatants[1]?.hp).toBe(r.encounter.combatants[1]?.hp);
     expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(/by hand/);
 
     const waiting = await screen.findByRole("region", { name: "Waiting for an outcome" });
-    await userEvent.type(within(waiting).getByRole("textbox", { name: "Amount" }), "4");
+    // The amount starts on the rolled damage; the GM applies it.
+    expect(within(waiting).getByRole("textbox", { name: "Amount" })).toHaveValue(String(rolled));
     await userEvent.click(within(waiting).getByRole("button", { name: "Damage" }));
+    const hp = r.encounter.combatants[1]?.hp ?? 0;
     await waitFor(() =>
       expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBe(
-        (r.encounter.combatants[1]?.hp ?? 0) - 4,
+        Math.max(0, hp - rolled),
       ),
     );
     await userEvent.click(within(waiting).getByRole("button", { name: "Done" }));
@@ -448,6 +455,30 @@ describe("encounter table", () => {
     if (!refused) throw new Error("no refused tile");
     await userEvent.click(refused);
     expect(screen.queryByRole("button", { name: "Do it anyway" })).toBeNull();
+  });
+
+  it("rolls a saving throw for a monster from the selection panel", async () => {
+    const r = await engine.applyEncounterAction(await engine.newEncounter(), {}, [
+      { type: "add_monster", monster: "goblin-warrior" },
+    ]);
+    if (!r.ok) throw new Error("setup");
+    const id = storeEncounter(r.encounter);
+    useTableUi.setState({ selected: "goblin-warrior", pinned: true });
+    await renderApp(`/encounters/${id}`);
+    const panel = await screen.findByRole("region", { name: "Selection" }, { timeout: 15_000 });
+    await userEvent.click(within(panel).getByText("Check or saving throw"));
+    await userEvent.selectOptions(
+      within(panel).getByRole("combobox", { name: "What to roll" }),
+      "save:dex",
+    );
+    await userEvent.type(within(panel).getByRole("textbox", { name: "DC (optional)" }), "12");
+    await userEvent.click(within(panel).getByRole("button", { name: "Roll" }));
+    expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(
+      /Dexterity saving throw/,
+    );
+    expect(useDocuments.getState().encounters[id]?.encounter.combatants[0]?.hp).toBe(
+      r.encounter.combatants[0]?.hp,
+    );
   });
 });
 

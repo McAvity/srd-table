@@ -187,7 +187,10 @@ Actions the engine can't take by hand (Dash, a check, zones) are sent as they ar
 - **By hand** — the action is *declared*: the engine checks it's allowed and spends its costs
   (slot, Action / Bonus Action / Reaction, a feature's or a monster's limited use, Concentration
   started), rolls nothing, applies no effect, and logs it as done by hand. The outcome is then
-  applied by hand through the encounter's `effects` (damage with its type, healing, temp HP,
+  applied by hand through the encounter's `effects`. With the engine's dice the engine still
+  rolls everything it would (attack rolls with their would-hit, damage, healing, the save's DC:
+  R19, Roll20-style) and shows the numbers; with "rolled at the table" nothing is rolled. Either
+  way the outcome is applied (damage with its type, healing, temp HP,
   conditions, timed or Concentration-tied), so Resistance, Concentration saves on damage and HP
   limits still come from the engine.
 

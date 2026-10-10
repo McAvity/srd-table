@@ -260,8 +260,11 @@ export type Party = Readonly<Record<string, CharacterDocs>>;
 
 /** The rolls of an encounter action (`attack`, `cast`, `check`…), for showing the dice. */
 export type ActionResult = ReturnType<typeof engineApplyEncounterAction>["result"];
-/** An action result with rolls in it: not one played by hand (`manual`), which rolls nothing. */
-export type RolledResult = Exclude<NonNullable<ActionResult>, { readonly manual: true }>;
+/**
+ * An action result with rolls in it, for the dice tray: one played by hand (`manual`) counts only
+ * when the engine rolled its dice (`rolls`; `null` when the actor rolls at the table).
+ */
+export type RolledResult = NonNullable<ActionResult>;
 
 export interface EncounterChange {
   readonly encounter: Encounter;

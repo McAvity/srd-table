@@ -837,6 +837,15 @@ export const ENGINE_IT = {
   "label.move": "Muovi",
   "label.move_zone": "Sposta {label} ({id})",
   "label.end_zone": "Termina {label} ({id})",
+  "save.result":
+    "Tiro salvezza su {ability} di {name}: {automatic, select, none {{total}{dc, select, none {} other { contro CD {dc}}}{count, plural, =0 {} other {; {reasons, list, semicolon}}}} other {fallisce automaticamente ({automatic})}}{outcome, select, true {: successo} false {: fallimento} other {}}.",
+  "manual.attack":
+    "Tiro per colpire contro {target}: {roll}{hit, select, true {, colpirebbe} other {, mancherebbe}}{critical, select, true { (colpo critico)} other {}}.",
+  "manual.damage":
+    "Danni di {what} tirati{critical, select, true { (colpo critico)} other {}}: {parts, list, plus}.",
+  "manual.damage_part": "{total} {type} ({rolls, list, plus})",
+  "manual.healing": "Guarigione di {what} tirata: {amount}.",
+  "manual.save": "{what}: tiro salvezza su {ability} con CD {dc}.",
   "manual.declared":
     "{name} dichiara {what}{level, plural, =0 {} other { al livello #}}{count, plural, =0 {} other { su {targets}}}, a mano.",
 } as const satisfies Record<MessageCode, string>;

@@ -2,12 +2,14 @@
  * GM only: actions played by hand, waiting for their outcome. The engine has spent their costs;
  * the GM applies what happened to the targets with the encounter's `effects` (damage with its
  * type, healing: Resistance, Concentration saves and HP limits stay the engine's), then marks the
- * action done. Conditions go through the selection panel's effects, as for anyone.
+ * action done. Conditions go through the selection panel's effects, as for anyone. When the
+ * engine rolled the action's dice (`rolls`), the amount starts on the rolled damage or healing,
+ * and each attack roll is listed: picking one takes its target and its damage.
  */
 
 import { useState } from "react";
 import { Button, Reasons, Section } from "@/components/ui";
-import { damageTypes } from "@/engine/constants";
+import { abilityName, damageTypes } from "@/engine/constants";
 import type { EncounterView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
@@ -49,8 +51,14 @@ function Declared({
     view.combatants.some((c) => c.id === id),
   );
   const [picked, setPicked] = useState<readonly string[]>(targets);
-  const [amount, setAmount] = useState("");
-  const [damageType, setDamageType] = useState("");
+  const rolls = result.rolls;
+  const single = rolls?.attacks.length === 1 ? rolls.attacks[0]?.damage : null;
+  const rolled = rolls?.damage?.total ?? rolls?.healing ?? single?.total ?? null;
+  const [amount, setAmount] = useState(rolled === null ? "" : String(rolled));
+  const firstType = (rolls?.damage ?? single)?.parts[0]?.type ?? "";
+  const [damageType, setDamageType] = useState(
+    (damageTypes() as readonly string[]).includes(firstType) ? firstType : "",
+  );
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const n = Number.parseInt(amount, 10);
   const ready = amount !== "" && n >= 0 && picked.length > 0;
@@ -89,6 +97,41 @@ function Declared({
           {t("encounters.round", { round: entry.round })}
         </span>
       </div>
+      {rolls && rolls.attacks.length > 0 && (
+        <ul className="space-y-0.5 text-sm">
+          {rolls.attacks.map((a, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                className="text-left hover:underline"
+                onClick={() => {
+                  setPicked([a.target]);
+                  if (a.damage) setAmount(String(a.damage.total));
+                }}
+              >
+                {t("table.declaredAttack", {
+                  name: name(a.target),
+                  total: a.total,
+                  ac: a.target_ac,
+                })}{" "}
+                <span className={a.hit ? "text-green" : "text-red"}>
+                  {a.critical_hit
+                    ? t("dice.wouldCrit")
+                    : a.hit
+                      ? t("dice.wouldHit")
+                      : t("dice.wouldMiss")}
+                </span>
+                {a.damage && ` · ${t("table.declaredDamage", { amount: a.damage.total })}`}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {rolls?.save && (
+        <p className="text-sm">
+          {t("dice.saveToMake", { ability: abilityName(rolls.save.ability), dc: rolls.save.dc })}
+        </p>
+      )}
       {targets.length ? (
         <div className="flex flex-wrap gap-1.5">
           {targets.map((id) => (
