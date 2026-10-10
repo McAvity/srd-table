@@ -1,7 +1,9 @@
 /**
  * Attacks (the sheet's attack lines, damage ready to roll), features used in turns, features to
  * switch on (Rage), limited uses and Hit Point Dice. Outside an encounter, rolls are free rolls of
- * the engine's dice; an encounter resolves attacks against a target.
+ * the engine's dice; an encounter resolves attacks against a target. A feature that heals can also
+ * be used by hand (`manual`: the uses are spent, the healing is left to the player), first when
+ * the campaign plays characters by hand.
  */
 
 import { useState } from "react";
@@ -11,6 +13,7 @@ import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { signed, t } from "@/i18n";
 import { rollDamage, rollTest } from "@/store/dice";
 import { useDocuments } from "@/store/documents";
+import { useSettings } from "@/store/settings";
 import { usePlay } from "./usePlay";
 
 export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
@@ -117,6 +120,7 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
 function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons, busy } = usePlay(id);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const byHandFirst = useSettings((s) => s.settings.character_play === "manual");
   if (!sheet.actions.length) return null;
   const uses = new Map(sheet.play.uses.map((u) => [u.key, u]));
   return (
@@ -150,20 +154,28 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                   }
                 />
               )}
-              <Button
-                size="sm"
-                icon="bolt"
-                disabled={busy}
-                onClick={() =>
-                  void act({
-                    type: "use_feature",
-                    key: a.key,
-                    ...(a.pool && Number.isInteger(amount) && amount > 0 ? { amount } : {}),
-                  })
-                }
-              >
-                {t("sheet.useFeature")}
-              </Button>
+              {(a.heal && byHandFirst ? [true, false] : a.heal ? [false, true] : [false]).map(
+                (manual, i) => (
+                  <Button
+                    key={manual ? "manual" : "auto"}
+                    size="sm"
+                    variant={i === 0 ? "normal" : "ghost"}
+                    icon={manual ? "check" : "bolt"}
+                    title={manual ? t("sheet.useByHandHint") : undefined}
+                    disabled={busy}
+                    onClick={() =>
+                      void act({
+                        type: "use_feature",
+                        key: a.key,
+                        ...(a.pool && Number.isInteger(amount) && amount > 0 ? { amount } : {}),
+                        ...(manual ? { manual: true } : {}),
+                      })
+                    }
+                  >
+                    {manual ? t("table.wayManual") : t("sheet.useFeature")}
+                  </Button>
+                ),
+              )}
             </li>
           );
         })}

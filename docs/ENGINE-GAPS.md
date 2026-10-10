@@ -40,9 +40,10 @@ The app never works around a gap with rules of its own.
 
 - **Design.** `docs/ARCHITECTURE.md` > "Manual play" (decided 2026-10-10).
 - **R15 is in** (see Done): the Play switch, "Waiting for an outcome", the defaults.
-- **Not by hand yet.** The sheet's `use_feature` takes `manual` too (spends the uses, skips the
-  self-heal), not wired: on the sheet the player applies a feature's healing themself anyway.
-  A spell played by hand leaves no zone, wall or mark (Hunter's Mark, Hex) in the engine: the
+- **On the sheet.** A feature that heals (`FeatureActionLine.heal`) has "By hand" next to "Use"
+  (`CombatTab.tsx`, `use_feature` with `manual`: the uses spent, no healing), first when the
+  campaign plays characters by hand.
+- **Not by hand yet.** A spell played by hand leaves no zone, wall or mark (Hunter's Mark, Hex) in the engine: the
   GM tracks it (a follow-up request if a table needs it).
 - **R16 is in** (see Done): the dice are a combatant's setting, not a way on the Play switch.
 - **R17 is in** (see Done). Manual play needs nothing more from the engine; the open follow-up

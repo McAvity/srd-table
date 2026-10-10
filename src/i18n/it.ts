@@ -229,6 +229,8 @@ export const it: Messages = {
   "sheet.attacks": "Attacchi",
   "sheet.actions": "Privilegi usati nei turni",
   "sheet.useFeature": "Usa",
+  "sheet.useByHandHint":
+    "Spendi l'uso senza la guarigione: applica tu quello che hai tirato al tavolo.",
   "sheet.attackBonus": "Per colpire",
   "sheet.damageCol": "Danni",
   "sheet.riders": "Facoltativo: {riders}",

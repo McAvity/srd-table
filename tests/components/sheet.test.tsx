@@ -80,6 +80,27 @@ describe("sheet", () => {
     );
   });
 
+  it("uses a healing feature by hand: the use is spent, the healing is left to the player", async () => {
+    const id = await storedFighter();
+    await useDocuments.getState().playAction(id, { type: "damage", amount: 10 });
+    await renderApp(`/characters/${id}/sheet?tab=combat`);
+    const features = await screen.findByRole(
+      "region",
+      { name: "Features used in turns" },
+      { timeout: 10_000 },
+    );
+    // Only Second Wind heals: it alone has "By hand", after "Use" (characters play automatic).
+    const byHand = within(features).getAllByRole("button", { name: "By hand" });
+    expect(byHand).toHaveLength(1);
+    await userEvent.click(byHand[0] as HTMLElement);
+    await waitFor(() =>
+      expect(useDocuments.getState().characters[id]?.state.uses_spent["fighter:second-wind"]).toBe(
+        1,
+      ),
+    );
+    expect(useDocuments.getState().characters[id]?.state.hp.current).toBe(18);
+  });
+
   it("takes a Short Rest spending Hit Point Dice the engine rolls", async () => {
     const id = await storedFighter();
     await useDocuments.getState().playAction(id, { type: "damage", amount: 10 });

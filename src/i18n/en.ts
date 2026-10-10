@@ -219,6 +219,8 @@ export const en = {
   "sheet.attacks": "Attacks",
   "sheet.actions": "Features used in turns",
   "sheet.useFeature": "Use",
+  "sheet.useByHandHint":
+    "Spend the use without the healing: apply what you rolled at the table yourself.",
   "sheet.attackBonus": "To hit",
   "sheet.damageCol": "Damage",
   "sheet.riders": "Optional: {riders}",
