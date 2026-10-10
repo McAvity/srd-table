@@ -23,6 +23,7 @@ The app never works around a gap with rules of its own.
 | Id | What the app is missing | Engine status |
 |---|---|---|
 | R19 | Rolls shown for actions played by hand; saves on demand (Roll20-style) | open |
+| R20 | Engine cleanup: unused code and unused public exports removed (the app imports none of them: nothing changes here; check the typecheck after the bump) | open |
 
 ### R19. Roll20-style rolls by hand
 
