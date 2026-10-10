@@ -13,9 +13,6 @@ export type DecisionMode = "ask" | "auto";
  */
 export type PlayWay = "auto" | "manual";
 export const PLAY_WAYS: readonly PlayWay[] = ["auto", "manual"];
-/** Who rolls a combatant's dice: the engine, or the table (the numbers are entered). */
-export type DiceMode = "engine" | "table";
-export const DICE_MODES: readonly DiceMode[] = ["engine", "table"];
 /** `system` follows the device (Mat when light, Felt when dark). */
 export type Theme = "system" | "mat" | "felt";
 
@@ -38,13 +35,6 @@ export interface CampaignSettings {
    */
   readonly character_play: PlayWay;
   readonly monster_play: PlayWay;
-  /**
-   * Who rolls the dice of new combatants, characters and monsters: `table` stops each of their
-   * rolls for the numbers rolled at the table (the engine still resolves). Changed per combatant
-   * in the encounter (`set_dice`, selection panel).
-   */
-  readonly character_dice: DiceMode;
-  readonly monster_dice: DiceMode;
   readonly theme: Theme;
   readonly locale: string;
   /** Dev: fix the dice seed so a bug can be replayed (`null`: random). */
@@ -61,8 +51,6 @@ export const DEFAULT_SETTINGS: CampaignSettings = {
   monster_decisions: "ask",
   character_play: "auto",
   monster_play: "auto",
-  character_dice: "engine",
-  monster_dice: "engine",
   theme: "system",
   locale: "en",
   dev_seed: null,
@@ -135,8 +123,6 @@ export function readSettings(raw: unknown): CampaignSettings {
     monster_decisions: mode(r.monster_decisions, DEFAULT_SETTINGS.monster_decisions),
     character_play: way(r.character_play),
     monster_play: way(r.monster_play),
-    character_dice: r.character_dice === "table" ? "table" : "engine",
-    monster_dice: r.monster_dice === "table" ? "table" : "engine",
     theme: readTheme(r.theme),
     locale: typeof r.locale === "string" ? r.locale : "en",
     dev_seed: typeof r.dev_seed === "number" && Number.isInteger(r.dev_seed) ? r.dev_seed : null,

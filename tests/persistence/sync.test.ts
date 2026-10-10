@@ -25,7 +25,6 @@ describe("persistence", () => {
       name: "Old fight",
       encounter: {},
       log: "garbage",
-      declared: [{ id: "d-1", round: 1, result: { manual: true, targets: [] } }, { id: 2 }],
       modes: { goblin: "manual", orc: "sideways" },
       created: 1,
       updated: 1,
@@ -39,11 +38,9 @@ describe("persistence", () => {
     expect(state.characters["c-old"]?.build.choices).toEqual({});
     expect(state.encounters["e-old"]?.encounter.round).toBe(0);
     expect(state.encounters["e-old"]?.log).toEqual([]);
-    // Declared actions and play modes keep only entries that still make sense.
-    expect(state.encounters["e-old"]?.declared?.map((d) => d.id)).toEqual(["d-1"]);
+    // Play modes keep only entries that still make sense.
     expect(state.encounters["e-old"]?.modes).toEqual({ goblin: "manual" });
     expect(useSettings.getState().settings.character_play).toBe("auto");
-    expect(useSettings.getState().settings.monster_dice).toBe("engine");
     // Saved before the Mat and Marker look: parchment is now Mat.
     expect(useSettings.getState().settings.theme).toBe("mat");
     const saved = await database.get("characters", "c-old");

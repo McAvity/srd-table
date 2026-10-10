@@ -165,58 +165,41 @@ fact (dice-box-threejs accepts predetermined results).
 
 ## Manual play
 
-Designed 2026-10-10 (roadmap: milestone 6); "by hand" (R15), "own dice" (R16) and the GM override
-(R17) are built. A table may play without the engine
-resolving everything. The UI still implements no rule: costs, legality and every state change
-go through the engine; "by hand" means the user decides an outcome, not the app.
+Redesigned 2026-10-10 by the app's owner (the first design, with an outcome step and dice
+entered at the table, was built and then dropped). The UI still implements no rule: rolls,
+resources and every state change go through the engine.
 
-**Three ways to play an action.** The quick bar has a Play switch (Automatic / By hand) that starts on the acting combatant's way and lasts until the turn changes; tiles are
-sent that way. The composer sends the switch's way with its main button and offers the other way
-next to it. (A second button on every tile was the first idea: too crowded for a bar of tiles.)
-Actions the engine can't take by hand (Dash, a check, zones) are sent as they are.
+**Two ways to play an action.** The quick bar has a Play switch (Automatic / By hand) that
+starts on the acting combatant's way and lasts until the turn changes; tiles are sent that way.
+The composer sends the switch's way with its main button and offers the other way next to it.
+Actions the engine doesn't take by hand (Dash, a check, zones) are sent as they are.
 
-- **Automatic** — today's behaviour: the engine rolls and resolves.
-- **Own dice** — the engine resolves, but every roll of a combatant the player controls (attack
-  rolls, saves, checks, damage, healing) stops the action and waits for the numbers rolled at
-  the table, as decisions stop with `pending` today. Rolls of creatures the player doesn't
-  control stay with their controller (the GM's for monsters). Built on the engine's model: who
-  rolls is a combatant's setting in the encounter (`dice: engine | table`, like `decisions`),
-  not a way per action, so it's a "Dice" select next to the decisions mode (selection panel,
-  and the encounter's in the combat controls) with campaign defaults for new combatants; a roll
-  that waits shows `RollDialog` (one box per die) to whoever controls that combatant.
-- **By hand** — the action is *declared*: the engine checks it's allowed and spends its costs
-  (slot, Action / Bonus Action / Reaction, a feature's or a monster's limited use, Concentration
-  started), rolls nothing, applies no effect, and logs it as done by hand. The outcome is then
-  applied by hand through the encounter's `effects`. With the engine's dice the engine still
-  rolls everything it would (attack rolls with their would-hit, damage, healing, the save's DC:
-  R19, Roll20-style) and shows the numbers; with "rolled at the table" nothing is rolled. Either
-  way the outcome is applied (damage with its type, healing, temp HP,
-  conditions, timed or Concentration-tied), so Resistance, Concentration saves on damage and HP
-  limits still come from the engine.
+- **Automatic**: the engine rolls and resolves, as always.
+- **Manual** (semi-automatic, like a virtual tabletop's roller): the player declares what they
+  use and the engine rolls it (attack rolls, damage, healing; a save effect's DC is shown)
+  with **no target and no outcome**. Resources are spent (spell slots, feature and item uses, a
+  monster's 1/Day and Recharge, Concentration started); the **action economy isn't** (Action,
+  Bonus Action, Reaction, attacks per turn), so an attack can be rolled as often as the table
+  likes. Nothing else changes. Engine request R21 (until it lands, by hand still needs a target
+  and spends the economy: R15/R19's first version).
 
-**Who applies a by-hand outcome.** Only the GM changes *other* creatures. A player declares
-(the costs are theirs) and changes only their own character, as on the sheet; the GM's view
-lists the declared actions waiting for an outcome, each with its targets, and applies it with
-the existing "effects by hand" controls. Built as "Waiting for an outcome" (GM only): each
-declared action with its targets (toggles, all on), an amount and a damage type applied as
-`effects` to the picked ones (the engine still applies Resistance and Concentration saves), and
-Done. The list is the encounter record's `declared` (app data, not an engine document), saved
-with it and kept in undo snapshots: undoing a declaration takes it off; conditions go through
-the selection panel.
+**Applying what happened.** Whoever is affected applies it with the usual controls: the GM for
+anyone (the selection panel's damage, healing and conditions: the encounter's `effects`, so
+Resistance, Concentration saves and HP limits stay the engine's), a player for their own
+character (the same controls in the selection panel, and anything on the sheet: HP, conditions,
+equipment, inventory, slots). There's no outcome queue.
 
 **The default way, per combatant.** Campaign settings give a default for characters and one for
 monsters (like the decision modes); the GM changes it per combatant in the encounter (selection
-panel; the record's `modes`). Each action can still be played another way.
+panel; the record's `modes`). Each action can still be played the other way.
 
 **GM override.** A refused option shows "Do it anyway" in the GM's view only: the engine applies
-the action despite the refusal and the log marks it as an override. Players never see it.
-Built: a GM's click on an unavailable tile opens the composer; the button shows only when the
-engine's dry run with `force` passes (the app never decides which refusals can be forced).
+the action despite the refusal and the log marks it as an override. Players never see it. A
+GM's click on an unavailable tile opens the composer; the button shows only when the engine's
+dry run with `force` passes (the app never decides which refusals can be forced).
 
-**Engine requests this needs** (filed as R15, R16, R17; see ENGINE-GAPS.md): a declared action (`manual: true` on attacks,
-spells, features and monster actions: costs only), including spending a monster's "(1/Day)" and
-Recharge uses by hand; rolls that wait for entered numbers, per combatant (like `decisions`);
-`force` on a refused action, logged, for the GM.
+**Dropped.** Dice rolled at the table (R16: every roll waiting for entered numbers) and the GM's
+"Waiting for an outcome" list: the owner found them useless once players apply their own results.
 
 ## Look and language
 

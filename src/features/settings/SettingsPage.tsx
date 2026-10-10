@@ -7,13 +7,7 @@ import { useState } from "react";
 import { Button, PageTitle, Reasons, Section } from "@/components/ui";
 import { LOCALES, t } from "@/i18n";
 import { usePacks } from "@/queries";
-import {
-  type DecisionMode,
-  DICE_MODES,
-  PLAY_WAYS,
-  type Theme,
-  useSettings,
-} from "@/store/settings";
+import { type DecisionMode, PLAY_WAYS, type Theme, useSettings } from "@/store/settings";
 
 const lines = (text: string) =>
   text
@@ -107,32 +101,6 @@ export function SettingsPage() {
                     onClick={() => update({ [key]: mode })}
                   >
                     {mode === "ask" ? t("table.decisionsAsk") : t("table.decisionsAuto")}
-                  </Button>
-                ))}
-              </div>
-            </fieldset>
-          ))}
-        </div>
-      </Section>
-
-      <Section title={t("settings.dice")}>
-        <p className="mb-3 text-sm text-ink-muted">{t("settings.diceHint")}</p>
-        <div className="flex flex-wrap gap-6">
-          {(["character_dice", "monster_dice"] as const).map((key) => (
-            <fieldset key={key}>
-              <legend className="mb-1 font-semibold">
-                {key === "character_dice" ? t("settings.characterPlay") : t("settings.monsterPlay")}
-              </legend>
-              <div className="flex gap-1">
-                {DICE_MODES.map((mode) => (
-                  <Button
-                    key={mode}
-                    size="sm"
-                    on={settings[key] === mode}
-                    aria-pressed={settings[key] === mode}
-                    onClick={() => update({ [key]: mode })}
-                  >
-                    {mode === "engine" ? t("table.diceEngine") : t("table.diceTable")}
                   </Button>
                 ))}
               </div>

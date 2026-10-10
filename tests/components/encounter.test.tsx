@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { Encounter, EncounterAction } from "srd-rules-engine";
+import type { Encounter } from "srd-rules-engine";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setEngine } from "../../src/engine/client";
 import type { RolledResult } from "../../src/engine/facade";
@@ -294,7 +294,7 @@ describe("encounter table", () => {
     }
   });
 
-  it("plays an attack by hand: costs spent, dice shown, nothing applied, the GM applies it", async () => {
+  it("plays an attack by hand: its dice shown, nothing applied", async () => {
     const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
     if (!aerin.ok) throw new Error("import");
     const record = useDocuments.getState().characters[aerin.id];
@@ -329,90 +329,13 @@ describe("encounter table", () => {
     if (goblin) await userEvent.click(goblin);
     await userEvent.click(await within(composer).findByRole("button", { name: "Do it by hand" }));
 
-    // The attack is spent and its dice rolled (the engine's), nothing applied; it waits for the GM.
-    await waitFor(() => expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(1));
-    const after = useDocuments.getState().encounters[id];
-    const declared = after?.declared?.[0]?.result;
-    expect(declared).toMatchObject({ manual: true, by: "aerin" });
-    const rolled = declared?.rolls?.attacks[0]?.damage?.total;
-    if (rolled === undefined) throw new Error("no damage rolled");
-    const [tray] = screen.getAllByRole("region", { name: "Dice results" });
-    expect(tray).toHaveTextContent(/Would (hit|miss|be a Critical Hit)/);
-    expect(after?.encounter.combatants[1]?.hp).toBe(r.encounter.combatants[1]?.hp);
+    // Its dice are rolled and shown; nothing is applied.
+    const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+    await waitFor(() => expect(tray).toHaveTextContent(/By hand/));
+    expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBe(
+      r.encounter.combatants[1]?.hp,
+    );
     expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(/by hand/);
-
-    const waiting = await screen.findByRole("region", { name: "Waiting for an outcome" });
-    // The amount starts on the rolled damage; the GM applies it.
-    expect(within(waiting).getByRole("textbox", { name: "Amount" })).toHaveValue(String(rolled));
-    await userEvent.click(within(waiting).getByRole("button", { name: "Damage" }));
-    const hp = r.encounter.combatants[1]?.hp ?? 0;
-    await waitFor(() =>
-      expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBe(
-        Math.max(0, hp - rolled),
-      ),
-    );
-    await userEvent.click(within(waiting).getByRole("button", { name: "Done" }));
-    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(0);
-    expect(screen.queryByRole("region", { name: "Waiting for an outcome" })).toBeNull();
-
-    // Undo (the damage, then the declaration) brings the entry back, then takes it away.
-    useDocuments.getState().undo(id);
-    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(1);
-    useDocuments.getState().undo(id);
-    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(0);
-  });
-
-  it("waits for dice rolled at the table and sends them as enter_roll", async () => {
-    const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
-    if (!aerin.ok) throw new Error("import");
-    const record = useDocuments.getState().characters[aerin.id];
-    if (!record) throw new Error("import");
-    const party = { [aerin.id]: { build: record.build, state: record.state } };
-    const r = await engine.applyEncounterAction(await engine.newEncounter(), party, [
-      { type: "add_character", character: aerin.id, dice: "table" },
-      { type: "add_monster", monster: "goblin-warrior" },
-      { type: "set_initiative", id: "aerin", value: 20 },
-      { type: "set_initiative", id: "goblin-warrior", value: 5 },
-      { type: "start" },
-    ]);
-    if (!r.ok) throw new Error(r.reasons.join("; "));
-    const options = await engine.combatantOptions(r.encounter, party, "aerin");
-    const attack = options.attacks.find((a) => a.action.type === "attack" && /2d6/.test(a.label));
-    if (!attack) throw new Error("no Greatsword attack");
-    const id = storeEncounter(r.encounter);
-    await renderApp(`/encounters/${id}`);
-    await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
-    await useDocuments.getState().encounterAction(id, {
-      ...attack.action,
-      target: "goblin-warrior",
-    } as EncounterAction);
-
-    // The attack roll waits for the d20: a value a d20 can't show is refused with the reason.
-    const dialog = await screen.findByRole("dialog", { name: "Aerin rolls" });
-    expect(useDocuments.getState().encounters[id]?.encounter.pending?.kind).toBe("roll");
-    const box = within(dialog).getByRole("textbox", { name: "Die 1 (d20)" });
-    await userEvent.type(box, "25");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Enter the roll" }));
-    expect(await within(dialog).findByText(/A d20 rolls 1 to 20, not 25/)).toBeInTheDocument();
-    await userEvent.clear(box);
-    await userEvent.type(box, "20");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Enter the roll" }));
-
-    // A natural 20 hits: the damage dice are asked next (doubled: 4d6), then the goblin takes them.
-    await waitFor(() =>
-      expect(useDocuments.getState().encounters[id]?.encounter.pending?.question).toMatch(/damage/),
-    );
-    const damage = await screen.findByRole("dialog", { name: "Aerin rolls" });
-    const dice = within(damage).getAllByRole("textbox");
-    expect(dice).toHaveLength(4);
-    for (const input of dice) await userEvent.type(input, "6");
-    await userEvent.click(within(damage).getByRole("button", { name: "Enter the roll" }));
-    await waitFor(() =>
-      expect(useDocuments.getState().encounters[id]?.encounter.pending).toBeNull(),
-    );
-    expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBeLessThan(
-      r.encounter.combatants[1]?.hp ?? 0,
-    );
   });
 
   it("lets the GM override a refusal: Do it anyway, logged as an override", async () => {
@@ -479,6 +402,32 @@ describe("encounter table", () => {
     expect(useDocuments.getState().encounters[id]?.encounter.combatants[0]?.hp).toBe(
       r.encounter.combatants[0]?.hp,
     );
+  });
+
+  it("lets a player apply damage to their own character from the encounter", async () => {
+    const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
+    if (!aerin.ok) throw new Error("import");
+    const record = useDocuments.getState().characters[aerin.id];
+    if (!record) throw new Error("import");
+    const party = { [aerin.id]: { build: record.build, state: record.state } };
+    const r = await engine.applyEncounterAction(await engine.newEncounter(), party, [
+      { type: "add_character", character: aerin.id },
+      { type: "add_monster", monster: "goblin-warrior" },
+    ]);
+    if (!r.ok) throw new Error(r.reasons.join("; "));
+    const id = storeEncounter(r.encounter);
+    useUi.setState({ role: { kind: "player", character: aerin.id } });
+    await renderApp(`/encounters/${id}`);
+    const panel = await screen.findByRole("region", { name: "Selection" }, { timeout: 15_000 });
+    await waitFor(() => expect(panel).toHaveTextContent("Aerin"));
+    await userEvent.type(within(panel).getByRole("textbox", { name: "Amount" }), "5");
+    await userEvent.click(within(panel).getByRole("button", { name: "Damage" }));
+    await waitFor(() =>
+      // 28 HP at full (`current` is `null` until hurt), 23 after.
+      expect(useDocuments.getState().characters[aerin.id]?.state.hp.current).toBe(23),
+    );
+    // Not the GM's controls.
+    expect(within(panel).queryByRole("button", { name: "Remove" })).toBeNull();
   });
 });
 

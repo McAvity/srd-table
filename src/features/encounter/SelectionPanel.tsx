@@ -1,9 +1,9 @@
 /**
  * The selected combatant: its numbers and conditions, effects on it, and the controls that apply
- * to it. Checks and saving throws roll through the encounter's `check` action (`skill`, `ability`
+ * to it. Whoever controls it (the GM, or the player for their own character) applies damage,
+ * healing and conditions by hand. Checks and saving throws roll through the encounter's `check` action (`skill`, `ability`
  * or `save`; nothing applied). GM only: set Initiative, the
- * decision mode, who rolls its dice, how its actions are played (automatic or by hand), effects by hand (damage,
- * healing, conditions, timed), end an effect, remove.
+ * decision mode, how its actions are played (automatic or by hand), end an effect, remove.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -18,7 +18,7 @@ import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
 import { useDocuments } from "@/store/documents";
-import type { DiceMode, PlayWay } from "@/store/settings";
+import type { PlayWay } from "@/store/settings";
 import { ConditionMedal } from "../sheet/HitPoints";
 
 export function SelectionPanel({
@@ -139,6 +139,11 @@ export function SelectionPanel({
       )}
       <Reasons reasons={reasons} className="mb-2" />
       {canAct && <CheckForm id={c.id} act={act} />}
+      {canAct && (
+        <div className="mb-2 border-t border-edge pt-2 text-sm">
+          <EffectsForm c={c} act={act} />
+        </div>
+      )}
       {gm && (
         <GmControls
           c={c}
@@ -234,15 +239,7 @@ function GmControls({
   mode: PlayWay | null;
   setMode: (mode: PlayWay | null) => void;
 }) {
-  const { data: conditions } = useTable<ConditionDef>("conditions");
   const [initiative, setInitiative] = useState(c.initiative === null ? "" : String(c.initiative));
-  const [amount, setAmount] = useState("");
-  const [damageType, setDamageType] = useState("");
-  const [condition, setCondition] = useState("");
-  const [rounds, setRounds] = useState("");
-  const n = Number.parseInt(amount, 10);
-  const r = Number.parseInt(rounds, 10);
-  const timing = Number.isInteger(r) && r > 0 ? { rounds: r } : {};
 
   return (
     <details className="border-t border-edge pt-2" open>
@@ -285,24 +282,6 @@ function GmControls({
               <option value="auto">{t("table.decisionsAuto")}</option>
             </select>
           </label>
-          <label className="flex flex-col text-[13px] text-ink-muted">
-            {t("table.dice")}
-            <select
-              className="field"
-              value={c.dice ?? ""}
-              onChange={(e) =>
-                void act({
-                  type: "set_dice",
-                  id: c.id,
-                  mode: e.target.value === "" ? null : (e.target.value as DiceMode),
-                })
-              }
-            >
-              <option value="">{t("table.decisionsDefault")}</option>
-              <option value="engine">{t("table.diceEngine")}</option>
-              <option value="table">{t("table.diceTable")}</option>
-            </select>
-          </label>
           <label className="flex flex-col text-[13px] text-ink-muted" title={t("table.wayHint")}>
             {t("table.playWay")}
             <select
@@ -317,119 +296,6 @@ function GmControls({
           </label>
         </div>
 
-        <fieldset className="space-y-1.5">
-          <legend className="text-[13px] text-ink-muted">{t("table.effects")}</legend>
-          <div className="flex flex-wrap gap-1.5">
-            <input
-              className="field w-20"
-              inputMode="numeric"
-              aria-label={t("sheet.amount")}
-              placeholder={t("sheet.amount")}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
-            />
-            <select
-              className="field w-auto"
-              aria-label={t("sheet.damageType")}
-              value={damageType}
-              onChange={(e) => setDamageType(e.target.value)}
-            >
-              <option value="">{t("sheet.untyped")}</option>
-              {damageTypes().map((d) => (
-                <option key={d} value={d}>
-                  {titleCase(d)}
-                </option>
-              ))}
-            </select>
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={!(n >= 0) || amount === ""}
-              onClick={async () => {
-                const ok = await act({
-                  type: "effects",
-                  id: c.id,
-                  actions: [
-                    {
-                      type: "damage",
-                      amount: n,
-                      ...(damageType ? { damage_type: damageType } : {}),
-                    },
-                  ],
-                });
-                if (ok) setAmount("");
-              }}
-            >
-              {t("table.effectDamage")}
-            </Button>
-            <Button
-              size="sm"
-              disabled={!(n >= 0) || amount === ""}
-              onClick={async () => {
-                if (
-                  await act({ type: "effects", id: c.id, actions: [{ type: "heal", amount: n }] })
-                )
-                  setAmount("");
-              }}
-            >
-              {t("table.effectHeal")}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            <select
-              className="field w-auto"
-              aria-label={t("sheet.addCondition")}
-              value={condition}
-              onChange={(e) => setCondition(e.target.value)}
-            >
-              <option value="">{t("sheet.addCondition")}</option>
-              {[...(conditions ?? [])]
-                .filter((x) => x.id !== "exhaustion")
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-            </select>
-            <input
-              className="field w-28"
-              inputMode="numeric"
-              aria-label={t("table.effectRounds")}
-              placeholder={t("table.effectRounds")}
-              value={rounds}
-              onChange={(e) => setRounds(e.target.value.replace(/[^0-9]/g, ""))}
-            />
-            <Button
-              size="sm"
-              disabled={!condition}
-              onClick={() =>
-                void act({
-                  type: "effects",
-                  id: c.id,
-                  actions: [{ type: "add_condition", condition }],
-                  ...timing,
-                })
-              }
-            >
-              {t("table.effectCondition")}
-            </Button>
-            <Button
-              size="sm"
-              disabled={!condition}
-              onClick={() =>
-                void act({
-                  type: "effects",
-                  id: c.id,
-                  actions: [{ type: "remove_condition", condition }],
-                })
-              }
-            >
-              {t("table.effectRemoveCondition")}
-            </Button>
-          </div>
-        </fieldset>
-
         <Button
           size="sm"
           variant="danger"
@@ -440,5 +306,133 @@ function GmControls({
         </Button>
       </div>
     </details>
+  );
+}
+
+/**
+ * Damage, healing and conditions applied by hand (the encounter's `effects`): the GM's for anyone,
+ * a player's for their own character (the engine still applies Resistance, Concentration saves
+ * and HP limits).
+ */
+function EffectsForm({ c, act }: { c: CombatantView; act: Act }) {
+  const { data: conditions } = useTable<ConditionDef>("conditions");
+  const [amount, setAmount] = useState("");
+  const [damageType, setDamageType] = useState("");
+  const [condition, setCondition] = useState("");
+  const [rounds, setRounds] = useState("");
+  const n = Number.parseInt(amount, 10);
+  const r = Number.parseInt(rounds, 10);
+  const timing = Number.isInteger(r) && r > 0 ? { rounds: r } : {};
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-[13px] text-ink-muted">{t("table.effects")}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        <input
+          className="field w-20"
+          inputMode="numeric"
+          aria-label={t("sheet.amount")}
+          placeholder={t("sheet.amount")}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+        />
+        <select
+          className="field w-auto"
+          aria-label={t("sheet.damageType")}
+          value={damageType}
+          onChange={(e) => setDamageType(e.target.value)}
+        >
+          <option value="">{t("sheet.untyped")}</option>
+          {damageTypes().map((d) => (
+            <option key={d} value={d}>
+              {titleCase(d)}
+            </option>
+          ))}
+        </select>
+        <Button
+          size="sm"
+          variant="danger"
+          disabled={!(n >= 0) || amount === ""}
+          onClick={async () => {
+            const ok = await act({
+              type: "effects",
+              id: c.id,
+              actions: [
+                {
+                  type: "damage",
+                  amount: n,
+                  ...(damageType ? { damage_type: damageType } : {}),
+                },
+              ],
+            });
+            if (ok) setAmount("");
+          }}
+        >
+          {t("table.effectDamage")}
+        </Button>
+        <Button
+          size="sm"
+          disabled={!(n >= 0) || amount === ""}
+          onClick={async () => {
+            if (await act({ type: "effects", id: c.id, actions: [{ type: "heal", amount: n }] }))
+              setAmount("");
+          }}
+        >
+          {t("table.effectHeal")}
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <select
+          className="field w-auto"
+          aria-label={t("sheet.addCondition")}
+          value={condition}
+          onChange={(e) => setCondition(e.target.value)}
+        >
+          <option value="">{t("sheet.addCondition")}</option>
+          {[...(conditions ?? [])]
+            .filter((x) => x.id !== "exhaustion")
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+        </select>
+        <input
+          className="field w-28"
+          inputMode="numeric"
+          aria-label={t("table.effectRounds")}
+          placeholder={t("table.effectRounds")}
+          value={rounds}
+          onChange={(e) => setRounds(e.target.value.replace(/[^0-9]/g, ""))}
+        />
+        <Button
+          size="sm"
+          disabled={!condition}
+          onClick={() =>
+            void act({
+              type: "effects",
+              id: c.id,
+              actions: [{ type: "add_condition", condition }],
+              ...timing,
+            })
+          }
+        >
+          {t("table.effectCondition")}
+        </Button>
+        <Button
+          size="sm"
+          disabled={!condition}
+          onClick={() =>
+            void act({
+              type: "effects",
+              id: c.id,
+              actions: [{ type: "remove_condition", condition }],
+            })
+          }
+        >
+          {t("table.effectRemoveCondition")}
+        </Button>
+      </div>
+    </fieldset>
   );
 }
