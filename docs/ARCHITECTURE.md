@@ -246,7 +246,9 @@ Recharge uses by hand; rolls that wait for entered numbers, per combatant (like 
   registered in `ENGINE_LANGUAGES`. Content (spell, feature, condition names) stays English.
   **Adding a language:** `src/i18n/<locale>.ts` (app words, typed `Messages`), an entry in
   `LOCALES`, `src/i18n/engine/<locale>.ts` + `ENGINE_LANGUAGES`; the tests check every template
-  parses and keeps every parameter. Plurals with more than one/other need engine R18. Engine strings
+  parses and keeps every parameter. Plural forms follow the language pack's `locale`
+  (`Intl.PluralRules`); list joiners, step titles, alignments and stat labels are catalog codes
+  too (`list.*`, `step.*`, `alignment.*`, `stat.*`). Engine strings
   stay as the engine gives them; their `messages` (codes and parameters) are what a
   translation will render (R13 in ENGINE-GAPS.md).
 

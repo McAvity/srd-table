@@ -7,7 +7,7 @@
  * `states`) are never touched: they're stored exactly as the engine returns them.
  */
 
-import { type Message, type MessageCatalog, renderMessage } from "srd-rules-engine";
+import { type Message, renderMessage } from "srd-rules-engine";
 import { ENGINE_LANGUAGES, type EngineLanguage } from "@/i18n/engine";
 
 /** The language pack for a locale; `null` for English (the engine's own text). */
@@ -44,13 +44,16 @@ function isMessage(v: unknown): v is Message {
 }
 
 export function renderAll(messages: readonly Message[], language: EngineLanguage | null): string[] {
-  return messages.map((m) => (language ? renderMessage(m, language.messages) : m.text));
+  return messages.map((m) => (language ? render(m, language) : m.text));
+}
+
+function render(message: Message, language: EngineLanguage): string {
+  return renderMessage(message, language.messages, { locale: language.locale });
 }
 
 /** `value` with every engine text in `language` (a copy; `value` itself is left alone). */
 export function localize<T>(value: T, language: EngineLanguage | null): T {
   if (!language) return value;
-  const catalog: MessageCatalog = language.messages;
   const walk = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(walk);
     if (typeof v !== "object" || v === null || isMessage(v)) return v;
@@ -59,14 +62,14 @@ export function localize<T>(value: T, language: EngineLanguage | null): T {
     for (const [from, to] of PAIRS) {
       const m = out[from];
       const text = out[to];
-      if (isMessage(m) && typeof text === "string") out[to] = renderMessage(m, catalog);
+      if (isMessage(m) && typeof text === "string") out[to] = render(m, language);
       else if (
         Array.isArray(m) &&
         Array.isArray(text) &&
         m.length === text.length &&
         m.every(isMessage)
       )
-        out[to] = m.map((x) => renderMessage(x, catalog));
+        out[to] = m.map((x) => render(x, language));
     }
     return out;
   };

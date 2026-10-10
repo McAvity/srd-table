@@ -182,9 +182,9 @@ anything else.
 The app's own words live in `src/i18n/en.ts` and are read with `t()` / `tn()` (never write UI text
 in a component), in English and Italian (`it.ts`, typed `Messages`, so a missing key fails the
 typecheck; the Italian terms are the Italian 5th-edition books'); another language is one more
-catalog. Settings > Language picks it; a change remounts the app (`App.tsx`). Engine strings are shown as the engine
-gives them; the engine's `messages` (codes and parameters) are what a translation will render
-(engine request R13, in `docs/ENGINE-GAPS.md`).
+catalog. Settings > Language picks it; a change remounts the app (`App.tsx`). Engine texts are
+rendered from their `messages` (codes and parameters) in the app's language, in the worker
+(`src/engine/messages.ts`, catalogs in `src/i18n/engine/`); stored documents keep the English.
 
 ## Screens
 
@@ -289,11 +289,6 @@ docs/            # ARCHITECTURE.md (decisions), ENGINE-GAPS.md (what the UI need
 - Playwright: create a level 1 character through every builder step; level up to 3 with a
   subclass; take damage and rest in play; run a short encounter with an `ask` decision; reload
   and find everything restored from IndexedDB.
-
-## Handoff (2026-10-10)
-
-Manual play (R15–R17) is built and merged; see `docs/ENGINE-GAPS.md` > Done. Open: R18
-(engine), then the dice results' roll labels in Italian. Delete this section once picked up.
 
 ## Milestones
 

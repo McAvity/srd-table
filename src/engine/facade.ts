@@ -502,9 +502,12 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       damage_types: DAMAGE_TYPES,
       alignments: ALIGNMENTS.map((id) => ({
         id,
-        name: language?.alignments[id] ?? ALIGNMENT_NAMES[id],
+        name: language?.messages[`alignment.${id}`] ?? ALIGNMENT_NAMES[id],
       })),
-      steps: STEPS.map((id) => ({ id, title: language?.steps[id] ?? STEP_TITLES[id] })),
+      steps: STEPS.map((id) => ({
+        id,
+        title: language?.messages[`step.${id}`] ?? STEP_TITLES[id],
+      })),
       max_attuned: MAX_ATTUNED,
       check_skills: checkSkills(),
       point_kinds: POINT_KINDS,
@@ -708,8 +711,8 @@ const UNLOCALIZED = new Set<keyof EngineFacade>([
 ]);
 
 /**
- * Every other method's result in the current language (`localize`); the builder's step titles and
- * an option preview's stat labels too, which have no message codes.
+ * Every other method's result in the current language (`localize`); the builder's step titles too
+ * (the facade's own fields, named from the catalog's `step.*` codes).
  */
 function localized(facade: EngineFacade, current: () => EngineLanguage | null): EngineFacade {
   const out: Record<string, unknown> = {};
@@ -722,30 +725,24 @@ function localized(facade: EngineFacade, current: () => EngineLanguage | null): 
       : async (...args: unknown[]) => {
           const result = await fn(...args);
           const language = current();
-          return language ? names(localize(result, language), language) : result;
+          return language ? stepTitles(localize(result, language), language) : result;
         };
   }
   return out as unknown as EngineFacade;
 }
 
-/** Step titles (`title`, `step_title` next to a `step`) and stat labels (`label` next to `stat`). */
-function names<T>(value: T, language: EngineLanguage): T {
+/** Step titles (`title`, `step_title` next to a `step`), from the catalog's `step.*` codes. */
+function stepTitles<T>(value: T, language: EngineLanguage): T {
   const walk = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(walk);
     if (typeof v !== "object" || v === null) return v;
     const o = v as Record<string, unknown>;
     const out: Record<string, unknown> = {};
     for (const [k, x] of Object.entries(o)) out[k] = k === "build" || k === "state" ? x : walk(x);
-    const step = typeof o.step === "string" ? language.steps[o.step as Step] : undefined;
+    const step =
+      typeof o.step === "string" ? language.messages[`step.${o.step}` as MessageCode] : undefined;
     if (step && typeof o.title === "string") out.title = step;
     if (step && typeof o.step_title === "string") out.step_title = step;
-    if (typeof o.stat === "string" && typeof o.label === "string" && "before" in o) {
-      const stat = o.stat;
-      out.label =
-        (language.stats as Record<string, string>)[stat] ??
-        language.messages[`ability.${stat}` as MessageCode] ??
-        o.label;
-    }
     return out;
   };
   return walk(value) as T;

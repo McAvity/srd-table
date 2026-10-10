@@ -20,23 +20,9 @@ The app never works around a gap with rules of its own.
 
 ## Waiting
 
-| Id | What the app is missing | Engine status |
-|---|---|---|
-| R18 | Messages ready for any language (plurals, list joiners, roll labels, step/alignment codes) | open |
+Nothing is waiting on the engine.
 
-### R18. Messages ready for any language
-
-- **Meanwhile.** Engine texts are rendered in Italian in the worker (`src/engine/messages.ts`,
-  catalog `src/i18n/engine/it.ts`). Plurals use the engine's one/other rule (right for Italian,
-  not for Polish-like languages); where English says `{x, list, or}` / `and`, the Italian
-  templates use the comma list. Roll labels in the dice results ("Perception check") stay
-  English. Step titles, alignments and option-preview stat labels are named by the app per id
-  (`EngineLanguage.steps` / `alignments` / `stats`).
-- **When done.** Pass the locale to `renderMessage` (`renderAll`, `localize`); use `list, or` /
-  `list, and` in the Italian templates again; render `label_message` in the dice results; drop
-  `steps` / `alignments` / `stats` from `EngineLanguage` and the `names()` pass in the facade.
-
-### R15–R17. Manual play
+### Notes: manual play (R15–R17)
 
 - **Design.** `docs/ARCHITECTURE.md` > "Manual play" (decided 2026-10-10).
 - **R15 is in** (see Done): the Play switch, "Waiting for an outcome", the defaults.
@@ -69,4 +55,5 @@ The app never works around a gap with rules of its own.
 | R15 | Declared actions (manual play) | `98c6df0` (main) | the quick bar's Play switch (Automatic / By hand, starting on the combatant's way: `features/encounter/manual.ts` `wayOf`) sends `manual: true` (`playedAs`); the composer offers the other way as its second button; the GM's "Waiting for an outcome" (`DeclaredPanel.tsx`, the record's `declared`, kept in undo snapshots) applies damage or healing to the picked targets with `effects`, then Done; per-combatant way in `SelectionPanel.tsx` (the record's `modes`), campaign defaults `character_play` / `monster_play` in Settings; declared results skip the dice tray |
 | R16 | Dice rolled at the table | `dccdd51` (main) | `RollDialog.tsx` for `pending.kind: "roll"` (one box per die, `enter_roll`, the engine's refusals shown), to the roll's controller, others see the wait; "Dice" (engine / at the table) per combatant in `SelectionPanel.tsx` and for the encounter in `CombatPanel.tsx` (`set_dice`); campaign defaults `character_dice` / `monster_dice`, sent as `dice` on `add_character` / `add_monster`; the question an action stops for is logged once (as the decision entry) |
 | R17 | GM override | `23a3143` (main) | in the GM's view an unavailable option opens the composer (`OptionButton` `onUnavailable`), which dry-runs the action with `force` and, when the engine can override, offers "Do it anyway" (danger) sending `force: true`; the engine's `override.applied` note is in the log; players never see it |
+| R18 | Messages for any language | `d9394d7` (main) | `EngineLanguage` is `{ locale, messages }` and `renderMessage` gets the locale (Italian plurals by `Intl.PluralRules`); the Italian templates use `list, or` / `list, and` with the catalog's `list.*` joiners; step titles, alignments and stat labels are catalog codes (`step.*`, `alignment.*`, `stat.*`: the app's own name tables are gone); a sheet roll's label is rendered from `label_message` |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |
