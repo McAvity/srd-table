@@ -6,9 +6,8 @@
  * Conventions: rule terms of the SRD glossary are translated (Vantaggio, Concentrazione,
  * Scatto…); names that come from content (spells, class and monster features, weapon masteries,
  * conditions and damage types passed as parameters) stay as the content gives them, in English
- * for now. Until the engine's lists take their joiners from the catalog, `{x, list, or}` and
- * `{x, list, and}` are written as `{x, list}` (a comma list), since the engine joins those with
- * the English " or " / " and ".
+ * for now. Lists are joined with this catalog's `list.*` entries; plurals follow the Italian
+ * rules (`Intl.PluralRules("it")`: the engine gets the locale from `EngineLanguage`).
  */
 
 import type { MessageCode } from "srd-rules-engine";
@@ -146,7 +145,7 @@ export const ENGINE_IT = {
     "Tiro salvezza di {spell} ({ability} CD {dc}){count, plural, =0 {: non c'è nessuna creatura} other {}}.",
   "mark.advantage_against": "{label}: il prossimo tiro per colpire contro {target} ha Vantaggio.",
   "zone.lasts":
-    "{spell} persiste ({id}){count, plural, =0 {} other {: le creature {damage, select, true {ne subiscono i danni} other {effettuano un tiro salvezza}} quando {when, list}}}.",
+    "{spell} persiste ({id}){count, plural, =0 {} other {: le creature {damage, select, true {ne subiscono i danni} other {effettuano un tiro salvezza}} quando {when, list, or}}}.",
   "zone.when.enter": "vi entrano",
   "zone.when.start_turn": "vi iniziano il turno",
   "zone.when.end_turn": "vi terminano il turno",
@@ -565,14 +564,14 @@ export const ENGINE_IT = {
   "refusal.escape_skill": "Liberarsi da {label} richiede una prova di {skill}",
   "refusal.not_concentrating": "{name} non è concentrato",
   "refusal.no_legendary_action": "{name} non ha l'azione leggendaria '{action}' ({known})",
-  "refusal.choose_attack": "{action}: scegli l'attacco ({attacks, list})",
-  "refusal.one_attack_of": "{action} effettua un attacco tra {attacks, list}, non {attack}",
-  "refusal.not_creature_type": "{name} non è di questi tipi: {types, list}",
-  "refusal.choose_damage_type": "{feature}: scegli il tipo di danno ({types, list})",
-  "refusal.damage_types": "{feature} infligge danni di uno di questi tipi: {types, list}",
+  "refusal.choose_attack": "{action}: scegli l'attacco ({attacks, list, or})",
+  "refusal.one_attack_of": "{action} effettua un attacco con {attacks, list, or}, non {attack}",
+  "refusal.not_creature_type": "{name} non è di tipo {types, list, or}",
+  "refusal.choose_damage_type": "{feature}: scegli il tipo di danno ({types, list, or})",
+  "refusal.damage_types": "{feature} infligge danni {types, list, or}",
   "refusal.cant_cast_via":
     "{name} non può lanciare {spell}{given, select, true { con {via}} other {}}",
-  "refusal.give_via": "{name} lancia {spell} con uno tra {actions, list}: indica `via`",
+  "refusal.give_via": "{name} lancia {spell} con {actions, list, or}: indica `via`",
   "refusal.fixed_level": "{name} lancia {spell} solo al livello {level}",
   "refusal.place_wall": "{spell} è un muro: posizionalo con {example}",
   "refusal.smite_target":
@@ -631,6 +630,36 @@ export const ENGINE_IT = {
   "roll.spell_attack_with": "tiro per colpire con incantesimo con {spell}",
   "roll.save": "tiro salvezza su {ability}",
   "roll.check": "prova di {label}",
+  "roll.attack_label": "tiro per colpire con {attack}",
+  "list.comma": ", ",
+  "list.plus": " + ",
+  "list.semicolon": "; ",
+  "list.or": " o ",
+  "list.and": " e ",
+  "step.class": "Classe",
+  "step.species": "Specie",
+  "step.background": "Background",
+  "step.abilities": "Punteggi di caratteristica",
+  "step.equipment": "Equipaggiamento",
+  "step.features": "Privilegi di classe e talenti",
+  "step.spells": "Incantesimi",
+  "step.proficiencies": "Abilità e strumenti",
+  "step.languages": "Lingue",
+  "step.details": "Nome e allineamento",
+  "alignment.LG": "Legale Buono",
+  "alignment.NG": "Neutrale Buono",
+  "alignment.CG": "Caotico Buono",
+  "alignment.LN": "Legale Neutrale",
+  "alignment.N": "Neutrale",
+  "alignment.CN": "Caotico Neutrale",
+  "alignment.LE": "Legale Malvagio",
+  "alignment.NE": "Neutrale Malvagio",
+  "alignment.CE": "Caotico Malvagio",
+  "stat.armor_class": "CA",
+  "stat.max_hp": "PF",
+  "stat.initiative": "Iniziativa",
+  "stat.speed": "Velocità",
+  "stat.passive_perception": "Percezione passiva",
   "override.applied": "Decisione del Master: {reason}",
   "roll.dice": "{dice}",
   "roll.d20": "un tiro di d20",
@@ -691,9 +720,9 @@ export const ENGINE_IT = {
   "option.requires_level": "richiede il livello {level}+",
   "option.requires_class_level": "richiede {class} di livello {level}+",
   "option.requires": "richiede {name}",
-  "option.requires_ability": "richiede {abilities, list} {min}+",
+  "option.requires_ability": "richiede {abilities, list, or} {min}+",
   "option.requires_feature": "richiede il privilegio {feature}",
-  "option.requires_spell": "richiede di conoscere {spells, list}",
+  "option.requires_spell": "richiede di conoscere {spells, list, or}",
   "option.requires_spellcasting": "richiede il privilegio Spellcasting o Pact Magic",
   "option.chosen_for": "già scelto per {source}",
   "option.already_at": "già a {max}",
@@ -719,7 +748,7 @@ export const ENGINE_IT = {
   "issue.hp_roll_too_high": "Il tiro del Dado Vita {hp} è più alto di un d{die}",
   "issue.multiclass": "Non puoi multiclassare in {class}: {unmet, list, semicolon}",
   "issue.multiclass_needs":
-    "{class} richiede {all, select, true {tutte queste} other {una di queste}} a {min}+: {abilities, list}",
+    "{class} richiede {all, select, true {{abilities, list, and}} other {{abilities, list, or}}} a {min}+",
   "issue.replace_pair": "scegli cosa sostituire e con cosa",
   "issue.replace_missing": "non hai '{id}' da sostituire",
   "issue.replace_blocked": "{name} non può essere sostituito: {why}",
@@ -813,35 +842,3 @@ export const ENGINE_IT = {
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */
-export const ENGINE_NAMES_IT = {
-  steps: {
-    class: "Classe",
-    species: "Specie",
-    background: "Background",
-    abilities: "Punteggi di caratteristica",
-    equipment: "Equipaggiamento",
-    features: "Privilegi di classe e talenti",
-    spells: "Incantesimi",
-    proficiencies: "Abilità e strumenti",
-    languages: "Lingue",
-    details: "Nome e allineamento",
-  },
-  alignments: {
-    LG: "Legale Buono",
-    NG: "Neutrale Buono",
-    CG: "Caotico Buono",
-    LN: "Legale Neutrale",
-    N: "Neutrale",
-    CN: "Caotico Neutrale",
-    LE: "Legale Malvagio",
-    NE: "Neutrale Malvagio",
-    CE: "Caotico Malvagio",
-  },
-  stats: {
-    armor_class: "CA",
-    max_hp: "PF",
-    initiative: "Iniziativa",
-    speed: "Velocità",
-    passive_perception: "Percezione passiva",
-  },
-} as const;
