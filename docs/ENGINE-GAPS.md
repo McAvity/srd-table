@@ -20,7 +20,19 @@ The app never works around a gap with rules of its own.
 
 ## Waiting
 
-Nothing is waiting on the engine.
+| Id | What the app is missing | Engine status |
+|---|---|---|
+| R19 | Rolls shown for actions played by hand; saves on demand (Roll20-style) | open |
+
+### R19. Roll20-style rolls by hand
+
+- **Meanwhile.** A declared action rolls nothing; outside an encounter the sheet rolls checks,
+  saves and attack rolls (`rollCheck`) and an attack's damage (`rollDamage`). In an encounter the
+  selection panel rolls checks (skill or ability), not saves.
+- **When done.** Show a declared action's rolls in the dice tray (attack per target with the
+  would-hit as information, damage, healing, save DC) and in "Waiting for an outcome", the
+  damage amount pre-filled from the rolled total (the GM still applies it). The selection panel's
+  roll form gets saving throws (`check` with `save`), for monsters too.
 
 ### Notes: manual play (R15–R17)
 
