@@ -19,14 +19,12 @@ import { ActionComposer, needsComposer } from "./ActionComposer";
 import { CombatLog } from "./CombatLog";
 import { CombatPanel } from "./CombatPanel";
 import { DecisionDialog } from "./DecisionDialog";
-import { DeclaredPanel } from "./DeclaredPanel";
 import { ExplorationPanel } from "./ExplorationPanel";
 import { InitiativeRail } from "./InitiativeRail";
 import { wayOf } from "./manual";
 import { OffMapNotice } from "./OffMapNotice";
 import { PointDialog, PointPanel } from "./PointPanel";
 import { QuickBar } from "./QuickBar";
-import { RollDialog } from "./RollDialog";
 import { SelectionPanel } from "./SelectionPanel";
 import { useTableUi } from "./tableUi";
 
@@ -176,24 +174,14 @@ function Table({ record }: { record: EncounterRecord }) {
             controllable={canControl}
           />
         </div>
-        {pending &&
-          (pending.kind === "roll" && pending.roll ? (
-            <RollDialog
-              key={pending.question}
-              encounterId={record.id}
-              pending={pending}
-              roll={pending.roll}
-              who={pendingWho?.name ?? pending.combatant}
-              canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
-            />
-          ) : (
-            <DecisionDialog
-              encounterId={record.id}
-              pending={pending}
-              who={pendingWho?.name ?? pending.combatant}
-              canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
-            />
-          ))}
+        {pending && (
+          <DecisionDialog
+            encounterId={record.id}
+            pending={pending}
+            who={pendingWho?.name ?? pending.combatant}
+            canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
+          />
+        )}
         {actor && (
           <OffMapNotice
             view={view}
@@ -248,7 +236,6 @@ function Table({ record }: { record: EncounterRecord }) {
 
       <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
         <PointPanel encounterId={record.id} encounter={record.encounter} view={view} gm={gm} />
-        {gm && <DeclaredPanel record={record} view={view} />}
         {gm && <CombatPanel record={record} view={view} />}
         <SelectionPanel
           encounterId={record.id}

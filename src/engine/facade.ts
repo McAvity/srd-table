@@ -307,8 +307,6 @@ export interface CombatantView {
   readonly used: Encounter["combatants"][number]["used"];
   readonly inspiration: Encounter["combatants"][number]["inspiration"];
   readonly decisions: "ask" | "auto" | null;
-  /** Who rolls its dice (`null`: the encounter's setting). */
-  readonly dice: "engine" | "table" | null;
   /** The engine couldn't build this combatant (a character that isn't loaded). */
   readonly error: string | null;
 }
@@ -932,7 +930,6 @@ function encounterView(encounter: Encounter, party: Party, catalog: Catalog): En
       used: c.used,
       inspiration: c.inspiration,
       decisions: c.decisions,
-      dice: c.dice,
     };
     try {
       const view = encounterCombatant(encounter, c.id, ctx);

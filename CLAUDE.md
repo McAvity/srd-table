@@ -303,13 +303,12 @@ docs/            # ARCHITECTURE.md (decisions), ENGINE-GAPS.md (what the UI need
 6. **Later** — offline (service worker precache), shared sessions (one authority applies
    actions — the GM's client or a server running the engine's `createHandler` — and others
    receive documents), private packs managed in the app.
-   - **Manual play** (built 2026-10-10, see "Manual play" in `docs/ARCHITECTURE.md`):
-     each action played automatically, with the players' own dice (the engine still resolves),
-     or by hand (the engine spends the costs, the outcome is applied with `effects`); a default
-     per combatant; only the GM applies by-hand outcomes to other creatures and overrides a
-     refusal. Engine requests R15 (declared actions), R16 (rolls entered at the table) and R17
-     (`force`): done, wired in the app (Play switch, "Waiting for an outcome", `RollDialog`,
-     "Do it anyway").
+   - **Manual play** (redesigned 2026-10-10, see "Manual play" in `docs/ARCHITECTURE.md`):
+     each action played automatically, or by hand as a dice roller (the engine rolls what's
+     declared, no target, no outcome; resources spent, not the action economy); a default per
+     combatant; whoever is affected applies the result (the GM for anyone, a player for their own
+     character); the GM can override a refusal ("Do it anyway", R17). The roller needs engine
+     request R21; until then "by hand" still asks for a target.
 
 ## Commands
 

@@ -20,20 +20,32 @@ The app never works around a gap with rules of its own.
 
 ## Waiting
 
-Nothing is waiting on the engine.
+| Id | What the app is missing | Engine status |
+|---|---|---|
+| R21 | Manual play as a dice roller (no targets, no outcome, no action economy; resources spent); table dice removed | open |
 
-### Notes: manual play (R15–R17)
+### R21. Manual play as a dice roller
 
-- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (decided 2026-10-10).
-- **R15 is in** (see Done): the Play switch, "Waiting for an outcome", the defaults.
+- **Design** (the app's owner, 2026-10-10): Automatic as before; Manual rolls what you declare
+  (attack rolls, damage, healing, the DC to show) with no target and no outcome; slots and uses
+  are spent, the action economy isn't. Effects are applied by whoever is affected: the GM for
+  anyone, a player for their own character (selection panel's effects, the sheet).
+- **Meanwhile.** "By hand" still needs a target (the composer) and spends the action economy;
+  the tray still shows "would hit". The table dice and "Waiting for an outcome" are already gone
+  from the app.
+- **When done.** A manual tile is sent at once with `manual: true` and no target (the composer
+  only for what it still needs: a slot level, riders); drop "vs AC" and "would hit" from the
+  tray's by-hand card; R16's last traces (Italian `dice.*` / `refusal.roll_*` templates) go with
+  the engine's codes.
+
+### Notes: manual play
+
+- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (redesigned 2026-10-10; R21 above).
 - **On the sheet.** A feature that heals (`FeatureActionLine.heal`) has "By hand" next to "Use"
   (`CombatTab.tsx`, `use_feature` with `manual`: the uses spent, no healing), first when the
   campaign plays characters by hand.
-- **Not by hand yet.** A spell played by hand leaves no zone, wall or mark (Hunter's Mark, Hex) in the engine: the
-  GM tracks it (a follow-up request if a table needs it).
-- **R16 is in** (see Done): the dice are a combatant's setting, not a way on the Play switch.
-- **R17 is in** (see Done). Manual play needs nothing more from the engine; the open follow-up
-  is a spell played by hand leaving no zone or mark (above).
+- **Dropped from the app.** Table dice (R16's `RollDialog`, the Dice selects and settings) and
+  "Waiting for an outcome" (R15/R19's `DeclaredPanel`); the Done rows below are their history.
 
 ## Done
 

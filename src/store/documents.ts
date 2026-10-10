@@ -11,7 +11,6 @@
 import type {
   CharacterBuild,
   CharacterState,
-  DeclaredResult,
   Encounter,
   EncounterAction,
   Message,
@@ -56,20 +55,11 @@ export interface LogEntry {
   readonly messages?: readonly Message[];
 }
 
-/** An action played by hand (`manual`): the engine spent its costs; the GM applies the outcome. */
-export interface DeclaredEntry {
-  readonly id: string;
-  readonly round: number;
-  readonly result: DeclaredResult;
-}
-
 export interface EncounterRecord {
   readonly id: string;
   readonly name: string;
   readonly encounter: Encounter;
   readonly log: readonly LogEntry[];
-  /** Declared actions waiting for the GM to apply their outcome (oldest first). */
-  readonly declared?: readonly DeclaredEntry[];
   /** How each combatant plays its actions, when the GM set it (else the campaign's default). */
   readonly modes?: Readonly<Record<string, PlayWay>>;
   readonly created: number;
@@ -86,8 +76,6 @@ type EncounterSnapshot = {
   readonly encounter: Encounter;
   /** Party states as they were, restored with the encounter. */
   readonly states: Readonly<Record<string, CharacterState>>;
-  /** The declared actions waiting then: undoing a declaration takes it off the list. */
-  readonly declared: readonly DeclaredEntry[];
 };
 type Snapshot = CharacterSnapshot | EncounterSnapshot;
 
@@ -131,8 +119,6 @@ interface DocumentsState {
     action: EncounterAction | readonly EncounterAction[],
   ): Promise<Outcome<EncounterChange>>;
   clearLog(id: string): void;
-  /** The GM has applied (or dropped) a declared action's outcome: off the waiting list. */
-  dismissDeclared(id: string, entry: string): void;
   /** A combatant's way of playing its actions (`null`: the campaign's default). */
   setPlayMode(id: string, combatant: string, mode: PlayWay | null): void;
 
@@ -462,12 +448,6 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             const c = nextCharacters[key];
             if (c) nextCharacters[key] = { ...c, state, updated: Date.now() };
           }
-          const declared = [
-            ...(current.declared ?? []),
-            ...result.results.flatMap((r) =>
-              "manual" in r ? [{ id: newId("d"), round: result.encounter.round, result: r }] : [],
-            ),
-          ];
           return {
             encounters: {
               ...s.encounters,
@@ -475,7 +455,6 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
                 ...current,
                 encounter: result.encounter,
                 log,
-                declared,
                 updated: Date.now(),
               },
             },
@@ -485,7 +464,6 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               kind: "encounter",
               encounter: record.encounter,
               states: before,
-              declared: current.declared ?? [],
             }),
           };
         });
@@ -517,15 +495,6 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         const record = s.encounters[id];
         if (!record) return s;
         return { encounters: { ...s.encounters, [id]: { ...record, log: [] } } };
-      });
-    },
-
-    dismissDeclared(id, entry) {
-      set((s) => {
-        const record = s.encounters[id];
-        if (!record) return s;
-        const declared = (record.declared ?? []).filter((d) => d.id !== entry);
-        return { encounters: { ...s.encounters, [id]: { ...record, declared } } };
       });
     },
 
@@ -593,7 +562,6 @@ function travel(
     kind: "encounter",
     encounter: record.encounter,
     states,
-    declared: record.declared ?? [],
   };
   return {
     encounters: {
@@ -601,7 +569,6 @@ function travel(
       [id]: {
         ...record,
         encounter: target.encounter,
-        declared: target.declared,
         updated: Date.now(),
       },
     },
