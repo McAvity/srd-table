@@ -68,4 +68,24 @@ describe("the top bar's Table and Characters", () => {
     expect(link("Characters")).toHaveAttribute("href", `/characters/${character}/sheet`);
     expect(link("Table")).toHaveAttribute("href", `/encounters/${encounter}`);
   });
+
+  it("open at / too: the table, else the character, else the characters list", async () => {
+    const { character, encounter } = await setup();
+    await renderApp("/");
+    expect(await screen.findByRole("heading", { name: "Characters" })).toBeInTheDocument();
+    cleanup();
+
+    useUi.setState({ lastOpened: { encounter: null, character } });
+    await renderApp("/");
+    expect(
+      await screen.findByRole("region", { name: "Hit Points" }, { timeout: 10_000 }),
+    ).toBeInTheDocument();
+    cleanup();
+
+    useUi.setState({ lastOpened: { encounter, character } });
+    await renderApp("/");
+    expect(
+      await screen.findByRole("navigation", { name: "Initiative" }, { timeout: 15_000 }),
+    ).toBeInTheDocument();
+  });
 });

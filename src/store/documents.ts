@@ -87,7 +87,7 @@ interface History {
 const HISTORY_LIMIT = 50;
 const LOG_LIMIT = 500;
 
-interface DocumentsState {
+export interface DocumentsState {
   hydrated: boolean;
   characters: Readonly<Record<string, CharacterRecord>>;
   encounters: Readonly<Record<string, EncounterRecord>>;

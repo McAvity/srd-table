@@ -17,6 +17,7 @@ import { steps } from "@/engine/constants";
 import { COMPENDIUM_TABLES } from "@/features/compendium/tables";
 import { SHEET_TABS, type SheetTab } from "@/features/sheet/tabs";
 import { AppShell } from "./AppShell";
+import { homeTarget } from "./paneTargets";
 
 // Screens load on first visit (each its own chunk).
 const CharactersPage = lazy(() =>
@@ -49,8 +50,10 @@ const rootRoute = createRootRoute({ component: AppShell });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  // The documents are loaded before the router exists (`main.tsx`): the table or the character
+  // to open is known here.
   beforeLoad: () => {
-    throw redirect({ to: "/characters" });
+    throw redirect(homeTarget());
   },
 });
 
