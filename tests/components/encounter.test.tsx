@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { Encounter } from "srd-rules-engine";
 import { beforeEach, describe, expect, it } from "vitest";
 import { setEngine } from "../../src/engine/client";
-import type { ActionResult } from "../../src/engine/facade";
+import type { RolledResult } from "../../src/engine/facade";
 import { nodeFacade } from "../../src/engine/node";
 import { useTableUi } from "../../src/features/encounter/tableUi";
 import { newId, useDocuments } from "../../src/store/documents";
@@ -193,7 +193,7 @@ describe("encounter table", () => {
           action: "Test",
           targets: [{ id: "zombie", target: 1, name: "Zombie", save: { ...save, success: false } }],
           damage: null,
-        } as unknown as NonNullable<ActionResult>,
+        } as unknown as RolledResult,
       },
     ]);
     const [tray] = screen.getAllByRole("region", { name: "Dice results" });
@@ -292,6 +292,67 @@ describe("encounter table", () => {
         expect(box).toHaveAccessibleDescription(x.reason ?? "");
       }
     }
+  });
+
+  it("plays an attack by hand: costs spent, nothing rolled, the GM applies the outcome", async () => {
+    const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
+    if (!aerin.ok) throw new Error("import");
+    const record = useDocuments.getState().characters[aerin.id];
+    if (!record) throw new Error("import");
+    const party = { [aerin.id]: { build: record.build, state: record.state } };
+    const r = await engine.applyEncounterAction(await engine.newEncounter(), party, [
+      { type: "add_character", character: aerin.id },
+      { type: "add_monster", monster: "goblin-warrior" },
+      { type: "set_initiative", id: "aerin", value: 20 },
+      { type: "set_initiative", id: "goblin-warrior", value: 5 },
+      { type: "start" },
+    ]);
+    if (!r.ok) throw new Error(r.reasons.join("; "));
+    const options = await engine.combatantOptions(r.encounter, party, "aerin");
+    const attack = options.attacks[0];
+    if (!attack) throw new Error("no attack");
+    const id = storeEncounter(r.encounter);
+    await renderApp(`/encounters/${id}`);
+
+    const bar = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+    await userEvent.click(within(bar).getByRole("button", { name: "By hand" }));
+    const tile = within(bar).getAllByRole("button", {
+      name: new RegExp(`^${literal(attack.label)}`),
+    })[0];
+    if (!tile) throw new Error("no tile");
+    await userEvent.click(tile);
+    const composer = await screen.findByRole("region", { name: attack.label });
+    const goblin = within(composer).queryByRole("button", {
+      name: /Goblin Warrior/,
+      pressed: false,
+    });
+    if (goblin) await userEvent.click(goblin);
+    await userEvent.click(await within(composer).findByRole("button", { name: "Do it by hand" }));
+
+    // The attack is spent, nothing is rolled or applied; it waits for the GM.
+    await waitFor(() => expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(1));
+    const after = useDocuments.getState().encounters[id];
+    expect(after?.declared?.[0]?.result).toMatchObject({ manual: true, by: "aerin" });
+    expect(after?.encounter.combatants[1]?.hp).toBe(r.encounter.combatants[1]?.hp);
+    expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(/by hand/);
+
+    const waiting = await screen.findByRole("region", { name: "Waiting for an outcome" });
+    await userEvent.type(within(waiting).getByRole("textbox", { name: "Amount" }), "4");
+    await userEvent.click(within(waiting).getByRole("button", { name: "Damage" }));
+    await waitFor(() =>
+      expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBe(
+        (r.encounter.combatants[1]?.hp ?? 0) - 4,
+      ),
+    );
+    await userEvent.click(within(waiting).getByRole("button", { name: "Done" }));
+    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(0);
+    expect(screen.queryByRole("region", { name: "Waiting for an outcome" })).toBeNull();
+
+    // Undo (the damage, then the declaration) brings the entry back, then takes it away.
+    useDocuments.getState().undo(id);
+    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(1);
+    useDocuments.getState().undo(id);
+    expect(useDocuments.getState().encounters[id]?.declared).toHaveLength(0);
   });
 });
 

@@ -14,7 +14,7 @@ import type {
   RollResult,
   SaveResult,
 } from "srd-rules-engine";
-import type { ActionResult } from "@/engine/facade";
+import type { RolledResult } from "@/engine/facade";
 import { signed, t } from "@/i18n";
 import { type DiceShown, useUi } from "@/store/ui";
 import { Icon } from "./Icon";
@@ -255,7 +255,7 @@ function SaveLine({ save, label }: { save: SaveResult; label: ReactNode }) {
   );
 }
 
-export function ActionRolls({ result }: { result: NonNullable<ActionResult> }) {
+export function ActionRolls({ result }: { result: RolledResult }) {
   if ("target_ac" in result) return <Attack result={result} />;
   if ("spell" in result) {
     return (

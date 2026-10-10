@@ -4,7 +4,8 @@
  * is shown; one it wouldn't take now is outlined dashed with its reason. A tile with nothing to fill in
  * is sent at once; the others open the composer. Attacks that follow an earlier one (Cleave after a
  * hit, the Light extra attack, attacks a feature granted) show in the Action tab too, where the
- * attack that opened them was. On the combatant's turn, End turn sends `next_turn`.
+ * attack that opened them was. On the combatant's turn, End turn sends `next_turn`. The Play switch
+ * says how the actions are played (automatic or by hand).
  */
 
 import { useState } from "react";
@@ -14,8 +15,9 @@ import { OptionButton } from "@/components/OptionButton";
 import { Button, cx, Reasons } from "@/components/ui";
 import { t, tn } from "@/i18n";
 import { useDocuments } from "@/store/documents";
-import { useSettings } from "@/store/settings";
+import { type PlayWay, useSettings } from "@/store/settings";
 import { oddsText } from "./ActionComposer";
+import { canPlayByHand, playedAs } from "./manual";
 
 /** A stable empty list: a store selector must not return a new array each time. */
 const NO_FAVORITES: readonly string[] = [];
@@ -101,6 +103,8 @@ export function QuickBar({
   encounterId,
   options,
   favoriteOwner,
+  way,
+  onWay,
   onCompose,
   needsComposer,
 }: {
@@ -108,7 +112,10 @@ export function QuickBar({
   options: CombatantOptions;
   /** Whose favourites (a character id, or the monster's catalog id). */
   favoriteOwner: string;
-  onCompose: (entry: OptionEntry) => void;
+  /** How the actions are played (the Play switch). */
+  way: PlayWay;
+  onWay: (way: PlayWay) => void;
+  onCompose: (entry: OptionEntry, way: PlayWay) => void;
   needsComposer: (entry: OptionEntry) => boolean;
 }) {
   const send = useDocuments((s) => s.encounterAction);
@@ -130,8 +137,8 @@ export function QuickBar({
 
   async function use(tile: Tile) {
     setReasons(null);
-    if (needsComposer(tile.entry)) return onCompose(tile.entry);
-    const result = await send(encounterId, tile.entry.action);
+    if (needsComposer(tile.entry)) return onCompose(tile.entry, way);
+    const result = await send(encounterId, playedAs(tile.entry.action, way));
     if (!result.ok) setReasons(result.reasons);
   }
 
@@ -172,6 +179,23 @@ export function QuickBar({
           {economy.attacks_left > 0 && <span>{tn("table.attacksLeft", economy.attacks_left)}</span>}
           {economy.legendary && <span>{t("table.legendaryLeft", economy.legendary)}</span>}
         </section>
+        {tiles.some((tile) => canPlayByHand(tile.entry.action)) && (
+          <fieldset className="flex items-center gap-1" title={t("table.wayHint")}>
+            <legend className="sr-only">{t("table.playWay")}</legend>
+            {(["auto", "manual"] as const).map((w) => (
+              <Button
+                key={w}
+                size="sm"
+                variant="ghost"
+                on={way === w}
+                aria-pressed={way === w}
+                onClick={() => onWay(w)}
+              >
+                {w === "auto" ? t("table.wayAuto") : t("table.wayManual")}
+              </Button>
+            ))}
+          </fieldset>
+        )}
         {options.turn && (
           <Button size="sm" variant="primary" icon="next" onClick={() => void endTurn()}>
             {t("table.endTurn")}

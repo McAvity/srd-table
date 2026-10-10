@@ -789,6 +789,8 @@ export const ENGINE_IT = {
   "label.move": "Muovi",
   "label.move_zone": "Sposta {label} ({id})",
   "label.end_zone": "Termina {label} ({id})",
+  "manual.declared":
+    "{name} dichiara {what}{level, plural, =0 {} other { al livello #}}{count, plural, =0 {} other { su {targets}}}, a mano.",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */
