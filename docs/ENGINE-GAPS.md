@@ -20,9 +20,7 @@ The app never works around a gap with rules of its own.
 
 ## Waiting
 
-| Id | What the app is missing | Engine status |
-|---|---|---|
-| R20 | Engine cleanup: unused code and unused public exports removed (the app imports none of them: nothing changes here; check the typecheck after the bump) | open |
+Nothing is waiting on the engine.
 
 ### Notes: manual play (R15–R17)
 
@@ -59,4 +57,5 @@ The app never works around a gap with rules of its own.
 | R17 | GM override | `23a3143` (main) | in the GM's view an unavailable option opens the composer (`OptionButton` `onUnavailable`), which dry-runs the action with `force` and, when the engine can override, offers "Do it anyway" (danger) sending `force: true`; the engine's `override.applied` note is in the log; players never see it |
 | R18 | Messages for any language | `d9394d7` (main) | `EngineLanguage` is `{ locale, messages }` and `renderMessage` gets the locale (Italian plurals by `Intl.PluralRules`); the Italian templates use `list, or` / `list, and` with the catalog's `list.*` joiners; step titles, alignments and stat labels are catalog codes (`step.*`, `alignment.*`, `stat.*`: the app's own name tables are gone); a sheet roll's label is rendered from `label_message` |
 | R19 | Roll20-style rolls by hand, saves on demand | `801bf1a` (main) | a declared action with the engine's dice shows its rolls in the dice tray (`DiceTray.tsx` `Declared`: each attack roll against its target's AC with "would hit / miss" as information, damage, healing, the save to make; target names passed by the store); "Waiting for an outcome" lists the attack rolls (a click picks that target and its damage), starts the amount on the rolled damage or healing and the damage type on its first part; the selection panel's roll form has saving throws (`check` with `save`) for any combatant; check results that are `D20TestResult` show as tests |
+| R20 | Engine cleanup | `eeacec9` (main) | nothing to change: the app imported none of the removed exports (typecheck clean after the bump) |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |
