@@ -1,6 +1,7 @@
 /**
  * The frame around every screen: the top bar (logo, Table / Characters / Compendium, the view
- * switch, settings), toasts and the dice tray.
+ * switch, settings), toasts and the dice tray. Table and Characters open a table and a character
+ * (`paneTargets.ts`), else their list.
  */
 
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import { Spinner } from "@/components/ui";
 import { t } from "@/i18n";
 import { useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
+import { useCharacterTarget, useTableTarget } from "./paneTargets";
 
 const NAV: readonly {
   to: "/encounters" | "/characters" | "/compendium";
@@ -26,6 +28,8 @@ const NAV: readonly {
 
 export function AppShell() {
   const path = useRouterState({ select: (s) => s.location.pathname });
+  const table = useTableTarget();
+  const character = useCharacterTarget();
   return (
     <Tooltip.Provider>
       <div className="flex h-full flex-col">
@@ -46,16 +50,38 @@ export function AppShell() {
           >
             {NAV.map((item) => {
               const active = path.startsWith(item.to);
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  data-on={active ? "true" : undefined}
-                  aria-current={active ? "page" : undefined}
-                  className="btn"
-                >
+              const on = {
+                "data-on": active ? "true" : undefined,
+                "aria-current": active ? ("page" as const) : undefined,
+                className: "btn",
+              };
+              const body = (
+                <>
                   <Icon name={item.icon} size={20} />
                   <span className="sr-only text-[15px] sm:not-sr-only">{item.label()}</span>
+                </>
+              );
+              if (item.to === "/encounters" && table)
+                return (
+                  <Link key={item.to} to="/encounters/$id" params={{ id: table }} {...on}>
+                    {body}
+                  </Link>
+                );
+              if (item.to === "/characters" && character)
+                return (
+                  <Link
+                    key={item.to}
+                    to="/characters/$id/sheet"
+                    params={{ id: character }}
+                    search={{}}
+                    {...on}
+                  >
+                    {body}
+                  </Link>
+                );
+              return (
+                <Link key={item.to} to={item.to} {...on}>
+                  {body}
                 </Link>
               );
             })}

@@ -36,7 +36,13 @@ export async function resetStores(): Promise<void> {
   });
   useDocuments.setState({ hydrated: true, characters: {}, encounters: {}, revs: {}, history: {} });
   useSettings.setState({ settings: DEFAULT_SETTINGS });
-  useUi.setState({ toasts: [], dice: [], role: { kind: "gm" } });
+  useUi.setState({
+    toasts: [],
+    dice: [],
+    role: { kind: "gm" },
+    lastOpened: { encounter: null, character: null },
+  });
+  localStorage.clear();
   if (useLocale.getState().applied !== "en") await applyLocale("en");
 }
 

@@ -5,7 +5,9 @@
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
 import type { PlaySheet } from "srd-rules-engine";
+import { BackLink } from "@/components/BackLink";
 import { Explain } from "@/components/Explain";
 import { Icon } from "@/components/Icon";
 import { PortraitPicker } from "@/components/Portrait";
@@ -13,6 +15,7 @@ import { Button, Empty, Spinner, StatBox, Tabs } from "@/components/ui";
 import { signed, t } from "@/i18n";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, canRedo, canUndo, useDocuments } from "@/store/documents";
+import { useUi } from "@/store/ui";
 import { CombatTab } from "./CombatTab";
 import { FeaturesTab } from "./FeaturesTab";
 import { HitPointsPanel, RestButtons } from "./HitPoints";
@@ -76,9 +79,13 @@ function Sheet({
     .map((c) => `${c.name} ${c.level}${c.subclass ? ` (${c.subclass})` : ""}`)
     .join(" / ");
   const hasSpells = sheet.spells.length > 0 || sheet.spellcasting.length > 0;
+  useEffect(() => useUi.getState().opened("character", id), [id]);
 
   return (
     <div className="mx-auto max-w-[1400px] p-3 sm:p-5">
+      <div className="mb-1">
+        <BackLink to="/characters" />
+      </div>
       <header className="panel mb-4 flex flex-wrap items-center gap-4 p-3">
         <PortraitPicker id={id} name={name} />
         <div className="min-w-[12rem] flex-1">

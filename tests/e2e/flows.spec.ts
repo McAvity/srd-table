@@ -222,7 +222,12 @@ test("a reload restores characters, play states and encounters from IndexedDB", 
 
   await page.reload();
   await expect(page.getByRole("navigation", { name: "Initiative" })).toContainText("Lirael");
+  // Characters opens the character opened last (remembered across the reload), then its list.
   await page.getByRole("link", { name: "Characters", exact: true }).click();
+  await expect(
+    page.getByRole("region", { name: "Hit Points" }).getByText("23", { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "All characters" }).click();
   await expect(page.getByRole("article").filter({ hasText: "Aerin" })).toContainText("23 / 28");
   await expect(page.getByRole("article")).toHaveCount(2);
 });

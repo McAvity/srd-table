@@ -15,6 +15,8 @@ export const it: Messages = {
   "nav.main": "Principale",
   "nav.table": "Tavolo",
   "nav.characters": "Personaggi",
+  "nav.allEncounters": "Tutti gli scontri",
+  "nav.allCharacters": "Tutti i personaggi",
   "nav.compendium": "Compendio",
   "nav.settings": "Impostazioni",
   "nav.about": "Informazioni",

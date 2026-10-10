@@ -5,8 +5,9 @@
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Step } from "srd-rules-engine";
+import { BackLink } from "@/components/BackLink";
 import { Icon } from "@/components/Icon";
 import { Button, cx, Empty, Spinner } from "@/components/ui";
 import type { BuildEdit, BuildView } from "@/engine/facade";
@@ -14,6 +15,7 @@ import { t } from "@/i18n";
 import { useBuildView } from "@/queries";
 import type { BuilderSearch } from "@/routes/router";
 import { canRedo, canUndo, useDocuments } from "@/store/documents";
+import { useUi } from "@/store/ui";
 import { AbilitiesStep } from "./AbilitiesStep";
 import { ChoiceCard } from "./ChoiceCard";
 import { DetailsStep } from "./DetailsStep";
@@ -63,9 +65,13 @@ function Builder({ id, view, search }: { id: string; view: BuildView; search: Bu
     navigate({ to: "/characters/$id/build", params: { id }, search: { level: l } });
   const edit = (e: BuildEdit) => request(e, { past: view.level > 1 });
   const name = view.build.name || t("common.unnamed");
+  useEffect(() => useUi.getState().opened("character", id), [id]);
 
   return (
     <div className="mx-auto max-w-[1500px] p-3 sm:p-5">
+      <div className="mb-1">
+        <BackLink to="/characters" />
+      </div>
       <header className="mb-3 flex flex-wrap items-center gap-2">
         <h1 className="mr-2 font-display text-3xl text-ink">
           {name}

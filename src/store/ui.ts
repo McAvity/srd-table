@@ -61,16 +61,42 @@ interface UiState {
   role: Role;
   /** A combatant a result was clicked for: the encounter screen selects it, then clears this. */
   focus: string | null;
+  /**
+   * The table and the character this viewer opened last: the top bar's Table and Characters open
+   * them (a per-viewer convenience, remembered in this browser).
+   */
+  lastOpened: LastOpened;
   toast(lines: readonly string[], tone?: ToastTone, title?: string): void;
   dismissToast(id: number): void;
   showDice(items: readonly DiceInput[]): void;
   dismissDice(id: number): void;
   focusCombatant(id: string | null): void;
   setRole(role: Role): void;
+  /** A table or a character was opened. */
+  opened(kind: keyof LastOpened, id: string): void;
+}
+
+export interface LastOpened {
+  readonly encounter: string | null;
+  readonly character: string | null;
 }
 
 let nextId = 1;
 const ROLE_KEY = "srd-table.role";
+const LAST_KEY = "srd-table.last-opened";
+
+function savedLastOpened(): LastOpened {
+  try {
+    const raw = localStorage.getItem(LAST_KEY);
+    const v = raw ? (JSON.parse(raw) as Partial<Record<keyof LastOpened, unknown>>) : {};
+    return {
+      encounter: typeof v.encounter === "string" ? v.encounter : null,
+      character: typeof v.character === "string" ? v.character : null,
+    };
+  } catch {
+    return { encounter: null, character: null };
+  }
+}
 
 function savedRole(): Role {
   try {
@@ -90,6 +116,7 @@ export const useUi = create<UiState>()((set) => ({
   dice: [],
   role: savedRole(),
   focus: null,
+  lastOpened: savedLastOpened(),
   toast(lines, tone = "info", title) {
     if (!lines.length) return;
     const toast: Toast = { id: nextId++, tone, lines, ...(title ? { title } : {}) };
@@ -116,5 +143,17 @@ export const useUi = create<UiState>()((set) => ({
       // Not remembered: still applied for this session.
     }
     set({ role });
+  },
+  opened(kind, id) {
+    set((s) => {
+      if (s.lastOpened[kind] === id) return s;
+      const lastOpened = { ...s.lastOpened, [kind]: id };
+      try {
+        localStorage.setItem(LAST_KEY, JSON.stringify(lastOpened));
+      } catch {
+        // Not remembered: still used for this session.
+      }
+      return { lastOpened };
+    });
   },
 }));

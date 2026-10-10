@@ -7,6 +7,8 @@ export const en = {
   "nav.main": "Main",
   "nav.table": "Table",
   "nav.characters": "Characters",
+  "nav.allEncounters": "All encounters",
+  "nav.allCharacters": "All characters",
   "nav.compendium": "Compendium",
   "nav.settings": "Settings",
   "nav.about": "About",

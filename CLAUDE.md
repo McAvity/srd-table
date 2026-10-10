@@ -188,6 +188,10 @@ rendered from their `messages` (codes and parameters) in the app's language, in 
 
 ## Screens
 
+- **Top bar** — Table and Characters open a document, not their list: a player's own sheet
+  and the most recent table their character is in; for the GM, the table and the character
+  opened last (remembered per viewer in the browser, `routes/paneTargets.ts`); the list when
+  there's nothing to open. Each document page links back to its list (`BackLink`).
 - **Characters** — list, create, import/export JSON, duplicate.
 - **Builder** — the engine's step order (Class, Species, Background, Ability Scores, Equipment,
   Features, Spells, Skills & Tools, Languages, Name & Alignment), free navigation between steps,

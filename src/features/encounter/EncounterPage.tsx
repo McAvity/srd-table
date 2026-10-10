@@ -7,6 +7,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { OptionEntry } from "srd-rules-engine";
+import { BackLink } from "@/components/BackLink";
 import { Button, Empty, Spinner } from "@/components/ui";
 import type { CombatantView } from "@/engine/facade";
 import { t } from "@/i18n";
@@ -64,6 +65,7 @@ function Table({ record }: { record: EncounterRecord }) {
   const [switched, setSwitched] = useState<{ id: string; way: PlayWay } | null>(null);
   const [name, setName] = useState(record.name);
   useEffect(() => setName(record.name), [record.name]);
+  useEffect(() => useUi.getState().opened("encounter", record.id), [record.id]);
 
   const mine = (c: CombatantView) =>
     role.kind === "player" && c.character !== null && c.character === role.character;
@@ -120,6 +122,7 @@ function Table({ record }: { record: EncounterRecord }) {
     <div className="grid gap-3 p-3 lg:h-full lg:min-h-0 lg:grid-cols-[250px_minmax(0,1fr)_340px]">
       <aside className="flex max-h-[45vh] min-h-0 flex-col gap-2 lg:max-h-none">
         <div className="panel p-2">
+          <BackLink to="/encounters" />
           <label className="sr-only" htmlFor="encounter-name">
             {t("encounters.name")}
           </label>
