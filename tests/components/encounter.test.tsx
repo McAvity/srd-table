@@ -294,7 +294,7 @@ describe("encounter table", () => {
     }
   });
 
-  it("plays an attack by hand: its dice shown, nothing applied", async () => {
+  it("plays an attack by hand: no target, rolled as often as asked, nothing applied", async () => {
     const aerin = await useDocuments.getState().importCharacter(await fighter(engine, 3));
     if (!aerin.ok) throw new Error("import");
     const record = useDocuments.getState().characters[aerin.id];
@@ -309,32 +309,41 @@ describe("encounter table", () => {
     ]);
     if (!r.ok) throw new Error(r.reasons.join("; "));
     const options = await engine.combatantOptions(r.encounter, party, "aerin");
-    const attack = options.attacks[0];
+    const attack = options.attacks.find(
+      (a) => a.action.type === "attack" && a.action.attack === "Greatsword",
+    );
     if (!attack) throw new Error("no attack");
     const id = storeEncounter(r.encounter);
     await renderApp(`/encounters/${id}`);
 
     const bar = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
     await userEvent.click(within(bar).getByRole("button", { name: "By hand" }));
-    const tile = within(bar).getAllByRole("button", {
-      name: new RegExp(`^${literal(attack.label)}`),
-    })[0];
-    if (!tile) throw new Error("no tile");
-    await userEvent.click(tile);
-    const composer = await screen.findByRole("region", { name: attack.label });
-    const goblin = within(composer).queryByRole("button", {
-      name: /Goblin Warrior/,
-      pressed: false,
-    });
-    if (goblin) await userEvent.click(goblin);
-    await userEvent.click(await within(composer).findByRole("button", { name: "Do it by hand" }));
-
-    // Its dice are rolled and shown; nothing is applied.
+    const tileOf = () => {
+      const tile = within(bar).getAllByRole("button", {
+        name: new RegExp(`^${literal(attack.label)}`),
+      })[0];
+      if (!tile) throw new Error("no tile");
+      return tile;
+    };
+    // Sent at once, with no target: no composer.
+    await userEvent.click(tileOf());
+    expect(screen.queryByRole("region", { name: attack.label })).toBeNull();
     const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
     await waitFor(() => expect(tray).toHaveTextContent(/By hand/));
-    expect(useDocuments.getState().encounters[id]?.encounter.combatants[1]?.hp).toBe(
-      r.encounter.combatants[1]?.hp,
+    expect(tray).not.toHaveTextContent(/AC/);
+    // The action economy isn't spent: the attack can be rolled again.
+    await waitFor(() => expect(tileOf()).not.toHaveAttribute("aria-disabled", "true"));
+    await userEvent.click(tileOf());
+    await waitFor(() =>
+      expect(
+        useDocuments
+          .getState()
+          .encounters[id]?.log.flatMap((e) => e.lines)
+          .filter((l) => /by hand/.test(l)),
+      ).toHaveLength(2),
     );
+    const sent = useDocuments.getState().encounters[id];
+    expect(sent?.encounter.combatants[1]?.hp).toBe(r.encounter.combatants[1]?.hp);
     expect(await screen.findByRole("region", { name: "Log" })).toHaveTextContent(/by hand/);
   });
 

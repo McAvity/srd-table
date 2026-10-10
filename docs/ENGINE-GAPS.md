@@ -22,25 +22,23 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R21 | Manual play as a dice roller (no targets, no outcome, no action economy; resources spent); table dice removed | open |
+| R22 | Options judged for play by hand (`available` / `reason` with `manual`) | open |
 
-### R21. Manual play as a dice roller
+### R22. Options judged for play by hand
 
-- **Design** (the app's owner, 2026-10-10): Automatic as before; Manual rolls what you declare
-  (attack rolls, damage, healing, the DC to show) with no target and no outcome; slots and uses
-  are spent, the action economy isn't. Effects are applied by whoever is affected: the GM for
-  anyone, a player for their own character (selection panel's effects, the sheet).
-- **Meanwhile.** "By hand" still needs a target (the composer) and spends the action economy;
-  the tray still shows "would hit". The table dice and "Waiting for an outcome" are already gone
-  from the app.
-- **When done.** A manual tile is sent at once with `manual: true` and no target (the composer
-  only for what it still needs: a slot level, riders); drop "vs AC" and "would hit" from the
-  tray's by-hand card; R16's last traces (Italian `dice.*` / `refusal.roll_*` templates) go with
-  the engine's codes.
+- **Missing.** `combatantOptions`' `available` / `reason` are for automatic play; by hand the
+  economy, the turn and targets don't count.
+- **Meanwhile.** By hand (the Play switch), a tile that can be played by hand is never greyed
+  out and its odds aren't shown (`QuickBar.tsx` `byHand`); a refusal when it's sent opens the
+  composer, which dry-runs the by-hand action (`checkAction`) and shows the engine's reason
+  ("Do it anyway" for the GM). `canPlayByHand` (`manual.ts`) is the app's own list of action
+  types the engine takes by hand.
+- **When done.** Grey out by-hand tiles with `manual.reason`; drop `byHand`'s override and, if
+  the engine says which options can be played by hand, `MANUAL_ACTIONS`.
 
 ### Notes: manual play
 
-- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (redesigned 2026-10-10; R21 above).
+- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (redesigned 2026-10-10; R21 in Done).
 - **On the sheet.** A feature that heals (`FeatureActionLine.heal`) has "By hand" next to "Use"
   (`CombatTab.tsx`, `use_feature` with `manual`: the uses spent, no healing), first when the
   campaign plays characters by hand.
@@ -69,5 +67,6 @@ The app never works around a gap with rules of its own.
 | R17 | GM override | `23a3143` (main) | in the GM's view an unavailable option opens the composer (`OptionButton` `onUnavailable`), which dry-runs the action with `force` and, when the engine can override, offers "Do it anyway" (danger) sending `force: true`; the engine's `override.applied` note is in the log; players never see it |
 | R18 | Messages for any language | `d9394d7` (main) | `EngineLanguage` is `{ locale, messages }` and `renderMessage` gets the locale (Italian plurals by `Intl.PluralRules`); the Italian templates use `list, or` / `list, and` with the catalog's `list.*` joiners; step titles, alignments and stat labels are catalog codes (`step.*`, `alignment.*`, `stat.*`: the app's own name tables are gone); a sheet roll's label is rendered from `label_message` |
 | R19 | Roll20-style rolls by hand, saves on demand | `801bf1a` (main) | a declared action with the engine's dice shows its rolls in the dice tray (`DiceTray.tsx` `Declared`: each attack roll against its target's AC with "would hit / miss" as information, damage, healing, the save to make; target names passed by the store); "Waiting for an outcome" lists the attack rolls (a click picks that target and its damage), starts the amount on the rolled damage or healing and the damage type on its first part; the selection panel's roll form has saving throws (`check` with `save`) for any combatant; check results that are `D20TestResult` show as tests |
+| R21 | Manual play as a dice roller; table dice removed | `8160423` (main) | a by-hand tile is sent at once with `manual: true` and no target (`playedAs` drops `target`, `targets`, `area`, `cover`); the composer opens only for a slot level, riders, Versatile or strike effects (`needsComposerByHand`), or when the engine refuses it; in the composer, by hand hides targets, areas, cover and odds ("Automatic" switches it back to the targeting form); the tray's by-hand card shows each attack roll with its Critical Hit / natural 1, no AC or "would hit"; the Italian `manual.*` templates follow the new English ones and R16's codes are gone; the tray's `names` plumbing removed |
 | R20 | Engine cleanup | `eeacec9` (main) | nothing to change: the app imported none of the removed exports (typecheck clean after the bump) |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |

@@ -180,8 +180,10 @@ Actions the engine doesn't take by hand (Dash, a check, zones) are sent as they 
   with **no target and no outcome**. Resources are spent (spell slots, feature and item uses, a
   monster's 1/Day and Recharge, Concentration started); the **action economy isn't** (Action,
   Bonus Action, Reaction, attacks per turn), so an attack can be rolled as often as the table
-  likes. Nothing else changes. Engine request R21 (until it lands, by hand still needs a target
-  and spends the economy: R15/R19's first version).
+  likes. Nothing else changes (engine R21). A by-hand tile is sent at once; the composer opens
+  only for what the engine still reads by hand (a slot level, Advantage, riders, strike effects,
+  a damage type) or to show a refusal. The options' availability is still the automatic way's,
+  so by-hand tiles aren't greyed out until the engine judges them by hand (R22).
 
 **Applying what happened.** Whoever is affected applies it with the usual controls: the GM for
 anyone (the selection panel's damage, healing and conditions: the encounter's `effects`, so

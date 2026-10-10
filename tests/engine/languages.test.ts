@@ -40,8 +40,10 @@ describe("Italian lists and plurals", () => {
     expect(render("option.requires_ability", { abilities: ["Forza", "Destrezza"], min: 13 })).toBe(
       "richiede Forza o Destrezza 13+",
     );
-    expect(render("refusal.roll_count", { count: 1, given: 3 })).toBe("Inserisci 1 dado, non 3");
-    expect(render("refusal.roll_count", { count: 2, given: 3 })).toBe("Inserisci 2 dadi, non 3");
+    const moves = (turns: number) =>
+      render("explore.moves", { name: "Ilse", feet: 30, turns, speed: 30, seconds: 6 * turns });
+    expect(moves(1)).toContain("1 turno a una");
+    expect(moves(2)).toContain("2 turni a una");
   });
 });
 
