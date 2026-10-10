@@ -350,6 +350,7 @@ export const en = {
   "table.areaPoint": "Point",
   "table.areaToward": "Toward",
   "table.send": "Do it",
+  "table.forceAction": "Do it anyway",
   "table.dice": "Dice",
   "table.diceEngine": "Engine rolls",
   "table.diceTable": "Rolled at the table",

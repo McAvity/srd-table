@@ -237,6 +237,7 @@ function Table({ record }: { record: EncounterRecord }) {
               favoriteOwner={actor.character ?? actor.monster ?? actor.id}
               way={way ?? "auto"}
               onWay={(w) => setSwitched({ id: actor.id, way: w })}
+              gm={gm}
               onCompose={(entry, way) => setComposing({ entry, way })}
               needsComposer={needsComposer}
             />

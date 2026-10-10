@@ -5,7 +5,8 @@
  * is sent at once; the others open the composer. Attacks that follow an earlier one (Cleave after a
  * hit, the Light extra attack, attacks a feature granted) show in the Action tab too, where the
  * attack that opened them was. On the combatant's turn, End turn sends `next_turn`. The Play switch
- * says how the actions are played (automatic or by hand).
+ * says how the actions are played (automatic or by hand). The GM can open an unavailable option
+ * in the composer, which offers "Do it anyway" when the engine can override the refusal.
  */
 
 import { useState } from "react";
@@ -105,6 +106,7 @@ export function QuickBar({
   favoriteOwner,
   way,
   onWay,
+  gm,
   onCompose,
   needsComposer,
 }: {
@@ -115,6 +117,8 @@ export function QuickBar({
   /** How the actions are played (the Play switch). */
   way: PlayWay;
   onWay: (way: PlayWay) => void;
+  /** The GM's view: an unavailable option opens the composer (for "Do it anyway"). */
+  gm: boolean;
   onCompose: (entry: OptionEntry, way: PlayWay) => void;
   needsComposer: (entry: OptionEntry) => boolean;
 }) {
@@ -213,6 +217,7 @@ export function QuickBar({
                 icon={ICON[tile.kind]}
                 reason={tile.entry.available ? null : (tile.entry.reason ?? "")}
                 onClick={() => void use(tile)}
+                onUnavailable={gm ? () => onCompose(tile.entry, way) : undefined}
                 detail={[
                   t(`table.cost.${tile.entry.cost}`),
                   tile.entry.uses ? t("table.uses", tile.entry.uses) : null,

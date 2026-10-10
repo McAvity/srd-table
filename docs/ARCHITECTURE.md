@@ -165,8 +165,8 @@ fact (dice-box-threejs accepts predetermined results).
 
 ## Manual play
 
-Designed 2026-10-10 (roadmap: milestone 6); "by hand" (R15) and "own dice" (R16) are built, the
-GM override waits for R17. A table may play without the engine
+Designed 2026-10-10 (roadmap: milestone 6); "by hand" (R15), "own dice" (R16) and the GM override
+(R17) are built. A table may play without the engine
 resolving everything. The UI still implements no rule: costs, legality and every state change
 go through the engine; "by hand" means the user decides an outcome, not the app.
 
@@ -207,6 +207,8 @@ panel; the record's `modes`). Each action can still be played another way.
 
 **GM override.** A refused option shows "Do it anyway" in the GM's view only: the engine applies
 the action despite the refusal and the log marks it as an override. Players never see it.
+Built: a GM's click on an unavailable tile opens the composer; the button shows only when the
+engine's dry run with `force` passes (the app never decides which refusals can be forced).
 
 **Engine requests this needs** (filed as R15, R16, R17; see ENGINE-GAPS.md): a declared action (`manual: true` on attacks,
 spells, features and monster actions: costs only), including spending a monster's "(1/Day)" and
