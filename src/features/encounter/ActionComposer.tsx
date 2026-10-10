@@ -4,6 +4,8 @@
  * and the creatures in it), a wall's ends, Advantage, riders, cover, a skill for a check. It
  * starts from the engine's ready-to-send action and only fills in fields; whether the result is
  * legal is the engine's dry run (`checkAction`), shown before sending, with the option's odds.
+ * It's sent the way the quick bar's Play switch says (automatic or by hand); the other way is the
+ * second button.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -25,6 +27,8 @@ import { formatNumber, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useActionCheck, useAreaPreview, useEntry, usePlayView, useSquaresWithin } from "@/queries";
 import { useDocuments } from "@/store/documents";
+import type { PlayWay } from "@/store/settings";
+import { canPlayByHand, playedAs } from "./manual";
 import { useTableUi } from "./tableUi";
 
 type Mode = "normal" | "advantage" | "disadvantage";
@@ -79,6 +83,7 @@ export function ActionComposer({
   view,
   options,
   entry,
+  way,
   gm,
   onClose,
 }: {
@@ -86,6 +91,7 @@ export function ActionComposer({
   view: EncounterView;
   options: CombatantOptions;
   entry: OptionEntry;
+  way: PlayWay;
   gm: boolean;
   onClose: () => void;
 }) {
@@ -233,7 +239,12 @@ export function ActionComposer({
       unaffected,
     ],
   );
-  const check = useActionCheck(encounterId, action);
+  const check = useActionCheck(encounterId, playedAs(action, way));
+  const otherWay: PlayWay | null = canPlayByHand(base)
+    ? way === "auto"
+      ? "manual"
+      : "auto"
+    : null;
 
   const startAiming = () => {
     if (!area || !areaMode) return;
@@ -277,10 +288,10 @@ export function ActionComposer({
     return () => useTableUi.setState({ onToken: null });
   });
 
-  async function go() {
+  async function go(as: PlayWay) {
     setBusy(true);
     try {
-      const result = await send(encounterId, action);
+      const result = await send(encounterId, playedAs(action, as));
       if (result.ok) onClose();
       else setReasons(result.reasons);
     } finally {
@@ -676,13 +687,18 @@ export function ActionComposer({
       </div>
       <footer className="mt-3 flex justify-end gap-2">
         <Button onClick={onClose}>{t("common.cancel")}</Button>
+        {otherWay && (
+          <Button disabled={busy || check.data?.ok === false} onClick={() => void go(otherWay)}>
+            {otherWay === "manual" ? t("table.wayManual") : t("table.wayAuto")}
+          </Button>
+        )}
         <Button
           variant="primary"
-          icon="d20"
+          icon={way === "manual" && otherWay ? "check" : "d20"}
           disabled={busy || check.data?.ok === false}
-          onClick={() => void go()}
+          onClick={() => void go(way)}
         >
-          {t("table.send")}
+          {way === "manual" && otherWay ? t("table.sendManual") : t("table.send")}
         </Button>
       </footer>
     </section>

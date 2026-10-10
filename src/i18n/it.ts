@@ -360,6 +360,20 @@ export const it: Messages = {
   "table.areaPoint": "Punto",
   "table.areaToward": "Verso",
   "table.send": "Fallo",
+  "table.sendManual": "Fallo a mano",
+  "table.playWay": "Gioco",
+  "table.wayAuto": "Automatico",
+  "table.wayManual": "A mano",
+  "table.wayDefault": "Predefinito della campagna",
+  "table.wayHint":
+    "Automatico: il motore tira e applica l'esito. A mano: il motore controlla l'azione e ne spende i costi; il Master applica quello che è successo.",
+  "table.declared": "In attesa di un esito",
+  "table.declaredHint":
+    "Giocata a mano: i costi sono spesi. Applica quello che è successo ai bersagli scelti, poi segnala come fatta.",
+  "table.declaredWhat": "{name}: {what}",
+  "table.declaredLevel": "{name}: {what} al livello {level}",
+  "table.declaredNoTargets": "Nessun bersaglio indicato.",
+  "table.declaredDone": "Fatto",
   "table.unaffected": "Creature che non colpisce",
   "table.areaCovers": "Copre",
   "table.oddsHit": "Colpisce {p}",
@@ -586,6 +600,11 @@ export const it: Messages = {
     "Chi risponde a Ispirazione bardica, Resistenza leggendaria e simili per i nuovi combattenti. “Chiedi” ferma l'azione perché scelga il giocatore (o il Master); “Automatiche” segue il consiglio del motore.",
   "settings.characterDecisions": "Personaggi",
   "settings.monsterDecisions": "Mostri",
+  "settings.play": "Come si giocano le azioni",
+  "settings.playHint":
+    "Il predefinito per i nuovi turni: con “Automatico” il motore tira e risolve; con “A mano” spende solo i costi e lascia l'esito al tavolo (lo applica il Master). Il Master lo cambia per ogni combattente nell'incontro, e ogni azione si può giocare anche nell'altro modo.",
+  "settings.characterPlay": "Personaggi",
+  "settings.monsterPlay": "Mostri",
   "settings.language": "Lingua",
   "settings.languageHint":
     "Le parole dell'app. I testi del motore e dell'SRD restano in inglese per ora.",

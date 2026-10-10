@@ -19,6 +19,8 @@ export interface StoredEncounter {
   readonly name: string;
   readonly encounter: unknown;
   readonly log: unknown;
+  readonly declared?: unknown;
+  readonly modes?: unknown;
   readonly created: number;
   readonly updated: number;
 }

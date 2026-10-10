@@ -1,7 +1,8 @@
 /**
  * The selected combatant: its numbers and conditions, effects on it, and the controls that apply
  * to it. Checks roll through the encounter's `check` action. GM only: set Initiative, the
- * decision mode, effects by hand (damage, healing, conditions, timed), end an effect, remove.
+ * decision mode, how its actions are played (automatic or by hand), effects by hand (damage,
+ * healing, conditions, timed), end an effect, remove.
  */
 
 import { Link } from "@tanstack/react-router";
@@ -16,16 +17,20 @@ import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
 import { useDocuments } from "@/store/documents";
+import type { PlayWay } from "@/store/settings";
 import { ConditionMedal } from "../sheet/HitPoints";
 
 export function SelectionPanel({
   encounterId,
+  mode,
   encounter,
   combatant,
   gm,
   canAct,
 }: {
   encounterId: string;
+  /** How the combatant plays its actions, if the GM set it (`null`: the campaign's default). */
+  mode: PlayWay | null;
   encounter: Encounter;
   combatant: CombatantView | null;
   gm: boolean;
@@ -133,7 +138,14 @@ export function SelectionPanel({
       )}
       <Reasons reasons={reasons} className="mb-2" />
       {canAct && <CheckForm id={c.id} act={act} />}
-      {gm && <GmControls c={c} act={act} />}
+      {gm && (
+        <GmControls
+          c={c}
+          act={act}
+          mode={mode}
+          setMode={(m) => useDocuments.getState().setPlayMode(encounterId, c.id, m)}
+        />
+      )}
     </Section>
   );
 }
@@ -198,7 +210,17 @@ function CheckForm({ id, act }: { id: string; act: Act }) {
   );
 }
 
-function GmControls({ c, act }: { c: CombatantView; act: Act }) {
+function GmControls({
+  c,
+  act,
+  mode,
+  setMode,
+}: {
+  c: CombatantView;
+  act: Act;
+  mode: PlayWay | null;
+  setMode: (mode: PlayWay | null) => void;
+}) {
   const { data: conditions } = useTable<ConditionDef>("conditions");
   const [initiative, setInitiative] = useState(c.initiative === null ? "" : String(c.initiative));
   const [amount, setAmount] = useState("");
@@ -248,6 +270,18 @@ function GmControls({ c, act }: { c: CombatantView; act: Act }) {
               <option value="">{t("table.decisionsDefault")}</option>
               <option value="ask">{t("table.decisionsAsk")}</option>
               <option value="auto">{t("table.decisionsAuto")}</option>
+            </select>
+          </label>
+          <label className="flex flex-col text-[13px] text-ink-muted" title={t("table.wayHint")}>
+            {t("table.playWay")}
+            <select
+              className="field"
+              value={mode ?? ""}
+              onChange={(e) => setMode(e.target.value === "" ? null : (e.target.value as PlayWay))}
+            >
+              <option value="">{t("table.wayDefault")}</option>
+              <option value="auto">{t("table.wayAuto")}</option>
+              <option value="manual">{t("table.wayManual")}</option>
             </select>
           </label>
         </div>

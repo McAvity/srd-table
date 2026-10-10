@@ -7,6 +7,12 @@ import { create } from "zustand";
 import { engine } from "@/engine/client";
 
 export type DecisionMode = "ask" | "auto";
+/**
+ * How a combatant's actions are played: `auto`, the engine rolls and resolves; `manual`, by
+ * hand: the engine checks the action and spends its costs, the outcome is applied with effects.
+ */
+export type PlayWay = "auto" | "manual";
+export const PLAY_WAYS: readonly PlayWay[] = ["auto", "manual"];
 /** `system` follows the device (Mat when light, Felt when dark). */
 export type Theme = "system" | "mat" | "felt";
 
@@ -23,6 +29,12 @@ export interface CampaignSettings {
    */
   readonly character_decisions: DecisionMode;
   readonly monster_decisions: DecisionMode;
+  /**
+   * How actions are played by default, for characters and for monsters; the GM changes it per
+   * combatant in the encounter (selection panel), and any action can still be played the other way.
+   */
+  readonly character_play: PlayWay;
+  readonly monster_play: PlayWay;
   readonly theme: Theme;
   readonly locale: string;
   /** Dev: fix the dice seed so a bug can be replayed (`null`: random). */
@@ -37,6 +49,8 @@ export const DEFAULT_SETTINGS: CampaignSettings = {
   sources: null,
   character_decisions: "ask",
   monster_decisions: "ask",
+  character_play: "auto",
+  monster_play: "auto",
   theme: "system",
   locale: "en",
   dev_seed: null,
@@ -91,6 +105,10 @@ function readTheme(v: unknown): Theme {
   return "system";
 }
 
+function way(v: unknown): PlayWay {
+  return v === "manual" ? "manual" : "auto";
+}
+
 export function readSettings(raw: unknown): CampaignSettings {
   if (typeof raw !== "object" || raw === null) return DEFAULT_SETTINGS;
   const r = raw as Partial<Record<keyof CampaignSettings, unknown>>;
@@ -103,6 +121,8 @@ export function readSettings(raw: unknown): CampaignSettings {
     sources: r.sources === null ? null : (strings(r.sources) ?? null),
     character_decisions: mode(r.character_decisions, DEFAULT_SETTINGS.character_decisions),
     monster_decisions: mode(r.monster_decisions, DEFAULT_SETTINGS.monster_decisions),
+    character_play: way(r.character_play),
+    monster_play: way(r.monster_play),
     theme: readTheme(r.theme),
     locale: typeof r.locale === "string" ? r.locale : "en",
     dev_seed: typeof r.dev_seed === "number" && Number.isInteger(r.dev_seed) ? r.dev_seed : null,

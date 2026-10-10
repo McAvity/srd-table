@@ -5,7 +5,7 @@
 
 import type { D20TestResult, RolledDamage, RollResult } from "srd-rules-engine";
 import { create } from "zustand";
-import type { ActionResult } from "@/engine/facade";
+import type { RolledResult } from "@/engine/facade";
 
 export type ToastTone = "info" | "warning" | "error";
 
@@ -22,7 +22,7 @@ export type DiceShown =
       readonly id: number;
       readonly kind: "action";
       readonly who: string;
-      readonly result: NonNullable<ActionResult>;
+      readonly result: RolledResult;
     }
   | { readonly id: number; readonly kind: "roll"; readonly who: string; readonly roll: RollResult }
   | {
@@ -39,7 +39,7 @@ export type DiceShown =
     };
 
 type DiceInput =
-  | { readonly kind: "action"; readonly who: string; readonly result: NonNullable<ActionResult> }
+  | { readonly kind: "action"; readonly who: string; readonly result: RolledResult }
   | { readonly kind: "roll"; readonly who: string; readonly roll: RollResult }
   | { readonly kind: "test"; readonly who: string; readonly test: D20TestResult }
   | { readonly kind: "damage"; readonly who: string; readonly damage: RolledDamage };

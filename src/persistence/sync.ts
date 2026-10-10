@@ -8,11 +8,12 @@ import { engine } from "@/engine/client";
 import { t } from "@/i18n";
 import {
   type CharacterRecord,
+  type DeclaredEntry,
   type EncounterRecord,
   type LogEntry,
   useDocuments,
 } from "@/store/documents";
-import { readSettings, useSettings } from "@/store/settings";
+import { PLAY_WAYS, type PlayWay, readSettings, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
 import { db } from "./db";
 
@@ -47,7 +48,13 @@ export async function loadAll(): Promise<void> {
       );
       continue;
     }
-    encounters.push({ ...raw, encounter: parsed.encounter, log: readLog(raw.log) });
+    encounters.push({
+      ...raw,
+      encounter: parsed.encounter,
+      log: readLog(raw.log),
+      declared: readDeclared(raw.declared),
+      modes: readModes(raw.modes),
+    });
   }
   useDocuments.getState().hydrate({ characters, encounters });
   // Persist what the parse migrated.
@@ -74,6 +81,28 @@ function readLog(raw: unknown): LogEntry[] {
       const { messages: _, ...rest } = e;
       return rest;
     });
+}
+
+/** Declared actions waiting for an outcome: entries that still look like the engine's. */
+function readDeclared(raw: unknown): DeclaredEntry[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (e): e is DeclaredEntry =>
+      typeof e === "object" &&
+      e !== null &&
+      typeof (e as DeclaredEntry).id === "string" &&
+      (e as DeclaredEntry).result?.manual === true &&
+      Array.isArray((e as DeclaredEntry).result.targets),
+  );
+}
+
+function readModes(raw: unknown): Record<string, PlayWay> {
+  if (typeof raw !== "object" || raw === null) return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter((e): e is [string, PlayWay] =>
+      (PLAY_WAYS as readonly unknown[]).includes(e[1]),
+    ),
+  );
 }
 
 /** Save documents and settings when they change (debounced), deleting removed ones. */

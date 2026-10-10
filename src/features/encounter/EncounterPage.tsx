@@ -12,14 +12,17 @@ import type { CombatantView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { useCombatantOptions, useEncounterView } from "@/queries";
 import { canRedo, canUndo, type EncounterRecord, useDocuments } from "@/store/documents";
+import { type PlayWay, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
 import { BattleMap } from "../map/BattleMap";
 import { ActionComposer, needsComposer } from "./ActionComposer";
 import { CombatLog } from "./CombatLog";
 import { CombatPanel } from "./CombatPanel";
 import { DecisionDialog } from "./DecisionDialog";
+import { DeclaredPanel } from "./DeclaredPanel";
 import { ExplorationPanel } from "./ExplorationPanel";
 import { InitiativeRail } from "./InitiativeRail";
+import { wayOf } from "./manual";
 import { OffMapNotice } from "./OffMapNotice";
 import { PointDialog, PointPanel } from "./PointPanel";
 import { QuickBar } from "./QuickBar";
@@ -56,7 +59,10 @@ function Table({ record }: { record: EncounterRecord }) {
   const select = useTableUi((s) => s.select);
   const newPoint = useTableUi((s) => s.newPoint);
   const placePoint = useTableUi((s) => s.placePoint);
-  const [composing, setComposing] = useState<OptionEntry | null>(null);
+  const [composing, setComposing] = useState<{ entry: OptionEntry; way: PlayWay } | null>(null);
+  const settings = useSettings((s) => s.settings);
+  /** The Play switch moved off the acting combatant's default, until the turn changes. */
+  const [switched, setSwitched] = useState<{ id: string; way: PlayWay } | null>(null);
   const [name, setName] = useState(record.name);
   useEffect(() => setName(record.name), [record.name]);
 
@@ -87,11 +93,17 @@ function Table({ record }: { record: EncounterRecord }) {
   useEffect(() => {
     useTableUi.setState({ pinned: false });
     setComposing(null);
+    setSwitched(null);
   }, [current, record.encounter.round]);
 
   const selectedView = view?.combatants.find((c) => c.id === selected) ?? null;
   const actor = selectedView && canControl(selectedView) ? selectedView : !gm ? own : null;
   const options = useCombatantOptions(record.id, actor?.id ?? null);
+  const way: PlayWay | null = actor
+    ? switched?.id === actor.id
+      ? switched.way
+      : wayOf(record, actor, settings)
+    : null;
   const pending = record.encounter.pending;
   const pendingWho = pending ? view?.combatants.find((c) => c.id === pending.combatant) : undefined;
 
@@ -181,11 +193,12 @@ function Table({ record }: { record: EncounterRecord }) {
         )}
         {!pending && actor && options.data && composing && (
           <ActionComposer
-            key={composing.label}
+            key={composing.entry.label}
             encounterId={record.id}
             view={view}
             options={options.data}
-            entry={composing}
+            entry={composing.entry}
+            way={composing.way}
             gm={gm}
             onClose={() => setComposing(null)}
           />
@@ -211,7 +224,9 @@ function Table({ record }: { record: EncounterRecord }) {
               encounterId={record.id}
               options={options.data}
               favoriteOwner={actor.character ?? actor.monster ?? actor.id}
-              onCompose={setComposing}
+              way={way ?? "auto"}
+              onWay={(w) => setSwitched({ id: actor.id, way: w })}
+              onCompose={(entry, way) => setComposing({ entry, way })}
               needsComposer={needsComposer}
             />
           </>
@@ -221,9 +236,11 @@ function Table({ record }: { record: EncounterRecord }) {
 
       <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
         <PointPanel encounterId={record.id} encounter={record.encounter} view={view} gm={gm} />
+        {gm && <DeclaredPanel record={record} view={view} />}
         {gm && <CombatPanel record={record} view={view} />}
         <SelectionPanel
           encounterId={record.id}
+          mode={selectedView ? (record.modes?.[selectedView.id] ?? null) : null}
           encounter={record.encounter}
           combatant={selectedView}
           gm={gm}
