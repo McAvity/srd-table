@@ -26,6 +26,7 @@ import { wayOf } from "./manual";
 import { OffMapNotice } from "./OffMapNotice";
 import { PointDialog, PointPanel } from "./PointPanel";
 import { QuickBar } from "./QuickBar";
+import { RollDialog } from "./RollDialog";
 import { SelectionPanel } from "./SelectionPanel";
 import { useTableUi } from "./tableUi";
 
@@ -175,14 +176,24 @@ function Table({ record }: { record: EncounterRecord }) {
             controllable={canControl}
           />
         </div>
-        {pending && (
-          <DecisionDialog
-            encounterId={record.id}
-            pending={pending}
-            who={pendingWho?.name ?? pending.combatant}
-            canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
-          />
-        )}
+        {pending &&
+          (pending.kind === "roll" && pending.roll ? (
+            <RollDialog
+              key={pending.question}
+              encounterId={record.id}
+              pending={pending}
+              roll={pending.roll}
+              who={pendingWho?.name ?? pending.combatant}
+              canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
+            />
+          ) : (
+            <DecisionDialog
+              encounterId={record.id}
+              pending={pending}
+              who={pendingWho?.name ?? pending.combatant}
+              canAnswer={gm || (pendingWho ? mine(pendingWho) : false)}
+            />
+          ))}
         {actor && (
           <OffMapNotice
             view={view}

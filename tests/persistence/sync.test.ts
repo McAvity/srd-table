@@ -43,6 +43,7 @@ describe("persistence", () => {
     expect(state.encounters["e-old"]?.declared?.map((d) => d.id)).toEqual(["d-1"]);
     expect(state.encounters["e-old"]?.modes).toEqual({ goblin: "manual" });
     expect(useSettings.getState().settings.character_play).toBe("auto");
+    expect(useSettings.getState().settings.monster_dice).toBe("engine");
     // Saved before the Mat and Marker look: parchment is now Mat.
     expect(useSettings.getState().settings.theme).toBe("mat");
     const saved = await database.get("characters", "c-old");

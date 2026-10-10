@@ -14,7 +14,7 @@ import type { EncounterView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { useTable } from "@/queries";
 import { type EncounterRecord, useDocuments } from "@/store/documents";
-import { useSettings } from "@/store/settings";
+import { type DiceMode, useSettings } from "@/store/settings";
 import { useTableUi } from "./tableUi";
 
 /** After an add: if someone stands on the map, get the first newcomer placed next. */
@@ -93,6 +93,17 @@ export function CombatPanel({ record, view }: { record: EncounterRecord; view: E
         </select>
       </label>
       <label className="mt-2 flex items-center gap-2 text-sm">
+        <span className="text-ink-muted">{t("table.dice")}</span>
+        <select
+          className="field w-auto"
+          value={encounter.dice}
+          onChange={(e) => void act({ type: "set_dice", mode: e.target.value as DiceMode })}
+        >
+          <option value="engine">{t("table.diceEngine")}</option>
+          <option value="table">{t("table.diceTable")}</option>
+        </select>
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm">
         <span className="text-ink-muted">{t("table.positions")}</span>
         <select
           className="field w-auto"
@@ -119,6 +130,7 @@ export function CombatPanel({ record, view }: { record: EncounterRecord; view: E
 function AddMonster({ record, onClose }: { record: EncounterRecord; onClose: () => void }) {
   const send = useDocuments((s) => s.encounterAction);
   const decisions = useSettings((s) => s.settings.monster_decisions);
+  const dice = useSettings((s) => s.settings.monster_dice);
   const { data: monsters } = useTable<MonsterDef>("monsters");
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<MonsterDef | null>(null);
@@ -142,6 +154,7 @@ function AddMonster({ record, onClose }: { record: EncounterRecord; onClose: () 
       monster: picked.id,
       side,
       decisions,
+      dice,
       ...(rollHp ? { roll_hp: true } : {}),
       ...(inLair ? { in_lair: true } : {}),
     };
@@ -264,6 +277,7 @@ function AddCharacter({
   const send = useDocuments((s) => s.encounterAction);
   const characters = useDocuments((s) => s.characters);
   const decisions = useSettings((s) => s.settings.character_decisions);
+  const dice = useSettings((s) => s.settings.character_dice);
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const inFight = new Set(view.combatants.map((c) => c.character).filter(Boolean));
   const list = Object.values(characters).sort((a, b) => a.build.name.localeCompare(b.build.name));
@@ -275,6 +289,7 @@ function AddCharacter({
       character: id,
       side: t("table.sideParty"),
       decisions,
+      dice,
     });
     setReasons(result.ok ? null : result.reasons);
     if (result.ok) placeNewcomer(record.id, before);

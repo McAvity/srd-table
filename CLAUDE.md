@@ -297,9 +297,8 @@ Where work stands, for the next session:
 1. **R15 (declared actions, "by hand"): picked up and committed.** Play switch in the quick bar,
    the composer's other-way button, "Waiting for an outcome" (`DeclaredPanel.tsx`), per-combatant
    way and campaign defaults. See `docs/ENGINE-GAPS.md` > Done.
-2. **R16 (own dice) delivered by the engine (`dccdd51`): not picked up.** Read
-   `../srd-rules-engine/docs/RESPONSES.md` > R16, `npm run engine:update`, then "Own dice" as a third
-   way on the Play switch and a roll-entry dialog (`docs/ENGINE-GAPS.md` > R15–R17).
+2. **R16 (dice rolled at the table): picked up and committed.** A per-combatant "Dice" setting
+   (engine's `dice`), `RollDialog.tsx`, campaign defaults. See `docs/ENGINE-GAPS.md` > Done.
 3. Open after that: R17 (engine), R18 (engine).
 
 Delete this section once these are picked up.

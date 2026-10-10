@@ -22,7 +22,6 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R16 | Own dice: rolls that wait for entered numbers (manual play) | open |
 | R17 | GM override of a refusal (manual play) | open |
 | R18 | Messages ready for any language (plurals, list joiners, roll labels, step/alignment codes) | open |
 
@@ -46,9 +45,7 @@ The app never works around a gap with rules of its own.
   self-heal), not wired: on the sheet the player applies a feature's healing themself anyway.
   A spell played by hand leaves no zone, wall or mark (Hunter's Mark, Hex) in the engine: the
   GM tracks it (a follow-up request if a table needs it).
-- **When R16 is done.** "… I'll roll" next to each option; a roll-entry dialog for
-  `pending.kind: "roll"` (like `DecisionDialog.tsx`), shown to the roll's controller; the
-  per-combatant dice setting next to the decisions mode.
+- **R16 is in** (see Done): the dice are a combatant's setting, not a way on the Play switch.
 - **When R17 is done.** "Do it anyway" on a refused option, in the GM's view only, sending
   `force: true`; the override note in the log.
 
@@ -70,4 +67,5 @@ The app never works around a gap with rules of its own.
 | R11 | Option previews | `2144460` (main) | each builder option shows what it would change ("AC 16 → 17", `ChoiceCard.tsx` `PreviewLine`, facade `optionPreviews`, `useOptionPreviews`), Ability Score Improvement rows too; not on the sheet's "Today's picks" (the saved build isn't the build as played) |
 | R12 | `unassignedValues` | `5dbf55e` (main) | the ability selects offer only the engine's unassigned values plus the ability's own (`AbilitiesView.unassigned`); the swap convenience is gone |
 | R15 | Declared actions (manual play) | `98c6df0` (main) | the quick bar's Play switch (Automatic / By hand, starting on the combatant's way: `features/encounter/manual.ts` `wayOf`) sends `manual: true` (`playedAs`); the composer offers the other way as its second button; the GM's "Waiting for an outcome" (`DeclaredPanel.tsx`, the record's `declared`, kept in undo snapshots) applies damage or healing to the picked targets with `effects`, then Done; per-combatant way in `SelectionPanel.tsx` (the record's `modes`), campaign defaults `character_play` / `monster_play` in Settings; declared results skip the dice tray |
+| R16 | Dice rolled at the table | `dccdd51` (main) | `RollDialog.tsx` for `pending.kind: "roll"` (one box per die, `enter_roll`, the engine's refusals shown), to the roll's controller, others see the wait; "Dice" (engine / at the table) per combatant in `SelectionPanel.tsx` and for the encounter in `CombatPanel.tsx` (`set_dice`); campaign defaults `character_dice` / `monster_dice`, sent as `dice` on `add_character` / `add_monster`; the question an action stops for is logged once (as the decision entry) |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |

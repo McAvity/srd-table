@@ -165,13 +165,12 @@ fact (dice-box-threejs accepts predetermined results).
 
 ## Manual play
 
-Designed 2026-10-10 (roadmap: milestone 6); "by hand" is built (R15), "own dice" and the GM
-override wait for R16 and R17. A table may play without the engine
+Designed 2026-10-10 (roadmap: milestone 6); "by hand" (R15) and "own dice" (R16) are built, the
+GM override waits for R17. A table may play without the engine
 resolving everything. The UI still implements no rule: costs, legality and every state change
 go through the engine; "by hand" means the user decides an outcome, not the app.
 
-**Three ways to play an action.** The quick bar has a Play switch (Automatic / By hand, later
-Own dice) that starts on the acting combatant's way and lasts until the turn changes; tiles are
+**Three ways to play an action.** The quick bar has a Play switch (Automatic / By hand) that starts on the acting combatant's way and lasts until the turn changes; tiles are
 sent that way. The composer sends the switch's way with its main button and offers the other way
 next to it. (A second button on every tile was the first idea: too crowded for a bar of tiles.)
 Actions the engine can't take by hand (Dash, a check, zones) are sent as they are.
@@ -180,7 +179,11 @@ Actions the engine can't take by hand (Dash, a check, zones) are sent as they ar
 - **Own dice** — the engine resolves, but every roll of a combatant the player controls (attack
   rolls, saves, checks, damage, healing) stops the action and waits for the numbers rolled at
   the table, as decisions stop with `pending` today. Rolls of creatures the player doesn't
-  control stay with their controller (the GM's for monsters).
+  control stay with their controller (the GM's for monsters). Built on the engine's model: who
+  rolls is a combatant's setting in the encounter (`dice: engine | table`, like `decisions`),
+  not a way per action, so it's a "Dice" select next to the decisions mode (selection panel,
+  and the encounter's in the combat controls) with campaign defaults for new combatants; a roll
+  that waits shows `RollDialog` (one box per die) to whoever controls that combatant.
 - **By hand** — the action is *declared*: the engine checks it's allowed and spends its costs
   (slot, Action / Bonus Action / Reaction, a feature's or a monster's limited use, Concentration
   started), rolls nothing, applies no effect, and logs it as done by hand. The outcome is then
