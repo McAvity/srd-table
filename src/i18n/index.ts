@@ -33,10 +33,6 @@ export function setLocale(next: string): void {
   messages = found;
 }
 
-export function currentLocale(): string {
-  return locale;
-}
-
 export function t(key: MessageKey, params?: Params): string {
   return format(messages[key] ?? en[key], params);
 }

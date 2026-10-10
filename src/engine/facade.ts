@@ -333,11 +333,6 @@ export interface EncounterView {
   readonly zones: readonly ZoneView[];
 }
 
-export interface AreaPlacementInput {
-  readonly point?: { readonly x: number; readonly y: number };
-  readonly toward?: { readonly x: number; readonly y: number };
-}
-
 /**
  * The engine's fixed lists and names the UI iterates or shows (abilities, skills, damage types,
  * alignments, builder steps), fetched once at startup so the main thread imports no engine code.
