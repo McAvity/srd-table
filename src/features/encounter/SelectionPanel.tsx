@@ -1,7 +1,7 @@
 /**
  * The selected combatant: its numbers and conditions, effects on it, and the controls that apply
  * to it. Checks roll through the encounter's `check` action. GM only: set Initiative, the
- * decision mode, how its actions are played (automatic or by hand), effects by hand (damage,
+ * decision mode, who rolls its dice, how its actions are played (automatic or by hand), effects by hand (damage,
  * healing, conditions, timed), end an effect, remove.
  */
 
@@ -17,7 +17,7 @@ import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
 import { useDocuments } from "@/store/documents";
-import type { PlayWay } from "@/store/settings";
+import type { DiceMode, PlayWay } from "@/store/settings";
 import { ConditionMedal } from "../sheet/HitPoints";
 
 export function SelectionPanel({
@@ -270,6 +270,24 @@ function GmControls({
               <option value="">{t("table.decisionsDefault")}</option>
               <option value="ask">{t("table.decisionsAsk")}</option>
               <option value="auto">{t("table.decisionsAuto")}</option>
+            </select>
+          </label>
+          <label className="flex flex-col text-[13px] text-ink-muted">
+            {t("table.dice")}
+            <select
+              className="field"
+              value={c.dice ?? ""}
+              onChange={(e) =>
+                void act({
+                  type: "set_dice",
+                  id: c.id,
+                  mode: e.target.value === "" ? null : (e.target.value as DiceMode),
+                })
+              }
+            >
+              <option value="">{t("table.decisionsDefault")}</option>
+              <option value="engine">{t("table.diceEngine")}</option>
+              <option value="table">{t("table.diceTable")}</option>
             </select>
           </label>
           <label className="flex flex-col text-[13px] text-ink-muted" title={t("table.wayHint")}>

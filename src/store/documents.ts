@@ -432,9 +432,16 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         set((s) => {
           const current = s.encounters[id];
           if (!current) return s;
+          // The question the action stopped for is logged once, as its own (decision) entry.
+          const question = result.pending?.question;
+          const keep = result.notes.map((line) => line !== question);
           let log = appendLog(
             current,
-            { tone: "notes", lines: result.notes, messages: result.messages },
+            {
+              tone: "notes",
+              lines: result.notes.filter((_, i) => keep[i]),
+              messages: result.messages.filter((_, i) => keep[i]),
+            },
             result.encounter.round,
           );
           if (result.pending) {
