@@ -202,7 +202,12 @@ export const en = {
   "sheet.actions": "Features used in turns",
   "sheet.useFeature": "Use",
   "sheet.useByHandHint":
-    "Spend the use without the healing: apply what you rolled at the table yourself.",
+    "Roll its dice and spend the use; nothing else is applied: apply the result yourself.",
+  "sheet.rollByHand": "Roll",
+  "sheet.rollAttackHint": "Attack roll and damage with the engine's dice; nothing is applied.",
+  "sheet.rollSpellHint":
+    "The spell's dice (attack rolls, damage, healing, its DC), its slot spent; nothing else is applied.",
+  "sheet.castAt": "{spell}: slot level",
   "sheet.attackBonus": "To hit",
   "sheet.damageCol": "Damage",
   "sheet.riders": "Optional: {riders}",

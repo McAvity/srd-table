@@ -312,8 +312,8 @@ docs/            # ARCHITECTURE.md (decisions), ENGINE-GAPS.md (what the UI need
      each action played automatically, or by hand as a dice roller (the engine rolls what's
      declared, no target, no outcome; resources spent, not the action economy); a default per
      combatant; whoever is affected applies the result (the GM for anyone, a player for their own
-     character); the GM can override a refusal ("Do it anyway", R17). Built (R21); options'
-     availability by hand waits for engine request R22.
+     character); the GM can override a refusal ("Do it anyway", R17). Built (R21, R22),
+     on the sheet too; the sheet's spell slot levels wait for engine request R23.
 
 ## Commands
 

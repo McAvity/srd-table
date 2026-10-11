@@ -15,6 +15,7 @@ import type {
   EncounterAction,
   Message,
   PlayAction,
+  RollWhat,
 } from "srd-rules-engine";
 import { create } from "zustand";
 import { engine } from "@/engine/client";
@@ -27,6 +28,7 @@ import type {
   Party,
   PlayChange,
   Refusal,
+  SheetRoll,
 } from "@/engine/facade";
 import { t } from "@/i18n";
 import { rollDice } from "./dice";
@@ -109,6 +111,8 @@ export interface DocumentsState {
   /** Change how a past level's Hit Points were gained. */
   setLevelHp(id: string, level: number, hp: "fixed" | "roll"): Promise<Outcome<BuildChange>>;
   playAction(id: string, action: PlayAction | readonly PlayAction[]): Promise<Outcome<PlayChange>>;
+  /** Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. */
+  rollByHand(id: string, what: RollWhat): Promise<Outcome<SheetRoll>>;
 
   createEncounter(name: string): Promise<string>;
   importEncounter(json: unknown, name: string): Promise<Outcome<{ id: string }>>;
@@ -355,6 +359,33 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         if (!result.ok) return result;
         commitCharacter(id, record.build, result.state);
         toastNotes(result.notes);
+        return result;
+      });
+    },
+
+    rollByHand(id, what) {
+      return serial(id, async () => {
+        const record = get().characters[id];
+        if (!record) return missing();
+        const result = await engine().rollByHand(record.build, record.state, what);
+        if (!result.ok) return result;
+        commitCharacter(id, record.build, result.state);
+        const { roll } = result;
+        // The tray shows the dice as the encounter's by-hand card does; its notes say the same.
+        useUi.getState().showDice([
+          {
+            kind: "action",
+            who: record.build.name ?? "",
+            result: {
+              manual: true,
+              by: id,
+              action: roll.action,
+              name: roll.name,
+              slot_level: roll.slot_level,
+              rolls: roll.rolls,
+            },
+          },
+        ]);
         return result;
       });
     },

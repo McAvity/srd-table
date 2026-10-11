@@ -2,10 +2,10 @@
  * What the acting combatant can do now (`combatantOptions`), as tiles grouped by what they cost:
  * Action, Bonus Action, Reaction, Free, Legendary, plus favourites. Every option the engine lists
  * is shown; one it wouldn't take now is outlined dashed with its reason. A tile with nothing to fill in
- * is sent at once; the others open the composer. By hand (the Play switch), a tile is sent at once
- * unless it has something left to pick (a slot level, riders, strike effects); a refusal opens
- * the composer with the engine's reason. Until the engine judges options played by hand (R22),
- * a by-hand tile isn't greyed out with the automatic way's reason. Attacks that follow an earlier one (Cleave after a
+ * is sent at once; the others open the composer. By hand (the Play switch), an option the engine
+ * can roll (`rollable`) is sent as `roll` at once unless it has something left to pick (a slot
+ * level, riders, strike effects); it's greyed out only by the reasons that count by hand
+ * (`byHandReasons`: resources, the actor's state), and a refusal opens the composer. Attacks that follow an earlier one (Cleave after a
  * hit, the Light extra attack, attacks a feature granted) show in the Action tab too, where the
  * attack that opened them was. On the combatant's turn, End turn sends `next_turn`. The Play switch
  * says how the actions are played (automatic or by hand). The GM can open an unavailable option
@@ -21,7 +21,7 @@ import { t, tn } from "@/i18n";
 import { useDocuments } from "@/store/documents";
 import { type PlayWay, useSettings } from "@/store/settings";
 import { oddsText } from "./ActionComposer";
-import { canPlayByHand, playedAs } from "./manual";
+import { byHandReasons, playedAs } from "./manual";
 
 /** A stable empty list: a store selector must not return a new array each time. */
 const NO_FAVORITES: readonly string[] = [];
@@ -145,14 +145,18 @@ export function QuickBar({
   async function use(tile: Tile) {
     setReasons(null);
     if (needsComposer(tile.entry, way)) return onCompose(tile.entry, way);
-    const result = await send(encounterId, playedAs(tile.entry.action, way));
+    const result = await send(encounterId, playedAs(tile.entry.action, way, tile.entry.rollable));
     if (result.ok) return;
     if (byHand(tile)) onCompose(tile.entry, way);
     else setReasons(result.reasons);
   }
 
-  /** Played by hand: the options' availability is the automatic way's, so it isn't shown (R22). */
-  const byHand = (tile: Tile) => way === "manual" && canPlayByHand(tile.entry.action);
+  /** Rolled by hand: only the reasons that still count by hand grey it out. */
+  const byHand = (tile: Tile) => way === "manual" && tile.entry.rollable;
+  const reasonOf = (tile: Tile): string | null => {
+    if (!byHand(tile)) return tile.entry.available ? null : (tile.entry.reason ?? "");
+    return byHandReasons(tile.entry)[0]?.text ?? null;
+  };
 
   async function endTurn() {
     setReasons(null);
@@ -191,7 +195,7 @@ export function QuickBar({
           {economy.attacks_left > 0 && <span>{tn("table.attacksLeft", economy.attacks_left)}</span>}
           {economy.legendary && <span>{t("table.legendaryLeft", economy.legendary)}</span>}
         </section>
-        {tiles.some((tile) => canPlayByHand(tile.entry.action)) && (
+        {tiles.some((tile) => tile.entry.rollable) && (
           <fieldset className="flex items-center gap-1" title={t("table.wayHint")}>
             <legend className="sr-only">{t("table.playWay")}</legend>
             {(["auto", "manual"] as const).map((w) => (
@@ -223,7 +227,7 @@ export function QuickBar({
               <OptionButton
                 variant="tile"
                 icon={ICON[tile.kind]}
-                reason={tile.entry.available || byHand(tile) ? null : (tile.entry.reason ?? "")}
+                reason={reasonOf(tile)}
                 onClick={() => void use(tile)}
                 onUnavailable={gm ? () => onCompose(tile.entry, way) : undefined}
                 detail={[

@@ -30,7 +30,7 @@ import { titleCase } from "@/lib/format";
 import { useActionCheck, useAreaPreview, useEntry, usePlayView, useSquaresWithin } from "@/queries";
 import { useDocuments } from "@/store/documents";
 import type { PlayWay } from "@/store/settings";
-import { canPlayByHand, playedAs } from "./manual";
+import { byHandReasons, playedAs } from "./manual";
 import { useTableUi } from "./tableUi";
 
 type Mode = "normal" | "advantage" | "disadvantage";
@@ -135,7 +135,7 @@ export function ActionComposer({
   const [busy, setBusy] = useState(false);
   /** The way it's played: by hand there are no targets, areas or cover to pick. */
   const [as, setAs] = useState<PlayWay>(way);
-  const byHand = as === "manual" && canPlayByHand(base);
+  const byHand = as === "manual" && entry.rollable;
 
   // Riders and Versatile damage come from the character's attack line.
   const play = usePlayView(actor?.character ?? undefined);
@@ -246,14 +246,16 @@ export function ActionComposer({
       unaffected,
     ],
   );
-  const check = useActionCheck(encounterId, playedAs(action, as));
+  const check = useActionCheck(encounterId, playedAs(action, as, entry.rollable));
   const refused = check.data?.ok === false;
   const forced = useActionCheck(
     encounterId,
-    gm && refused ? ({ ...playedAs(action, as), force: true } as EncounterAction) : null,
+    gm && refused
+      ? ({ ...playedAs(action, as, entry.rollable), force: true } as EncounterAction)
+      : null,
   );
   const forceable = gm && refused && forced.data?.ok === true;
-  const otherWay: PlayWay | null = canPlayByHand(base) ? (as === "auto" ? "manual" : "auto") : null;
+  const otherWay: PlayWay | null = entry.rollable ? (as === "auto" ? "manual" : "auto") : null;
 
   const startAiming = () => {
     if (!area || !areaMode) return;
@@ -300,7 +302,7 @@ export function ActionComposer({
   async function go(as: PlayWay, force = false) {
     setBusy(true);
     try {
-      const played = playedAs(action, as);
+      const played = playedAs(action, as, entry.rollable);
       const result = await send(
         encounterId,
         force ? ({ ...played, force: true } as EncounterAction) : played,
@@ -553,14 +555,21 @@ export function ActionComposer({
             {entry.strikes.map((x) => {
               const key = `${x.send}:${x.id}`;
               const reasonId = `strike-${key}`;
+              // By hand only the reasons that still count by hand (the economy doesn't).
+              const reason = byHand
+                ? (byHandReasons(x)[0]?.text ?? null)
+                : x.available
+                  ? null
+                  : x.reason;
+              const available = reason === null;
               return (
                 <div key={key}>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
                       className="accent-[var(--blue)]"
-                      disabled={!x.available}
-                      aria-describedby={x.available ? undefined : reasonId}
+                      disabled={!available}
+                      aria-describedby={available ? undefined : reasonId}
                       checked={strikes.includes(key)}
                       onChange={(e) =>
                         setStrikes(
@@ -568,12 +577,12 @@ export function ActionComposer({
                         )
                       }
                     />
-                    <span className={x.available ? "" : "text-ink-muted"}>{x.name}</span>
+                    <span className={available ? "" : "text-ink-muted"}>{x.name}</span>
                     <span className="text-sm text-ink-muted">{x.cost}</span>
                   </label>
-                  {!x.available && x.reason && (
+                  {reason && (
                     <p id={reasonId} className="ml-6 text-[13px] text-ink-muted italic">
-                      {x.reason}
+                      {reason}
                     </p>
                   )}
                 </div>

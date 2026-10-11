@@ -1,44 +1,102 @@
 /**
- * Playing an action by hand (`manual`): a dice roller. The engine rolls what's declared (attack
- * rolls, damage, healing; a save effect's DC), with no target and no outcome; it spends the
- * resources (slots, uses, Recharge), not the action economy. Whoever is affected applies the
- * result. Which way a combatant plays by default is the GM's per-combatant setting, else the
- * campaign's default for its kind.
+ * Playing an action by hand: a dice roller. The engine rolls what's declared (attack rolls,
+ * damage, healing; a save effect's DC) with the encounter's `roll` action: no target, no outcome;
+ * it spends the resources (slots, uses, Recharge), not the action economy. Whoever is affected
+ * applies the result. Which refusals count by hand is the app's policy (`byHandReasons`): the
+ * engine lists every reason with its category. Which way a combatant plays by default is the GM's
+ * per-combatant setting, else the campaign's default for its kind.
  */
 
-import type { DeclaredResult, EncounterAction, OptionEntry, PlaySheet } from "srd-rules-engine";
+import type {
+  EncounterAction,
+  OptionEntry,
+  OptionReason,
+  PlaySheet,
+  RefusalCategory,
+  RollWhat,
+} from "srd-rules-engine";
 import type { CombatantView } from "@/engine/facade";
 import type { EncounterRecord } from "@/store/documents";
 import type { CampaignSettings, PlayWay } from "@/store/settings";
 
-/** The encounter actions the engine takes `manual: true` on. */
-const MANUAL_ACTIONS: ReadonlySet<string> = new Set<DeclaredResult["action"]>([
-  "attack",
-  "unarmed",
-  "cast",
-  "feature",
-  "save_action",
-  "legendary",
+/** What doesn't stop a roll by hand: the action economy, the turn, targets and movement. */
+const IGNORED_BY_HAND: ReadonlySet<RefusalCategory> = new Set([
+  "economy",
+  "turn",
+  "target",
+  "movement",
 ]);
 
-export function canPlayByHand(action: EncounterAction): boolean {
-  return MANUAL_ACTIONS.has(action.type);
+/** The option's reasons that still count when it's rolled by hand. */
+export function byHandReasons(entry: Pick<OptionEntry, "reasons">): readonly OptionReason[] {
+  return entry.reasons.filter((r) => !IGNORED_BY_HAND.has(r.category));
 }
 
 /**
- * The action as sent the chosen way (actions that can't be played by hand are sent as they are).
- * By hand it has no target: the engine's ready-made one, an area and cover are left out.
+ * What to roll for an action, as the `roll` action's `what`: the action's own fields, without its
+ * actor, targets, area, cover or economy flags. `null` for an action that has no roll.
  */
-export function playedAs(action: EncounterAction, way: PlayWay): EncounterAction {
-  if (way !== "manual" || !canPlayByHand(action)) return action;
-  const {
-    target: _t,
-    targets: _ts,
-    area: _a,
-    cover: _c,
-    ...rest
-  } = action as Record<string, unknown>;
-  return { ...rest, manual: true } as EncounterAction;
+export function rollOf(action: EncounterAction): RollWhat | null {
+  switch (action.type) {
+    case "attack":
+      return {
+        type: "attack",
+        attack: action.attack,
+        ...pick(action, [
+          "mode",
+          "two_handed",
+          "riders",
+          "light_extra",
+          "cleave",
+          "cunning",
+          "brutal",
+        ]),
+      };
+    case "unarmed":
+      return { type: "unarmed", option: action.option, ...pick(action, ["save"]) };
+    case "cast":
+      return {
+        type: "cast",
+        spell: action.spell,
+        ...pick(action, ["via", "slot_level", "pact", "mode", "damage_type"]),
+      };
+    case "feature":
+      return {
+        type: "feature",
+        feature: action.feature,
+        ...pick(action, ["amount", "damage_type"]),
+      };
+    case "save_action":
+      return { type: "save_action", ability: action.ability };
+    case "legendary":
+      return { type: "legendary", action: action.action, ...pick(action, ["attack", "mode"]) };
+    default:
+      return null;
+  }
+}
+
+/** The fields of `object` among `keys` that are set. */
+function pick<T extends object, K extends keyof T>(
+  object: T,
+  keys: readonly K[],
+): Partial<Pick<T, K>> {
+  const out: Partial<Pick<T, K>> = {};
+  for (const k of keys) if (object[k] !== undefined) out[k] = object[k];
+  return out;
+}
+
+/**
+ * The action as sent the chosen way: by hand, an option the engine can roll (`rollable`) is sent
+ * as `roll`; anything else is sent as it is.
+ */
+export function playedAs(
+  action: EncounterAction,
+  way: PlayWay,
+  rollable: boolean,
+): EncounterAction {
+  const id = "id" in action && typeof action.id === "string" ? action.id : null;
+  const what = way === "manual" && rollable && id !== null ? rollOf(action) : null;
+  return what && id !== null ? { type: "roll", id, what } : action;
 }
 
 /**

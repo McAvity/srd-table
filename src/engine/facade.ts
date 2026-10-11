@@ -22,6 +22,7 @@ import {
   type AreaRequest,
   abilityModifier,
   BuildError,
+  type ByHandRoll,
   builder,
   type Catalog,
   type CharacterBuild,
@@ -31,6 +32,7 @@ import {
   type CombatantOptions,
   type CreationRules,
   checkAction,
+  combatantFromCharacter,
   combatantOptions,
   computePlaySheet,
   createBuild,
@@ -83,12 +85,14 @@ import {
   type Rng,
   type RolledDamage,
   type RollResult,
+  type RollWhat,
   RuleError,
   reachableSquares,
   reconcileState,
   resolve,
   roll,
   rollAbilityScores,
+  rollByHand,
   rollCheck,
   rollDamage,
   SKILL_ABILITY,
@@ -249,6 +253,13 @@ export interface PlayView {
 export interface PlayChange {
   readonly state: CharacterState;
   readonly notes: readonly string[];
+}
+
+/** A roll by hand on the sheet: the dice, and the state with its costs spent. */
+export interface SheetRoll extends PlayChange {
+  readonly roll: ByHandRoll;
+  /** `notes` as messages (rendered in the app's language). */
+  readonly messages: readonly Message[];
 }
 
 /** A character an encounter refers to, by its key. */
@@ -427,6 +438,17 @@ export interface EngineFacade {
     action: PlayAction | readonly PlayAction[],
   ): Promise<Outcome<PlayChange>>;
   reconcileState(build: CharacterBuild, state: CharacterState): Promise<PlayChange>;
+  /**
+   * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's
+   * `rollByHand`, then its costs spent on the state (`POST /v1/state/roll`). Refused when a cost
+   * can't be paid; with `force` rolled anyway, that cost unspent.
+   */
+  rollByHand(
+    build: CharacterBuild,
+    state: CharacterState,
+    what: RollWhat,
+    force?: boolean,
+  ): Promise<Outcome<SheetRoll>>;
 
   // encounters
   /** One action or a list, in order; all or nothing, stopping at a decision. */
@@ -594,6 +616,28 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       ),
     reconcileState: (build, state) =>
       content.run("play", (catalog) => reconcileState(build, state, catalog)),
+    rollByHand: (build, state, what, force = false) =>
+      content.run("play", (catalog) =>
+        attempt(() => {
+          const combatant = combatantFromCharacter(build, state, catalog);
+          const roll = rollByHand(combatant, what, { catalog, character: { build, state }, rng });
+          const messages: Message[] = [...roll.messages];
+          let current = state;
+          for (const cost of roll.costs) {
+            if (cost.type !== "play") continue;
+            try {
+              const applied = engineApplyAction(build, current, catalog, cost.action, { rng });
+              current = applied.state;
+              messages.push(...applied.messages);
+            } catch (error) {
+              // Forced: the cost that can't be paid is left unspent, its reason noted.
+              if (!(error instanceof PlayError) || !force) throw error;
+              messages.push(...error.details);
+            }
+          }
+          return { roll, state: current, messages, notes: messages.map((m) => m.text) };
+        }),
+      ),
 
     applyEncounterAction: (encounter, party, action) =>
       content.run("encounter", (catalog) =>

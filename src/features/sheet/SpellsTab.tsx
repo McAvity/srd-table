@@ -1,10 +1,13 @@
 /**
  * Spellcasting: the features' DCs and attack bonuses, spell slots (and Pact Magic), the spells
  * that can be cast with their catalog details, and today's picks for choices that change after a
- * rest (prepared spells…), set in the play state.
+ * rest (prepared spells…), set in the play state. "Roll" casts a spell by hand (`rollByHand`): its
+ * dice rolled, its slot spent, nothing else applied. The slot levels offered are the sheet's own
+ * (the engine refuses one the spell can't use: engine gap R23).
  */
 
-import type { PlaySheet, SpellDef } from "srd-rules-engine";
+import { useState } from "react";
+import type { PlaySheet, SpellDef, SpellLine } from "srd-rules-engine";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { abilityName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
@@ -14,7 +17,7 @@ import { MoreText } from "../builder/ChoiceCard";
 import { usePlay } from "./usePlay";
 
 export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const { act, reasons } = usePlay(id);
+  const { act, roll, reasons, busy } = usePlay(id);
   const { data: spells } = useTable<SpellDef>("spells");
   const byId = new Map((spells ?? []).map((s) => [s.id, s]));
   const levels = [...new Set(sheet.spells.map((s) => s.level))].sort((a, b) => a - b);
@@ -127,6 +130,22 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                           onClick={() => void act({ type: "set_concentration", spell: s.name })}
                         />
                       )}
+                      <RollSpell
+                        spell={s}
+                        sheet={sheet}
+                        busy={busy}
+                        onRoll={(slot) =>
+                          void roll({
+                            type: "cast",
+                            spell: s.id,
+                            ...(slot === "pact"
+                              ? { pact: true }
+                              : slot
+                                ? { slot_level: Number(slot) }
+                                : {}),
+                          })
+                        }
+                      />
                       {def?.description && <MoreText title={s.name} text={def.description} />}
                     </li>
                   );
@@ -136,5 +155,61 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
         ))
       )}
     </div>
+  );
+}
+
+/**
+ * Cast by hand: a cantrip at once; a spell with a slot level picked from the sheet's slots
+ * (starting on the spell's own level when the sheet has it, else the first) and its Pact Magic
+ * slot.
+ */
+function RollSpell({
+  spell,
+  sheet,
+  busy,
+  onRoll,
+}: {
+  spell: SpellLine;
+  sheet: PlaySheet;
+  busy: boolean;
+  onRoll: (slot: string) => void;
+}) {
+  const { play } = sheet;
+  const levels = play.spell_slots.map((slot) => String(slot.level));
+  const [slot, setSlot] = useState(() =>
+    levels.includes(String(spell.level))
+      ? String(spell.level)
+      : (levels[0] ?? (play.pact_magic ? "pact" : "")),
+  );
+  const leveled = spell.level > 0 && (levels.length > 0 || play.pact_magic !== null);
+  return (
+    <>
+      {leveled && (
+        <select
+          className="field w-auto py-1 text-sm"
+          aria-label={t("sheet.castAt", { spell: spell.name })}
+          value={slot}
+          onChange={(e) => setSlot(e.target.value)}
+        >
+          {play.spell_slots.map((s) => (
+            <option key={s.level} value={String(s.level)}>
+              {t("sheet.slotLevel", { level: s.level })}
+            </option>
+          ))}
+          {play.pact_magic && (
+            <option value="pact">{t("sheet.pact", { level: play.pact_magic.slot_level })}</option>
+          )}
+        </select>
+      )}
+      <Button
+        size="sm"
+        icon="d20"
+        title={t("sheet.rollSpellHint")}
+        disabled={busy}
+        onClick={() => onRoll(leveled ? slot : "")}
+      >
+        {t("sheet.rollByHand")}
+      </Button>
+    </>
   );
 }

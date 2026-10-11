@@ -1,7 +1,7 @@
 /**
  * The engine's words in the app's language, rendered here in the worker (`renderMessage` is
  * engine code). Every engine string the app shows comes with its message: `notes` with
- * `messages`, `reasons` with `reason_messages`, `unavailable` with `unavailable_message`, an
+ * `messages`, `reasons` with `reason_messages`, `unavailable` with `unavailable_message`, an option reason's `text` with its `message`, an
  * issue's `message` with its `detail`… `localize` walks a facade result and replaces each such
  * text with its rendering in the current language. Documents (`build`, `state`, `encounter`,
  * `states`) are never touched: they're stored exactly as the engine returns them.
@@ -28,6 +28,8 @@ const PAIRS: readonly (readonly [string, string])[] = [
   // An issue (`message` + `detail`); a decision (`question` + `message`).
   ["detail", "message"],
   ["message", "question"],
+  // An option's reason (`OptionReason`: `text` + `message`).
+  ["message", "text"],
 ];
 
 /** Fields holding documents: never rewritten. */
