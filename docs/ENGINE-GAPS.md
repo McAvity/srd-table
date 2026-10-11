@@ -22,23 +22,14 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R23 | A spell's castable slot levels on the play sheet (`SpellLine`) | open |
-
-### R23. A spell's slot levels on the sheet
-
-- **Missing.** The play sheet's spell lines (`SpellLine`) don't say which slot levels a spell can
-  be cast with now (the encounter's options do: `slot_levels`, `pact_slot`).
-- **Meanwhile.** The sheet's "Roll" for a spell offers every slot level the sheet has, starting on
-  the spell's own (`SpellsTab.tsx` `RollSpell`); the engine refuses one the spell can't use, and
-  the reason shows there.
-- **When done.** Offer the engine's levels only (spent ones with their reason if it gives one).
+| — | Nothing waiting | — |
 
 ### Notes: manual play
 
-- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (redesigned 2026-10-10; R21 in Done).
-- **On the sheet.** A feature that heals (`FeatureActionLine.heal`) has "By hand" next to "Use"
-  (`CombatTab.tsx`, `use_feature` with `manual`: the uses spent, no healing), first when the
-  campaign plays characters by hand.
+- **Design.** `docs/ARCHITECTURE.md` > "Manual play" (redesigned 2026-10-10; R21–R23 in Done).
+- **On the sheet.** "Roll" for attacks and spells, and "By hand" next to "Use" for a feature with
+  dice (healing or a save; first when the campaign plays characters by hand): the facade's
+  `rollByHand`, its costs spent (`CombatTab.tsx`, `SpellsTab.tsx`).
 - **Dropped from the app.** Table dice (R16's `RollDialog`, the Dice selects and settings) and
   "Waiting for an outcome" (R15/R19's `DeclaredPanel`); the Done rows below are their history.
 
@@ -66,5 +57,6 @@ The app never works around a gap with rules of its own.
 | R19 | Roll20-style rolls by hand, saves on demand | `801bf1a` (main) | a declared action with the engine's dice shows its rolls in the dice tray (`DiceTray.tsx` `Declared`: each attack roll against its target's AC with "would hit / miss" as information, damage, healing, the save to make; target names passed by the store); "Waiting for an outcome" lists the attack rolls (a click picks that target and its damage), starts the amount on the rolled damage or healing and the damage type on its first part; the selection panel's roll form has saving throws (`check` with `save`) for any combatant; check results that are `D20TestResult` show as tests |
 | R21 | Manual play as a dice roller; table dice removed | `8160423` (main) | a by-hand tile is sent at once with `manual: true` and no target (`playedAs` drops `target`, `targets`, `area`, `cover`); the composer opens only for a slot level, riders, Versatile or strike effects (`needsComposerByHand`), or when the engine refuses it; in the composer, by hand hides targets, areas, cover and odds ("Automatic" switches it back to the targeting form); the tray's by-hand card shows each attack roll with its Critical Hit / natural 1, no AC or "would hit"; the Italian `manual.*` templates follow the new English ones and R16's codes are gone; the tray's `names` plumbing removed |
 | R22 | Refusal reasons by category; a by-hand roller | `d58fc40` (main) | by hand a `rollable` option is sent as `{ type: "roll", id, what }` (`manual.ts` `rollOf`, `playedAs`); the quick bar and the composer (strike effects too) grey out by-hand options only on reasons outside `economy`, `turn`, `target`, `movement` (`byHandReasons`: the app's policy); option reasons translated in the worker (`message` → `text`); on the sheet, "Roll" for attacks and spells and "By hand" for features with dice (healing or a save) call the facade's `rollByHand` (the engine's `rollByHand`, then its `play` costs applied, as `POST /v1/state/roll`), shown in the dice tray |
+| R23 | A spell's slots on the play sheet | `cda2ae1` (main) | the sheet's "Roll" for a spell offers the engine's `slots` (`SpellsTab.tsx` `RollSpell`): spent ones disabled with their reason, the first one left picked; with none left, Roll disabled and the reason shown; the Pact slot sent as `slot_level` + `pact` |
 | R20 | Engine cleanup | `eeacec9` (main) | nothing to change: the app imported none of the removed exports (typecheck clean after the bump) |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |

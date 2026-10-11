@@ -2,12 +2,12 @@
  * Spellcasting: the features' DCs and attack bonuses, spell slots (and Pact Magic), the spells
  * that can be cast with their catalog details, and today's picks for choices that change after a
  * rest (prepared spells…), set in the play state. "Roll" casts a spell by hand (`rollByHand`): its
- * dice rolled, its slot spent, nothing else applied. The slot levels offered are the sheet's own
- * (the engine refuses one the spell can't use: engine gap R23).
+ * dice rolled, with one of the slots the engine lists for it (`slots`) spent, nothing else
+ * applied.
  */
 
 import { useState } from "react";
-import type { PlaySheet, SpellDef, SpellLine } from "srd-rules-engine";
+import type { PlaySheet, PlaySpellLine, SpellDef, SpellSlotChoice } from "srd-rules-engine";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { abilityName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
@@ -132,17 +132,13 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       )}
                       <RollSpell
                         spell={s}
-                        sheet={sheet}
                         busy={busy}
                         onRoll={(slot) =>
                           void roll({
                             type: "cast",
                             spell: s.id,
-                            ...(slot === "pact"
-                              ? { pact: true }
-                              : slot
-                                ? { slot_level: Number(slot) }
-                                : {}),
+                            ...(slot ? { slot_level: slot.level } : {}),
+                            ...(slot?.pact ? { pact: true } : {}),
                           })
                         }
                       />
@@ -159,54 +155,58 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 }
 
 /**
- * Cast by hand: a cantrip at once; a spell with a slot level picked from the sheet's slots
- * (starting on the spell's own level when the sheet has it, else the first) and its Pact Magic
- * slot.
+ * Cast by hand: a cantrip at once; a spell with one of the slots the engine lists for it
+ * (`slots`: those with none left disabled, with the engine's reason), starting on the first one
+ * left. With none left, Roll is disabled and the reason shown next to it.
  */
 function RollSpell({
   spell,
-  sheet,
   busy,
   onRoll,
 }: {
-  spell: SpellLine;
-  sheet: PlaySheet;
+  spell: PlaySpellLine;
   busy: boolean;
-  onRoll: (slot: string) => void;
+  onRoll: (slot: SpellSlotChoice | null) => void;
 }) {
-  const { play } = sheet;
-  const levels = play.spell_slots.map((slot) => String(slot.level));
-  const [slot, setSlot] = useState(() =>
-    levels.includes(String(spell.level))
-      ? String(spell.level)
-      : (levels[0] ?? (play.pact_magic ? "pact" : "")),
-  );
-  const leveled = spell.level > 0 && (levels.length > 0 || play.pact_magic !== null);
+  const key = (slot: SpellSlotChoice) => `${slot.pact ? "pact" : "slot"}:${slot.level}`;
+  const first = spell.slots.find((slot) => slot.available);
+  const [picked, setPicked] = useState(() => (first ? key(first) : ""));
+  const slot = spell.slots.find((x) => key(x) === picked) ?? first ?? null;
+  const leveled = spell.slots.length > 0;
+  // Nothing to cast it with: the first slot's reason (they all say the same thing).
+  const reason = leveled && !first ? (spell.slots[0]?.reason?.text ?? null) : null;
+  const reasonId = `cast-${spell.id}-${spell.source}`;
   return (
     <>
-      {leveled && (
+      {leveled && first && (
         <select
           className="field w-auto py-1 text-sm"
           aria-label={t("sheet.castAt", { spell: spell.name })}
-          value={slot}
-          onChange={(e) => setSlot(e.target.value)}
+          value={slot ? key(slot) : ""}
+          onChange={(e) => setPicked(e.target.value)}
         >
-          {play.spell_slots.map((s) => (
-            <option key={s.level} value={String(s.level)}>
-              {t("sheet.slotLevel", { level: s.level })}
+          {spell.slots.map((x) => (
+            <option key={key(x)} value={key(x)} disabled={!x.available}>
+              {x.pact
+                ? t("sheet.pact", { level: x.level })
+                : t("sheet.slotLevel", { level: x.level })}
+              {x.reason ? ` · ${x.reason.text}` : ""}
             </option>
           ))}
-          {play.pact_magic && (
-            <option value="pact">{t("sheet.pact", { level: play.pact_magic.slot_level })}</option>
-          )}
         </select>
+      )}
+      {reason && (
+        <span id={reasonId} className="text-[13px] text-ink-muted italic">
+          {reason}
+        </span>
       )}
       <Button
         size="sm"
         icon="d20"
         title={t("sheet.rollSpellHint")}
-        disabled={busy}
-        onClick={() => onRoll(leveled ? slot : "")}
+        disabled={busy || reason !== null}
+        aria-describedby={reason ? reasonId : undefined}
+        onClick={() => onRoll(leveled ? slot : null)}
       >
         {t("sheet.rollByHand")}
       </Button>

@@ -132,6 +132,29 @@ describe("sheet", () => {
     expect(tray).toHaveTextContent(/By hand/);
   });
 
+  it("offers a spell only the slots the engine lists, a spent level disabled with its reason", async () => {
+    const result = await useDocuments.getState().importCharacter(await wizard(engine, 3));
+    if (!result.ok) throw new Error(result.reasons.join("; "));
+    // A Wizard 3 has four level 1 slots: all spent.
+    await useDocuments
+      .getState()
+      .playAction(result.id, Array(4).fill({ type: "spend_slot", level: 1 }));
+    await renderApp(`/characters/${result.id}/sheet?tab=spells`);
+    const level1 = await screen.findByRole("region", { name: "Level 1" }, { timeout: 10_000 });
+    const [picker] = within(level1).getAllByRole("combobox", { name: /slot level/ });
+    if (!picker) throw new Error("no slot picker");
+    const spent = within(picker).getByRole("option", { name: /^Level 1/ });
+    expect(spent).toBeDisabled();
+    expect(spent).toHaveTextContent(/No level 1 spell slots left/);
+    expect(picker).toHaveValue("slot:2");
+    await userEvent.click(
+      within(level1).getAllByRole("button", { name: "Roll" })[0] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(useDocuments.getState().characters[result.id]?.state.spell_slots_spent[1]).toBe(1),
+    );
+  });
+
   it("takes a Short Rest spending Hit Point Dice the engine rolls", async () => {
     const id = await storedFighter();
     // Hurt enough that one Hit Die (d10 + 2) can't bring it back to full.
