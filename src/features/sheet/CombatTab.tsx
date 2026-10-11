@@ -1,9 +1,10 @@
 /**
  * Attacks (the sheet's attack lines, damage ready to roll), features used in turns, features to
  * switch on (Rage), limited uses and Hit Point Dice. Outside an encounter, rolls are free rolls of
- * the engine's dice; an encounter resolves attacks against a target. A feature that heals can also
- * be used by hand (`manual`: the uses are spent, the healing is left to the player), first when
- * the campaign plays characters by hand.
+ * the engine's dice; an encounter resolves attacks against a target. "Roll" rolls an attack by hand
+ * (`rollByHand`: the attack roll and its damage, a Critical Hit's dice doubled). A feature that
+ * heals or forces a save can also be rolled by hand (its dice rolled, its uses spent, nothing
+ * applied), first when the campaign plays characters by hand.
  */
 
 import { useState } from "react";
@@ -41,9 +42,11 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 
 function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const name = useDocuments((s) => s.characters[id]?.build.name ?? "");
+  const { roll, reasons, busy } = usePlay(id);
   if (!sheet.attacks.length) return null;
   return (
     <Section title={t("sheet.attacks")}>
+      <Reasons reasons={reasons} className="mb-2" />
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
@@ -88,6 +91,15 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     <Button
                       size="sm"
                       icon="d20"
+                      title={t("sheet.rollAttackHint")}
+                      disabled={busy}
+                      onClick={() => void roll({ type: "attack", attack: a.name })}
+                    >
+                      {t("sheet.rollByHand")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      icon="d20"
                       iconOnly
                       label={`${a.name}: ${t("dice.attack")}`}
                       onClick={() => void rollTest(id, { attack: a.name })}
@@ -118,7 +130,7 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
 }
 
 function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const { act, reasons, busy } = usePlay(id);
+  const { act, roll, reasons, busy } = usePlay(id);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const byHandFirst = useSettings((s) => s.settings.character_play === "manual");
   if (!sheet.actions.length) return null;
@@ -130,6 +142,9 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
         {sheet.actions.map((a) => {
           const use = a.uses ? uses.get(a.uses) : undefined;
           const amount = Number.parseInt(amounts[a.key] ?? "", 10);
+          const amountSet = a.pool && Number.isInteger(amount) && amount > 0 ? { amount } : {};
+          // Dice to roll by hand: its healing, or the damage and DC of the save it forces.
+          const rollable = a.heal !== null || a.save !== null;
           return (
             <li
               key={a.key}
@@ -154,7 +169,7 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                   }
                 />
               )}
-              {(a.heal && byHandFirst ? [true, false] : a.heal ? [false, true] : [false]).map(
+              {(rollable && byHandFirst ? [true, false] : rollable ? [false, true] : [false]).map(
                 (manual, i) => (
                   <Button
                     key={manual ? "manual" : "auto"}
@@ -164,12 +179,9 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     title={manual ? t("sheet.useByHandHint") : undefined}
                     disabled={busy}
                     onClick={() =>
-                      void act({
-                        type: "use_feature",
-                        key: a.key,
-                        ...(a.pool && Number.isInteger(amount) && amount > 0 ? { amount } : {}),
-                        ...(manual ? { manual: true } : {}),
-                      })
+                      void (manual
+                        ? roll({ type: "feature", feature: a.key, ...amountSet })
+                        : act({ type: "use_feature", key: a.key, ...amountSet }))
                     }
                   >
                     {manual ? t("table.wayManual") : t("sheet.useFeature")}

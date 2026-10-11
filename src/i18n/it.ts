@@ -212,7 +212,13 @@ export const it: Messages = {
   "sheet.actions": "Privilegi usati nei turni",
   "sheet.useFeature": "Usa",
   "sheet.useByHandHint":
-    "Spendi l'uso senza la guarigione: applica tu quello che hai tirato al tavolo.",
+    "Tira i suoi dadi e spendi l'uso; nient'altro viene applicato: applica tu il risultato.",
+  "sheet.rollByHand": "Tira",
+  "sheet.rollAttackHint":
+    "Tiro per colpire e danni con i dadi del motore; non viene applicato nulla.",
+  "sheet.rollSpellHint":
+    "I dadi dell'incantesimo (tiri per colpire, danni, guarigione, la sua CD), lo slot speso; nient'altro viene applicato.",
+  "sheet.castAt": "{spell}: livello dello slot",
   "sheet.attackBonus": "Per colpire",
   "sheet.damageCol": "Danni",
   "sheet.riders": "Facoltativo: {riders}",

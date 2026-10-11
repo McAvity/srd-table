@@ -22,25 +22,16 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| R22 | Every refusal reason with a category, `rollable`, one `roll` action and `rollByHand` (by-hand policy in the app; sheet rolls by hand) | open (design agreed) |
+| R23 | A spell's castable slot levels on the play sheet (`SpellLine`) | open |
 
-### R22. Refusal reasons by category, and a by-hand roller
+### R23. A spell's slot levels on the sheet
 
-- **Missing.** `combatantOptions`' `available` / `reason` are for automatic play; by hand the
-  economy, the turn and targets don't count.
-- **Meanwhile.** By hand (the Play switch), a tile that can be played by hand is never greyed
-  out and its odds aren't shown (`QuickBar.tsx` `byHand`); a refusal when it's sent opens the
-  composer, which dry-runs the by-hand action (`checkAction`) and shows the engine's reason
-  ("Do it anyway" for the GM). `canPlayByHand` (`manual.ts`) is the app's own list of action
-  types the engine takes by hand.
-- **Design agreed** (engine's proposal, 2026-10-10): options carry every reason with a
-  category and `rollable`; by hand is one `{ type: "roll", id, what }` action; `rollByHand` works
-  outside an encounter too. The by-hand policy is the app's.
-- **When done.** Send by-hand tiles as `roll` (`playedAs` / `MANUAL_ACTIONS` replaced by
-  `rollable`); by hand, grey a tile out on its `resource` / `state` reasons and ignore `economy`,
-  `turn`, `target` (`QuickBar.tsx` `byHand`); the composer's by-hand dry run on `roll`. On the
-  sheet: by-hand roll buttons for attacks, spells and features (`rollByHand` + the costs applied),
-  replacing the heal-only "By hand" in `CombatTab.tsx` if `roll` covers it.
+- **Missing.** The play sheet's spell lines (`SpellLine`) don't say which slot levels a spell can
+  be cast with now (the encounter's options do: `slot_levels`, `pact_slot`).
+- **Meanwhile.** The sheet's "Roll" for a spell offers every slot level the sheet has, starting on
+  the spell's own (`SpellsTab.tsx` `RollSpell`); the engine refuses one the spell can't use, and
+  the reason shows there.
+- **When done.** Offer the engine's levels only (spent ones with their reason if it gives one).
 
 ### Notes: manual play
 
@@ -74,5 +65,6 @@ The app never works around a gap with rules of its own.
 | R18 | Messages for any language | `d9394d7` (main) | `EngineLanguage` is `{ locale, messages }` and `renderMessage` gets the locale (Italian plurals by `Intl.PluralRules`); the Italian templates use `list, or` / `list, and` with the catalog's `list.*` joiners; step titles, alignments and stat labels are catalog codes (`step.*`, `alignment.*`, `stat.*`: the app's own name tables are gone); a sheet roll's label is rendered from `label_message` |
 | R19 | Roll20-style rolls by hand, saves on demand | `801bf1a` (main) | a declared action with the engine's dice shows its rolls in the dice tray (`DiceTray.tsx` `Declared`: each attack roll against its target's AC with "would hit / miss" as information, damage, healing, the save to make; target names passed by the store); "Waiting for an outcome" lists the attack rolls (a click picks that target and its damage), starts the amount on the rolled damage or healing and the damage type on its first part; the selection panel's roll form has saving throws (`check` with `save`) for any combatant; check results that are `D20TestResult` show as tests |
 | R21 | Manual play as a dice roller; table dice removed | `8160423` (main) | a by-hand tile is sent at once with `manual: true` and no target (`playedAs` drops `target`, `targets`, `area`, `cover`); the composer opens only for a slot level, riders, Versatile or strike effects (`needsComposerByHand`), or when the engine refuses it; in the composer, by hand hides targets, areas, cover and odds ("Automatic" switches it back to the targeting form); the tray's by-hand card shows each attack roll with its Critical Hit / natural 1, no AC or "would hit"; the Italian `manual.*` templates follow the new English ones and R16's codes are gone; the tray's `names` plumbing removed |
+| R22 | Refusal reasons by category; a by-hand roller | `d58fc40` (main) | by hand a `rollable` option is sent as `{ type: "roll", id, what }` (`manual.ts` `rollOf`, `playedAs`); the quick bar and the composer (strike effects too) grey out by-hand options only on reasons outside `economy`, `turn`, `target`, `movement` (`byHandReasons`: the app's policy); option reasons translated in the worker (`message` → `text`); on the sheet, "Roll" for attacks and spells and "By hand" for features with dice (healing or a save) call the facade's `rollByHand` (the engine's `rollByHand`, then its `play` costs applied, as `POST /v1/state/roll`), shown in the dice tray |
 | R20 | Engine cleanup | `eeacec9` (main) | nothing to change: the app imported none of the removed exports (typecheck clean after the bump) |
 | R9 | Rolls outside an encounter | `51d904d` (main) | sheet roll buttons (checks, saves, attack rolls) call `rollCheck` (facade, `rollTest` in `store/dice.ts`); the tray shows mode, reasons, outcome |

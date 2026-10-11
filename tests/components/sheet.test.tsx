@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDocuments } from "../../src/store/documents";
-import { fighter } from "../fixtures/characters";
+import { fighter, wizard } from "../fixtures/characters";
 import { installTestEngine, renderApp, resetStores } from "../helpers/app";
 
 const engine = installTestEngine(9);
@@ -80,7 +80,7 @@ describe("sheet", () => {
     );
   });
 
-  it("uses a healing feature by hand: the use is spent, the healing is left to the player", async () => {
+  it("rolls a healing feature by hand: its dice shown, the use spent, nothing healed", async () => {
     const id = await storedFighter();
     await useDocuments.getState().playAction(id, { type: "damage", amount: 10 });
     await renderApp(`/characters/${id}/sheet?tab=combat`);
@@ -89,7 +89,7 @@ describe("sheet", () => {
       { name: "Features used in turns" },
       { timeout: 10_000 },
     );
-    // Only Second Wind heals: it alone has "By hand", after "Use" (characters play automatic).
+    // Only Second Wind has dice: it alone has "By hand", after "Use" (characters play automatic).
     const byHand = within(features).getAllByRole("button", { name: "By hand" });
     expect(byHand).toHaveLength(1);
     await userEvent.click(byHand[0] as HTMLElement);
@@ -99,11 +99,43 @@ describe("sheet", () => {
       ),
     );
     expect(useDocuments.getState().characters[id]?.state.hp.current).toBe(18);
+    const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+    expect(tray).toHaveTextContent(/Healing rolled/);
+  });
+
+  it("rolls an attack by hand from the sheet: its dice shown, nothing spent", async () => {
+    const id = await storedFighter();
+    await renderApp(`/characters/${id}/sheet?tab=combat`);
+    const attacks = await screen.findByRole("region", { name: "Attacks" }, { timeout: 10_000 });
+    const before = useDocuments.getState().characters[id]?.state;
+    await userEvent.click(
+      within(attacks).getAllByRole("button", { name: "Roll" })[0] as HTMLElement,
+    );
+    const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+    await waitFor(() => expect(tray).toHaveTextContent(/By hand/));
+    // An attack costs nothing: the state is the same document.
+    expect(useDocuments.getState().characters[id]?.state).toBe(before);
+  });
+
+  it("casts a spell by hand from the sheet: its slot spent", async () => {
+    const result = await useDocuments.getState().importCharacter(await wizard(engine, 3));
+    if (!result.ok) throw new Error(result.reasons.join("; "));
+    await renderApp(`/characters/${result.id}/sheet?tab=spells`);
+    const level1 = await screen.findByRole("region", { name: "Level 1" }, { timeout: 10_000 });
+    await userEvent.click(
+      within(level1).getAllByRole("button", { name: "Roll" })[0] as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(useDocuments.getState().characters[result.id]?.state.spell_slots_spent[0]).toBe(1),
+    );
+    const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+    expect(tray).toHaveTextContent(/By hand/);
   });
 
   it("takes a Short Rest spending Hit Point Dice the engine rolls", async () => {
     const id = await storedFighter();
-    await useDocuments.getState().playAction(id, { type: "damage", amount: 10 });
+    // Hurt enough that one Hit Die (d10 + 2) can't bring it back to full.
+    await useDocuments.getState().playAction(id, { type: "damage", amount: 20 });
     await renderApp(`/characters/${id}/sheet`);
     await userEvent.click(
       await screen.findByRole("button", { name: "Short Rest" }, { timeout: 10_000 }),
@@ -114,7 +146,7 @@ describe("sheet", () => {
     await waitFor(() =>
       expect(useDocuments.getState().characters[id]?.state.hit_dice_spent["10"]).toBe(1),
     );
-    expect(useDocuments.getState().characters[id]?.state.hp.current).toBeGreaterThan(18);
+    expect(useDocuments.getState().characters[id]?.state.hp.current).toBeGreaterThan(8);
   });
 
   it("offers the starting equipment to a state made before it was picked, and takes it", async () => {

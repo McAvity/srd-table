@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { setEngine } from "../../src/engine/client";
 import type { RolledResult } from "../../src/engine/facade";
 import { nodeFacade } from "../../src/engine/node";
+import { byHandReasons, playedAs } from "../../src/features/encounter/manual";
 import { useTableUi } from "../../src/features/encounter/tableUi";
 import { newId, useDocuments } from "../../src/store/documents";
 import { useUi } from "../../src/store/ui";
@@ -444,3 +445,32 @@ describe("encounter table", () => {
 function literal(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+describe("rolling by hand", () => {
+  it("ignores the economy and targets, keeps resources, and sends `roll`", () => {
+    const reason = (code: string, category: string) =>
+      ({ code, category, text: code, message: { code: "text", text: code, params: {} } }) as never;
+    const reasons = [
+      reason("economy_used", "economy"),
+      reason("out_of_range", "target"),
+      reason("no_resources", "resource"),
+    ];
+    expect(byHandReasons({ reasons }).map((r) => r.code)).toEqual(["no_resources"]);
+    // By hand an option is sent as `roll`, without its target or cover.
+    const attack = {
+      type: "attack",
+      id: "aerin",
+      target: "goblin",
+      attack: "Greatsword",
+      cover: "half",
+      mode: "advantage",
+    } as const;
+    expect(playedAs(attack, "manual", true)).toEqual({
+      type: "roll",
+      id: "aerin",
+      what: { type: "attack", attack: "Greatsword", mode: "advantage" },
+    });
+    expect(playedAs(attack, "manual", false)).toBe(attack);
+    expect(playedAs(attack, "auto", true)).toBe(attack);
+  });
+});

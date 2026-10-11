@@ -22,7 +22,7 @@ import { CombatPanel } from "./CombatPanel";
 import { DecisionDialog } from "./DecisionDialog";
 import { ExplorationPanel } from "./ExplorationPanel";
 import { InitiativeRail } from "./InitiativeRail";
-import { canPlayByHand, needsComposerByHand, wayOf } from "./manual";
+import { needsComposerByHand, wayOf } from "./manual";
 import { OffMapNotice } from "./OffMapNotice";
 import { PointDialog, PointPanel } from "./PointPanel";
 import { QuickBar } from "./QuickBar";
@@ -233,7 +233,7 @@ function Table({ record }: { record: EncounterRecord }) {
               gm={gm}
               onCompose={(entry, way) => setComposing({ entry, way })}
               needsComposer={(entry: OptionEntry, w: PlayWay) =>
-                w === "manual" && canPlayByHand(entry.action)
+                w === "manual" && entry.rollable
                   ? needsComposerByHand(entry, actorSheet)
                   : needsComposer(entry)
               }
