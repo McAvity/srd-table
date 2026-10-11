@@ -1,7 +1,8 @@
 /**
  * Playing an action by hand: a dice roller. The engine rolls what's declared (attack rolls,
- * damage, healing; a save effect's DC) with the encounter's `roll` action: no target, no outcome;
- * it spends the resources (slots, uses, Recharge), not the action economy. Whoever is affected
+ * damage, healing; a save effect's DC) with the encounter's free `roll` action: no target, no
+ * outcome, nothing spent. The app tracks resources: it pays the roll's costs (slots, uses,
+ * Recharge) with `spend` (the store's `rollAndPay`), never the action economy. Whoever is affected
  * applies the result. Which refusals count by hand is the app's policy (`byHandReasons`): the
  * engine lists every reason with its category. Which way a combatant plays by default is the GM's
  * per-combatant setting, else the campaign's default for its kind.

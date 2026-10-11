@@ -9,7 +9,7 @@ import { engine } from "@/engine/client";
 export type DecisionMode = "ask" | "auto";
 /**
  * How a combatant's actions are played: `auto`, the engine rolls and resolves; `manual`, by
- * hand: the engine checks the action and spends its costs, the outcome is applied with effects.
+ * hand: the engine rolls the dice and the app pays the costs, the outcome is applied with effects.
  */
 export type PlayWay = "auto" | "manual";
 export const PLAY_WAYS: readonly PlayWay[] = ["auto", "manual"];

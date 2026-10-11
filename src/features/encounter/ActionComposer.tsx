@@ -6,8 +6,10 @@
  * legal is the engine's dry run (`checkAction`), shown before sending, with the option's odds.
  * It's sent the way the quick bar's Play switch says (automatic or by hand); the other way is the
  * second button ("By hand" sends at once, "Automatic" shows the targets to pick). By hand it asks
- * only what the engine still reads: a slot level, Advantage, riders, strike effects, a damage type. In the GM's view a refused action the engine can override (its dry run with
- * `force`) gets "Do it anyway", sent with `force: true`; the log notes the override.
+ * only what the engine still reads: a slot level, Advantage, riders, strike effects, a damage
+ * type; it's rolled and paid (`rollAndPay`). In the GM's view a refused action the engine can
+ * override (its dry run with `force`), or a roll by hand whose costs can't be paid, gets "Do it
+ * anyway", sent with `force: true`; the log notes the override.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -98,6 +100,7 @@ export function ActionComposer({
   onClose: () => void;
 }) {
   const send = useDocuments((s) => s.encounterAction);
+  const rollAndPay = useDocuments((s) => s.rollAndPay);
   const setHighlight = useTableUi((s) => s.setHighlight);
   const aim = useTableUi((s) => s.aim);
   const base = entry.action;
@@ -246,15 +249,19 @@ export function ActionComposer({
       unaffected,
     ],
   );
-  const check = useActionCheck(encounterId, playedAs(action, as, entry.rollable));
+  const played = playedAs(action, as, entry.rollable);
+  const check = useActionCheck(encounterId, played);
   const refused = check.data?.ok === false;
+  // A roll by hand is free; its costs are paid with `spend`, which `force` overrides instead.
   const forced = useActionCheck(
     encounterId,
-    gm && refused
-      ? ({ ...playedAs(action, as, entry.rollable), force: true } as EncounterAction)
+    gm && refused && played.type !== "roll"
+      ? ({ ...played, force: true } as EncounterAction)
       : null,
   );
-  const forceable = gm && refused && forced.data?.ok === true;
+  /** The action whose roll by hand was refused for costs it can't pay (the GM can force it). */
+  const [unpaidFor, setUnpaidFor] = useState<EncounterAction | null>(null);
+  const forceable = gm && ((refused && forced.data?.ok === true) || unpaidFor === action);
   const otherWay: PlayWay | null = entry.rollable ? (as === "auto" ? "manual" : "auto") : null;
 
   const startAiming = () => {
@@ -303,14 +310,14 @@ export function ActionComposer({
     setBusy(true);
     try {
       const played = playedAs(action, as, entry.rollable);
-      const result = await send(
-        encounterId,
-        force ? ({ ...played, force: true } as EncounterAction) : played,
-      );
+      const result = await (played.type === "roll"
+        ? rollAndPay(encounterId, played, force)
+        : send(encounterId, force ? ({ ...played, force: true } as EncounterAction) : played));
       if (result.ok) onClose();
       else {
         setAs(as);
         setReasons(result.reasons);
+        setUnpaidFor("unpaid" in result ? action : null);
       }
     } finally {
       setBusy(false);

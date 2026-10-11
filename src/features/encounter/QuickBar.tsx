@@ -126,6 +126,7 @@ export function QuickBar({
   needsComposer: (entry: OptionEntry, way: PlayWay) => boolean;
 }) {
   const send = useDocuments((s) => s.encounterAction);
+  const rollAndPay = useDocuments((s) => s.rollAndPay);
   const favorites = useSettings((s) => s.settings.favorites[favoriteOwner] ?? NO_FAVORITES);
   const toggleFavorite = useSettings((s) => s.toggleFavorite);
   const tiles = tilesOf(options);
@@ -145,7 +146,10 @@ export function QuickBar({
   async function use(tile: Tile) {
     setReasons(null);
     if (needsComposer(tile.entry, way)) return onCompose(tile.entry, way);
-    const result = await send(encounterId, playedAs(tile.entry.action, way, tile.entry.rollable));
+    const played = playedAs(tile.entry.action, way, tile.entry.rollable);
+    const result = await (played.type === "roll"
+      ? rollAndPay(encounterId, played)
+      : send(encounterId, played));
     if (result.ok) return;
     if (byHand(tile)) onCompose(tile.entry, way);
     else setReasons(result.reasons);

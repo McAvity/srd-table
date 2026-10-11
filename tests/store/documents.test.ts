@@ -59,6 +59,45 @@ describe("documents store", () => {
     expect(docs().characters[id]?.state).toEqual(hurt);
   });
 
+  it("rolls by hand, then pays the costs in the same step; refused when unpaid unless forced", async () => {
+    const aerin = await storedFighter(1);
+    const eid = await docs().createEncounter("Test");
+    await docs().encounterAction(eid, [
+      { type: "add_character", character: aerin },
+      { type: "add_monster", monster: "goblin-warrior" },
+      { type: "set_initiative", id: "aerin", value: 20 },
+      { type: "set_initiative", id: "goblin-warrior", value: 1 },
+      { type: "start" },
+    ]);
+    const wind = {
+      type: "roll",
+      id: "aerin",
+      what: { type: "feature", feature: "Second Wind" },
+    } as const;
+    const used = (state = docs().characters[aerin]?.state) =>
+      Object.entries(state?.uses_spent ?? {}).find(([k]) => k.endsWith("second-wind"))?.[1] ?? 0;
+
+    const before = docs().characters[aerin]?.state;
+    const rolled = await docs().rollAndPay(eid, wind);
+    expect(rolled.ok).toBe(true);
+    expect(used()).toBe(used(before) + 1);
+    // One undo step takes back the roll and its payment together.
+    docs().undo(eid);
+    expect(docs().characters[aerin]?.state).toEqual(before);
+
+    // Out of uses: nothing rolled, the engine's reason returned; forced, rolled anyway.
+    let refusal: unknown = null;
+    for (let i = 0; i < 5 && !refusal; i++) {
+      const r = await docs().rollAndPay(eid, wind);
+      if (!r.ok) refusal = r;
+    }
+    expect(refusal).toMatchObject({ ok: false, unpaid: true, reasons: [expect.any(String)] });
+    const log = docs().encounters[eid]?.log.length;
+    const forced = await docs().rollAndPay(eid, wind, true);
+    expect(forced.ok).toBe(true);
+    expect(docs().encounters[eid]?.log.length).toBeGreaterThan(log ?? 0);
+  });
+
   it("sends an encounter its party, writes changed states back, and undoes them together", async () => {
     const aerin = await storedFighter(3);
     const eid = await docs().createEncounter("Test");

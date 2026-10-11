@@ -27,11 +27,13 @@ import {
   type Catalog,
   type CharacterBuild,
   type CharacterState,
+  type CheckedCost,
   type ChoiceKind,
   type ClassLevel,
   type CombatantOptions,
   type CreationRules,
   checkAction,
+  checkCosts,
   combatantFromCharacter,
   combatantOptions,
   computePlaySheet,
@@ -255,9 +257,9 @@ export interface PlayChange {
   readonly notes: readonly string[];
 }
 
-/** A roll by hand on the sheet: the dice, and the state with its costs spent. */
+/** A roll by hand on the sheet: the dice, its costs checked, and the state with them spent. */
 export interface SheetRoll extends PlayChange {
-  readonly roll: ByHandRoll;
+  readonly roll: Omit<ByHandRoll, "costs"> & { readonly costs: readonly CheckedCost[] };
   /** `notes` as messages (rendered in the app's language). */
   readonly messages: readonly Message[];
 }
@@ -439,9 +441,10 @@ export interface EngineFacade {
   ): Promise<Outcome<PlayChange>>;
   reconcileState(build: CharacterBuild, state: CharacterState): Promise<PlayChange>;
   /**
-   * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's
-   * `rollByHand`, then its costs spent on the state (`POST /v1/state/roll`). Refused when a cost
-   * can't be paid; with `force` rolled anyway, that cost unspent.
+   * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's free
+   * `rollByHand`, its costs checked (`checkCosts`) and paid on the state with `applyAction`, as
+   * `POST /v1/state/roll` then `/v1/state/apply`. Refused when a cost can't be paid (the app
+   * tracks resources); with `force` rolled anyway, that cost unpaid.
    */
   rollByHand(
     build: CharacterBuild,
@@ -619,23 +622,30 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     rollByHand: (build, state, what, force = false) =>
       content.run("play", (catalog) =>
         attempt(() => {
+          const character = { build, state };
           const combatant = combatantFromCharacter(build, state, catalog);
-          const roll = rollByHand(combatant, what, { catalog, character: { build, state }, rng });
+          const roll = rollByHand(combatant, what, { catalog, character, rng });
+          const costs = checkCosts(roll.costs, { catalog, name: combatant.name, character });
+          const unpaid = costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
+          // The app tracks resources: a roll it can't pay for is refused, unless forced.
+          if (unpaid.length > 0 && !force) {
+            throw new PlayError(unpaid.map((r) => r.message));
+          }
           const messages: Message[] = [...roll.messages];
           let current = state;
-          for (const cost of roll.costs) {
-            if (cost.type !== "play") continue;
-            try {
-              const applied = engineApplyAction(build, current, catalog, cost.action, { rng });
-              current = applied.state;
-              messages.push(...applied.messages);
-            } catch (error) {
-              // Forced: the cost that can't be paid is left unspent, its reason noted.
-              if (!(error instanceof PlayError) || !force) throw error;
-              messages.push(...error.details);
-            }
+          for (const cost of costs) {
+            if (cost.type !== "play" || !cost.payable) continue;
+            const applied = engineApplyAction(build, current, catalog, cost.action, { rng });
+            current = applied.state;
+            messages.push(...applied.messages);
           }
-          return { roll, state: current, messages, notes: messages.map((m) => m.text) };
+          for (const r of unpaid) messages.push(r.message);
+          return {
+            roll: { ...roll, costs },
+            state: current,
+            messages,
+            notes: messages.map((m) => m.text),
+          };
         }),
       ),
 

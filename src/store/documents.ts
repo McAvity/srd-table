@@ -23,6 +23,7 @@ import type {
   BuildChange,
   BuildEdit,
   ChangePreview,
+  CharacterDocs,
   EncounterChange,
   Outcome,
   Party,
@@ -34,6 +35,12 @@ import { t } from "@/i18n";
 import { rollDice } from "./dice";
 import { type PlayWay, useSettings } from "./settings";
 import { useUi } from "./ui";
+
+/** Refused because a cost of a roll by hand can't be paid (the roll can still be forced). */
+export interface UnpaidRefusal extends Refusal {
+  readonly unpaid: true;
+}
+export type RollOutcome = Outcome<EncounterChange> | UnpaidRefusal;
 
 export interface CharacterRecord {
   readonly id: string;
@@ -122,6 +129,16 @@ export interface DocumentsState {
     id: string,
     action: EncounterAction | readonly EncounterAction[],
   ): Promise<Outcome<EncounterChange>>;
+  /**
+   * An action rolled by hand: the engine's free `roll`, then a `spend` of its costs, committed as
+   * one step (one undo). Refused, with nothing rolled, when a cost can't be paid (`unpaid`); with
+   * `force`, rolled and paid as far as possible.
+   */
+  rollAndPay(
+    id: string,
+    roll: Extract<EncounterAction, { type: "roll" }>,
+    force?: boolean,
+  ): Promise<RollOutcome>;
   clearLog(id: string): void;
   /** A combatant's way of playing its actions (`null`: the campaign's default). */
   setPlayMode(id: string, combatant: string, mode: PlayWay | null): void;
@@ -208,16 +225,6 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         }),
       };
     });
-  }
-
-  function appendLog(
-    record: EncounterRecord,
-    entry: Omit<LogEntry, "id" | "at" | "round">,
-    round: number,
-  ) {
-    if (!entry.lines.length) return record.log;
-    const full: LogEntry = { ...entry, id: newId("log"), at: Date.now(), round };
-    return [...record.log, full].slice(-LOG_LIMIT);
   }
 
   return {
@@ -383,6 +390,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               name: roll.name,
               slot_level: roll.slot_level,
               rolls: roll.rolls,
+              costs: roll.costs,
             },
           },
         ]);
@@ -437,78 +445,45 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
 
     encounterAction(id, action) {
-      return serial(id, async () => {
-        const record = get().encounters[id];
-        if (!record) return missing();
-        const characters = get().characters;
-        const party = { ...partyOf(record.encounter, characters), ...joining(action, characters) };
-        const result = await engine().applyEncounterAction(record.encounter, party, action);
-        if (!result.ok) return result;
-        const before: Record<string, CharacterState> = {};
-        for (const [key, docs] of Object.entries(party)) before[key] = docs.state;
-        set((s) => {
-          const current = s.encounters[id];
-          if (!current) return s;
-          // The question the action stopped for is logged once, as its own (decision) entry.
-          const question = result.pending?.question;
-          const keep = result.notes.map((line) => line !== question);
-          let log = appendLog(
-            current,
-            {
-              tone: "notes",
-              lines: result.notes.filter((_, i) => keep[i]),
-              messages: result.messages.filter((_, i) => keep[i]),
-            },
-            result.encounter.round,
+      return serial(id, () =>
+        applyToEncounter(id, action, (encounter, party) =>
+          engine().applyEncounterAction(encounter, party, action),
+        ),
+      );
+    },
+
+    rollAndPay(id, roll, force = false) {
+      return serial(id, () =>
+        applyToEncounter(id, roll, async (encounter, party) => {
+          const rolled = await engine().applyEncounterAction(encounter, party, roll);
+          if (!rolled.ok) return rolled;
+          const costs = rolled.results.flatMap((r) => ("costs" in r ? r.costs : []));
+          if (costs.length === 0) return rolled;
+          const unpaid = costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
+          if (unpaid.length > 0 && !force) {
+            return {
+              ok: false as const,
+              reasons: unpaid.map((r) => r.text),
+              reason_messages: unpaid.map((r) => r.message),
+              unpaid: true as const,
+            };
+          }
+          const paid = await engine().applyEncounterAction(
+            rolled.encounter,
+            withStates(party, rolled.states),
+            { type: "spend", id: roll.id, costs, ...(force ? { force } : {}) },
           );
-          if (result.pending) {
-            log = appendLog(
-              { ...current, log },
-              {
-                tone: "decision",
-                lines: [result.pending.question],
-                ...(result.pending.question_message
-                  ? { messages: [result.pending.question_message] }
-                  : {}),
-              },
-              result.encounter.round,
-            );
-          }
-          const nextCharacters = { ...s.characters };
-          for (const [key, state] of Object.entries(result.states)) {
-            const c = nextCharacters[key];
-            if (c) nextCharacters[key] = { ...c, state, updated: Date.now() };
-          }
+          if (!paid.ok) return paid;
           return {
-            encounters: {
-              ...s.encounters,
-              [id]: {
-                ...current,
-                encounter: result.encounter,
-                log,
-                updated: Date.now(),
-              },
-            },
-            characters: nextCharacters,
-            revs: bump(s.revs, id, ...Object.keys(result.states)),
-            history: pushPast(s.history, id, {
-              kind: "encounter",
-              encounter: record.encounter,
-              states: before,
-            }),
+            ...paid,
+            states: { ...rolled.states, ...paid.states },
+            notes: [...rolled.notes, ...paid.notes],
+            messages: [...rolled.messages, ...paid.messages],
+            applied: 2,
+            results: rolled.results,
           };
-        });
-        const who = (aid: string | undefined) =>
-          result.encounter.combatants.find((c) => c.id === aid)?.name ?? "";
-        const actions = Array.isArray(action) ? action : [action];
-        useUi.getState().showDice(
-          result.results.map((r, i) => {
-            const a = actions[Math.min(i, actions.length - 1)] as EncounterAction;
-            return { kind: "action" as const, who: who("id" in a ? a.id : undefined), result: r };
-          }),
-        );
-        return result;
-      });
+        }),
+      );
     },
 
     clearLog(id) {
@@ -615,4 +590,106 @@ export function canUndo(s: DocumentsState, id: string): boolean {
 }
 export function canRedo(s: DocumentsState, id: string): boolean {
   return (s.history[id]?.future.length ?? 0) > 0;
+}
+
+/**
+ * Apply `run` to an encounter and commit what it returns as one step: the encounter, the party's
+ * states, the log, one undo entry, the dice in the tray (named after `action`'s actor).
+ */
+async function applyToEncounter(
+  id: string,
+  action: EncounterAction | readonly EncounterAction[],
+  run: (encounter: Encounter, party: Party) => Promise<RollOutcome>,
+): Promise<RollOutcome> {
+  const { getState: get, setState: set } = useDocuments;
+  const record = get().encounters[id];
+  if (!record) return missing();
+  const characters = get().characters;
+  const party = { ...partyOf(record.encounter, characters), ...joining(action, characters) };
+  const result = await run(record.encounter, party);
+  if (!result.ok) return result;
+  const before: Record<string, CharacterState> = {};
+  for (const [key, docs] of Object.entries(party)) before[key] = docs.state;
+  set((s) => {
+    const current = s.encounters[id];
+    if (!current) return s;
+    // The question the action stopped for is logged once, as its own (decision) entry.
+    const question = result.pending?.question;
+    const keep = result.notes.map((line) => line !== question);
+    let log = appendLog(
+      current,
+      {
+        tone: "notes",
+        lines: result.notes.filter((_, i) => keep[i]),
+        messages: result.messages.filter((_, i) => keep[i]),
+      },
+      result.encounter.round,
+    );
+    if (result.pending) {
+      log = appendLog(
+        { ...current, log },
+        {
+          tone: "decision",
+          lines: [result.pending.question],
+          ...(result.pending.question_message
+            ? { messages: [result.pending.question_message] }
+            : {}),
+        },
+        result.encounter.round,
+      );
+    }
+    const nextCharacters = { ...s.characters };
+    for (const [key, state] of Object.entries(result.states)) {
+      const c = nextCharacters[key];
+      if (c) nextCharacters[key] = { ...c, state, updated: Date.now() };
+    }
+    return {
+      encounters: {
+        ...s.encounters,
+        [id]: {
+          ...current,
+          encounter: result.encounter,
+          log,
+          updated: Date.now(),
+        },
+      },
+      characters: nextCharacters,
+      revs: bump(s.revs, id, ...Object.keys(result.states)),
+      history: pushPast(s.history, id, {
+        kind: "encounter",
+        encounter: record.encounter,
+        states: before,
+      }),
+    };
+  });
+  const who = (aid: string | undefined) =>
+    result.encounter.combatants.find((c) => c.id === aid)?.name ?? "";
+  const actions = Array.isArray(action) ? action : [action];
+  useUi.getState().showDice(
+    result.results.map((r, i) => {
+      const a = actions[Math.min(i, actions.length - 1)] as EncounterAction;
+      return { kind: "action" as const, who: who("id" in a ? a.id : undefined), result: r };
+    }),
+  );
+  return result;
+}
+
+function appendLog(
+  record: EncounterRecord,
+  entry: Omit<LogEntry, "id" | "at" | "round">,
+  round: number,
+) {
+  if (!entry.lines.length) return record.log;
+  const full: LogEntry = { ...entry, id: newId("log"), at: Date.now(), round };
+  return [...record.log, full].slice(-LOG_LIMIT);
+}
+
+/** The party with the states an earlier step changed. */
+function withStates(party: Party, states: Readonly<Record<string, CharacterState>>): Party {
+  const next: Record<string, CharacterDocs> = { ...party };
+  for (const [key, state] of Object.entries(states)) {
+    const docs = next[key];
+    if (docs) next[key] = { ...docs, state };
+  }
+  return next;
 }
