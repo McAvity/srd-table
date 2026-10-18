@@ -92,3 +92,20 @@ export async function rogue(engine: EngineFacade, level = 5): Promise<CharacterB
   }
   return build;
 }
+
+/** A Sorcerer 1 / Bard 1 (Charisma for both): spells on both class lists, prepared through one. */
+export async function sorcererBard(engine: EngineFacade): Promise<CharacterBuild> {
+  let build = await apply(engine, await engine.newBuild(), [
+    { type: "class", id: "sorcerer" },
+    { type: "species", id: "human" },
+    { type: "background", id: "acolyte" },
+    { type: "ability_method", method: "standard_array" },
+    { type: "base_scores", scores: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 } },
+    { type: "background_bonus", bonus: { cha: 2, wis: 1 } },
+    { type: "name", name: "Kai" },
+    { type: "alignment", alignment: "NG" },
+  ]);
+  build = await fillLevel(engine, build, 1);
+  build = await apply(engine, build, [{ type: "level_up", class_id: "bard", hp: null }]);
+  return fillLevel(engine, build, 2);
+}

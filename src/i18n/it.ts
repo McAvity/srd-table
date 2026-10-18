@@ -225,6 +225,9 @@ export const it: Messages = {
   "sheet.rollSpellHint":
     "I dadi dell'incantesimo (tiri per colpire, danni, guarigione, la sua CD), lo slot speso; nient'altro viene applicato.",
   "sheet.castAt": "{spell}: livello dello slot",
+  "sheet.castWith": "Capacità di incantesimi con cui lanciare {spell}",
+  "sheet.castWithPick": "Lancia con…",
+  "sheet.chooseSpellcasting": "Scegli la capacità di incantesimi con cui lanciarlo.",
   "sheet.attackBonus": "Per colpire",
   "sheet.damageCol": "Danni",
   "sheet.riders": "Facoltativo: {riders}",

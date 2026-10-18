@@ -133,12 +133,13 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       <RollSpell
                         spell={s}
                         busy={busy}
-                        onRoll={(slot) =>
+                        onRoll={(slot, spellcasting) =>
                           void roll({
                             type: "cast",
                             spell: s.id,
                             ...(slot ? { slot_level: slot.level } : {}),
                             ...(slot?.pact ? { pact: true } : {}),
+                            ...(spellcasting ? { spellcasting } : {}),
                           })
                         }
                       />
@@ -157,7 +158,10 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 /**
  * Cast by hand: a cantrip at once; a spell with one of the slots the engine lists for it
  * (`slots`: those with none left disabled, with the engine's reason), starting on the first one
- * left. With none left, Roll is disabled and the reason shown next to it.
+ * left. With none left, Roll is disabled and the reason shown next to it. The spellcasting
+ * feature it's cast with is the one the engine lists for it (`spellcasting`), sent with the roll;
+ * when it lists several (the same spell given twice), the player picks one first: nothing is
+ * chosen for them.
  */
 function RollSpell({
   spell,
@@ -166,18 +170,39 @@ function RollSpell({
 }: {
   spell: PlaySpellLine;
   busy: boolean;
-  onRoll: (slot: SpellSlotChoice | null) => void;
+  onRoll: (slot: SpellSlotChoice | null, spellcasting: string | null) => void;
 }) {
   const key = (slot: SpellSlotChoice) => `${slot.pact ? "pact" : "slot"}:${slot.level}`;
   const first = spell.slots.find((slot) => slot.available);
   const [picked, setPicked] = useState(() => (first ? key(first) : ""));
   const slot = spell.slots.find((x) => key(x) === picked) ?? first ?? null;
   const leveled = spell.slots.length > 0;
+  const sources = spell.spellcasting;
+  const [castWith, setCastWith] = useState<string | null>(null);
+  const spellcasting = sources.length === 1 ? (sources[0] ?? null) : castWith;
   // Nothing to cast it with: the first slot's reason (they all say the same thing).
-  const reason = leveled && !first ? (spell.slots[0]?.reason?.text ?? null) : null;
+  const slotReason = leveled && !first ? (spell.slots[0]?.reason?.text ?? null) : null;
+  const reason =
+    slotReason ??
+    (sources.length > 1 && spellcasting === null ? t("sheet.chooseSpellcasting") : null);
   const reasonId = `cast-${spell.id}-${spell.source}`;
   return (
     <>
+      {sources.length > 1 && (
+        <select
+          className="field w-auto py-1 text-sm"
+          aria-label={t("sheet.castWith", { spell: spell.name })}
+          value={castWith ?? ""}
+          onChange={(e) => setCastWith(e.target.value || null)}
+        >
+          <option value="">{t("sheet.castWithPick")}</option>
+          {sources.map((source) => (
+            <option key={source} value={source}>
+              {source}
+            </option>
+          ))}
+        </select>
+      )}
       {leveled && first && (
         <select
           className="field w-auto py-1 text-sm"
@@ -206,7 +231,7 @@ function RollSpell({
         title={t("sheet.rollSpellHint")}
         disabled={busy || reason !== null}
         aria-describedby={reason ? reasonId : undefined}
-        onClick={() => onRoll(leveled ? slot : null)}
+        onClick={() => onRoll(leveled ? slot : null, spellcasting)}
       >
         {t("sheet.rollByHand")}
       </Button>

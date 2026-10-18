@@ -1,8 +1,9 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { RollWhat } from "srd-rules-engine";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useDocuments } from "../../src/store/documents";
-import { fighter, wizard } from "../fixtures/characters";
+import { fighter, sorcererBard, wizard } from "../fixtures/characters";
 import { installTestEngine, renderApp, resetStores } from "../helpers/app";
 
 const engine = installTestEngine(9);
@@ -153,6 +154,121 @@ describe("sheet", () => {
     await waitFor(() =>
       expect(useDocuments.getState().characters[result.id]?.state.spell_slots_spent[1]).toBe(1),
     );
+  });
+
+  it("casts a spell with the spellcasting feature the engine lists for it: Innate Sorcery only on Sorcerer spells", async () => {
+    const sent: RollWhat[] = [];
+    const rollByHand = engine.rollByHand;
+    engine.rollByHand = (build, state, what, force) => {
+      sent.push(what);
+      return rollByHand(build, state, what, force);
+    };
+    try {
+      const result = await useDocuments.getState().importCharacter(await sorcererBard(engine));
+      if (!result.ok) throw new Error(result.reasons.join("; "));
+      await useDocuments
+        .getState()
+        .playAction(result.id, { type: "activate", key: "sorcerer:innate-sorcery" });
+      const record = useDocuments.getState().characters[result.id];
+      if (!record) throw new Error("no record");
+      const { sheet } = await engine.playSheet(record.build, record.state);
+      const dc = (source: string) => sheet.spellcasting.find((l) => l.source === source)?.save_dc;
+      expect(dc("Sorcerer")).toBe((dc("Bard") ?? 0) + 1);
+      // A Bard spell with a save that's on the Sorcerer list too.
+      const lists = new Map(
+        (
+          (await engine.entries("spells")) as {
+            id: string;
+            lists: string[];
+            mechanics: { save: unknown } | null;
+          }[]
+        ).map((s) => [s.id, s]),
+      );
+      const bard = sheet.spells.find((s) => {
+        const def = lists.get(s.id);
+        return (
+          s.level === 1 &&
+          s.spellcasting.join() === "Bard" &&
+          def?.lists.includes("sorcerer") &&
+          def.mechanics?.save
+        );
+      });
+      if (!bard) throw new Error("no Bard spell on both lists");
+      await renderApp(`/characters/${result.id}/sheet?tab=spells`);
+      const level1 = await screen.findByRole("region", { name: "Level 1" }, { timeout: 10_000 });
+      const row = within(level1).getByText(bard.name).closest("li") as HTMLElement;
+      await userEvent.click(within(row).getByRole("button", { name: "Roll" }));
+      await waitFor(() =>
+        expect(useDocuments.getState().characters[result.id]?.state.spell_slots_spent[0]).toBe(1),
+      );
+      expect(sent.at(-1)).toMatchObject({
+        type: "cast",
+        spell: bard.id,
+        slot_level: 1,
+        spellcasting: "Bard",
+      });
+      const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+      expect(tray).toHaveTextContent(new RegExp(`DC ${dc("Bard")}\\b`));
+      expect(tray).not.toHaveTextContent(new RegExp(`DC ${dc("Sorcerer")}\\b`));
+    } finally {
+      engine.rollByHand = rollByHand;
+    }
+  });
+
+  it("asks which spellcasting feature casts a spell given twice, and sends the one picked", async () => {
+    const sent: RollWhat[] = [];
+    const rollByHand = engine.rollByHand;
+    engine.rollByHand = (build, state, what, force) => {
+      sent.push(what);
+      return rollByHand(build, state, what, force);
+    };
+    try {
+      const result = await useDocuments.getState().importCharacter(await sorcererBard(engine));
+      if (!result.ok) throw new Error(result.reasons.join("; "));
+      const record = useDocuments.getState().characters[result.id];
+      if (!record) throw new Error("no record");
+      // The same spell prepared through both classes (the engine reports it; an old file might have it).
+      const bardPicks = record.build.choices["class:bard#prepared"] ?? [];
+      const twice = bardPicks[0] as string;
+      const sorcererPicks = record.build.choices["class:sorcerer#prepared"] ?? [];
+      const build = {
+        ...record.build,
+        choices: {
+          ...record.build.choices,
+          "class:sorcerer#prepared": [twice, ...sorcererPicks.slice(1)],
+        },
+      };
+      useDocuments.setState((s) => ({
+        characters: { ...s.characters, [result.id]: { ...record, build } },
+        revs: { ...s.revs, [result.id]: (s.revs[result.id] ?? 0) + 1 },
+      }));
+      const { sheet } = await engine.playSheet(build, record.state);
+      const line = sheet.spells.find((s) => s.id === twice);
+      expect(line?.spellcasting).toEqual(["Sorcerer", "Bard"]);
+      await renderApp(`/characters/${result.id}/sheet?tab=spells`);
+      const region = await screen.findByRole(
+        "region",
+        { name: line?.level === 0 ? "Cantrips" : `Level ${line?.level}` },
+        { timeout: 10_000 },
+      );
+      const row = within(region)
+        .getByText(line?.name as string)
+        .closest("li") as HTMLElement;
+      const roll = within(row).getByRole("button", { name: "Roll" });
+      expect(roll).toBeDisabled();
+      expect(row).toHaveTextContent("Choose the spellcasting feature to cast it with.");
+      await userEvent.selectOptions(
+        within(row).getByRole("combobox", { name: /Spellcasting feature to cast/ }),
+        "Bard",
+      );
+      expect(roll).toBeEnabled();
+      await userEvent.click(roll);
+      await waitFor(() =>
+        expect(sent.at(-1)).toMatchObject({ spell: twice, spellcasting: "Bard" }),
+      );
+    } finally {
+      engine.rollByHand = rollByHand;
+    }
   });
 
   it("takes a Short Rest spending Hit Point Dice the engine rolls", async () => {

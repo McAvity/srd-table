@@ -214,6 +214,9 @@ export const en = {
   "sheet.rollSpellHint":
     "The spell's dice (attack rolls, damage, healing, its DC), its slot spent; nothing else is applied.",
   "sheet.castAt": "{spell}: slot level",
+  "sheet.castWith": "Spellcasting feature to cast {spell} with",
+  "sheet.castWithPick": "Cast with…",
+  "sheet.chooseSpellcasting": "Choose the spellcasting feature to cast it with.",
   "sheet.attackBonus": "To hit",
   "sheet.damageCol": "Damage",
   "sheet.riders": "Optional: {riders}",

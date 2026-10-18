@@ -52,6 +52,7 @@ The app never works around a gap with rules of its own.
 
 | Id | What | Engine | App |
 |---|---|---|---|
+| — (F-004 T03) | A spell's spellcasting feature | `e7f4302` (fork, pinned) | the sheet's "Roll" for a spell sends the feature the engine lists (`SpellLine.spellcasting`) as `spellcasting` (`SpellsTab.tsx` `RollSpell`); a spell listed with several (given twice) asks which one first, nothing preselected. Encounter casts send none: the engine uses the spell's feature when it has one; a spell given twice is cast as the engine picks there |
 | R1 | Starting equipment taken after the state exists | `aef3cf1` (main) | sheet notice + `take_starting_equipment` (`InventoryTab.tsx` `StartingEquipment`) |
 | R2 | Exploration and points of interest | `3b81071` (main) | `ExplorationPanel.tsx`, `PointPanel.tsx`, the map's Points tool and markers, the Move hint's turns |
 | R3 | Bloodied | `d07df13` (main) | `HpBar` `bloodied` (red), "Bloodied" label on the rail and the sheet |
