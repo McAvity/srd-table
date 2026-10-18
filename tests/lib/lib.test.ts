@@ -2,10 +2,30 @@ import { describe, expect, it } from "vitest";
 import { setLocale, t, tn } from "../../src/i18n";
 import { en } from "../../src/i18n/en";
 import { it as italian } from "../../src/i18n/it";
-import { isStateFile, pairCharacterFiles } from "../../src/lib/files";
+import { changedFields, droppedFields, isStateFile, pairCharacterFiles } from "../../src/lib/files";
 import { explainParts, fileSlug } from "../../src/lib/format";
 
 describe("files", () => {
+  it("lists what a parse dropped from an imported file, and what changed in a document", () => {
+    const parsed = { version: 1, hp: { current: 4, temp: 0 }, inventory: [{ id: "i1", qty: 1 }] };
+    expect(
+      droppedFields({ version: 1, hp: { current: 4 }, inventory: [{ id: "i1" }] }, parsed),
+    ).toEqual([]);
+    expect(
+      droppedFields(
+        {
+          version: 1,
+          stored_items: ["i1"],
+          hp: { current: 4, max: 9 },
+          inventory: [{ id: "i1", location: "home" }],
+        },
+        parsed,
+      ),
+    ).toEqual(["stored_items", "hp.max", "inventory.0.location"]);
+    expect(changedFields({ a: { x: 1, y: 2 }, b: [1] }, { b: [1], a: { y: 2, x: 1 } })).toEqual([]);
+    expect(changedFields({ a: 1, b: [1, 2] }, { a: 1, b: [1], c: true })).toEqual(["b", "c"]);
+  });
+
   it("pairs builds with their play states the CLI's way", () => {
     const pairs = pairCharacterFiles([
       { name: "aerin.json", data: 1 },

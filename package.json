@@ -10,7 +10,8 @@
   "scripts": {
     "content": "tsx scripts/copy-content.ts",
     "bundle:character": "tsx scripts/bundle-to-character.ts",
-    "engine:update": "git -C ../srd-rules-engine-main checkout -q --detach main && (cd ../srd-rules-engine-main && npm ci --no-audit --no-fund && npx tsdown --config-loader tsx) && npm run content",
+    "engine:update": "tsx scripts/engine-pin.ts update && npm run content",
+    "engine:verify": "tsx scripts/engine-pin.ts verify",
     "predev": "npm run content",
     "dev": "vite",
     "prebuild": "npm run content",

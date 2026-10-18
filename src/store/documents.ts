@@ -32,6 +32,7 @@ import type {
   SheetRoll,
 } from "@/engine/facade";
 import { t } from "@/i18n";
+import { changedFields, droppedFields } from "@/lib/files";
 import { rollDice } from "./dice";
 import { type PlayWay, useSettings } from "./settings";
 import { useUi } from "./ui";
@@ -209,6 +210,11 @@ function toastNotes(notes: readonly string[]): void {
   if (notes.length) useUi.getState().toast(notes, "info");
 }
 
+/** An import refused before anything is written: the app's reason, then the engine's. */
+function refused(reason: string, details: readonly { readonly message: string }[] = []): Refusal {
+  return { ok: false, reasons: [reason, ...details.map((d) => d.message)] };
+}
+
 export const useDocuments = create<DocumentsState>()((set, get) => {
   /** Commit a character's new documents (from the engine), keeping the old ones for undo. */
   function commitCharacter(id: string, build: CharacterBuild, state: CharacterState) {
@@ -255,17 +261,40 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
 
     async importCharacter(rawBuild, rawState) {
+      // Nothing is written unless the files arrive whole: no field dropped by the parse, the
+      // build valid with the loaded packs (the engine's `pack_missing`, unknown ids…), the state
+      // valid for it, and the state unchanged by `reconcileState` (spent HP, slots and uses, the
+      // inventory are the table's: a reset isn't an import).
       const parsed = await engine().parseBuild(rawBuild);
       if (!parsed.ok) return parsed;
+      const lostBuild = droppedFields(rawBuild, parsed.build);
+      if (lostBuild.length)
+        return refused(t("errors.importDropsFields", { fields: lostBuild.join(", ") }));
+      const view = await engine().evaluate(parsed.build);
+      const buildErrors = view.report.issues.filter((i) => i.severity === "error");
+      if (buildErrors.length) return refused(t("errors.importInvalid"), buildErrors);
       let state: CharacterState;
       if (rawState === undefined) {
         state = await engine().createState(parsed.build);
       } else {
         const ps = await engine().parseState(rawState);
         if (!ps.ok) return ps;
+        const lostState = droppedFields(rawState, ps.state);
+        if (lostState.length)
+          return refused(t("errors.importDropsFields", { fields: lostState.join(", ") }));
         state = ps.state;
+        const stateErrors = (await engine().validateState(parsed.build, state)).filter(
+          (i) => i.severity === "error",
+        );
+        if (stateErrors.length) return refused(t("errors.importInvalid"), stateErrors);
       }
       const fitted = await engine().reconcileState(parsed.build, state);
+      const changed = changedFields(state, fitted.state);
+      if (changed.length)
+        return refused(
+          t("errors.importWouldChange", { fields: changed.join(", ") }),
+          fitted.notes.map((message) => ({ message })),
+        );
       toastNotes(fitted.notes);
       const id = newId("c");
       const now = Date.now();

@@ -433,6 +433,8 @@ export interface EngineFacade {
   /** What `take_starting_equipment` adds: the build's starting equipment and gold. */
   startingEquipment(build: CharacterBuild): Promise<StartingEquipment>;
   playSheet(build: CharacterBuild, state: CharacterState): Promise<PlayView>;
+  /** What's wrong with a state for its build and the loaded content (`validateState`). */
+  validateState(build: CharacterBuild, state: CharacterState): Promise<readonly StateIssue[]>;
   /** One action or a list, in order; all or nothing. */
   applyPlayAction(
     build: CharacterBuild,
@@ -617,6 +619,8 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           return { state: current, notes };
         }),
       ),
+    validateState: (build, state) =>
+      content.run("play", (catalog) => validateState(build, state, catalog)),
     reconcileState: (build, state) =>
       content.run("play", (catalog) => reconcileState(build, state, catalog)),
     rollByHand: (build, state, what, force = false) =>

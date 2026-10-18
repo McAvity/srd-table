@@ -57,6 +57,12 @@ export const it: Messages = {
   "errors.engine": "Il motore delle regole ha dato un errore: {message}",
   "errors.notFound": "Qui non c'è niente",
   "errors.badFile": "{file} non è un file JSON.",
+  "errors.importDropsFields":
+    "Non è stato importato niente: il file contiene dati che l'app non conserva ({fields}).",
+  "errors.importInvalid":
+    "Non è stato importato niente: il personaggio non corrisponde ai pacchetti di contenuti caricati. Carica i pacchetti che gli servono (Impostazioni) e importa di nuovo.",
+  "errors.importWouldChange":
+    "Non è stato importato niente: adattare lo stato di gioco alla build cambierebbe {fields}.",
 
   "toasts.region": "Notifiche",
 

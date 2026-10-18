@@ -7,8 +7,10 @@ the engine delivers.
 **How engine work happens.** This repo's sessions never change engine code. A need is written
 as a requirement in the engine's `docs/REQUESTS.md` (git-ignored there, read by the engine's own
 Claude Code session), with an id `R<n>`; it's tracked here under the same id. When a request is
-`done`: `npm run engine:update` (the engine's `main` into `../srd-rules-engine-main`, the
-worktree the app builds against: `npm ci`, `dist/`, content), wire the app, delete the fallback named here, move the entry to "Done" below.
+`done`: set `ENGINE_COMMIT` in `scripts/engine-pin.ts` to the delivering commit, `npm run
+engine:update` (that commit into `../srd-rules-engine-main`, the worktree the app builds
+against: `npm ci`, `dist/`, verify, content), wire the app, delete the fallback named here, move
+the entry to "Done" below.
 
 **How a delivery is noticed.** The engine session appends an entry to its `docs/RESPONSES.md`
 (commit, CHANGELOG entry, final API names, differences), puts `Request: R<n>` in the commit's
@@ -22,7 +24,17 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
-| — | Nothing waiting | — |
+| — (to file) | Import safety: `reconcileState` drops spent uses and toggles it can't place without a note (a build whose pack isn't loaded loses its spent uses silently), and `build.packs` names a pack without its version, so a stale pack with the same ids can't be told apart | not filed yet |
+
+### Notes: import safety
+
+- **Meanwhile.** `importCharacter` (`store/documents.ts`) writes nothing unless the files arrive
+  whole: no field dropped by the parse (`droppedFields`, `lib/files.ts`), no `error` from the
+  engine's `evaluate` (`pack_missing`, unknown ids) or `validateState`, and a state
+  `reconcileState` leaves unchanged (`changedFields`). The app compares documents; it decides no
+  rule. A refusal shows the app's reason, then the engine's.
+- **Pack versions.** The app can't check one: whoever installs a private pack checks its files
+  (the tooling that produced it). Once builds can name a pack's version, refuse a mismatch here.
 
 ### Notes: manual play
 

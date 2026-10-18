@@ -133,7 +133,9 @@ The engine publishes the SRD split by table (`srd-rules-engine/srd-5.2.1/manifes
   (`content/private/` is git-ignored) and out of any public deployment.
 - **Campaign settings** (allowed `sources`, packs, decision modes) are their own small
   document in IndexedDB. A build records the packs it needs (`build.packs`); opening one with a
-  pack missing shows the engine's validation error.
+  pack missing shows the engine's validation error, and importing one is refused before anything
+  is written (as is a state the import would change: `importCharacter`, ENGINE-GAPS "Import
+  safety").
 - Look up catalog entities with `lookup(table, id)`, as in the engine.
 
 ### Dice
@@ -253,9 +255,11 @@ docs/            # ARCHITECTURE.md (decisions), ENGINE-GAPS.md (what the UI need
 - While developing: `"srd-rules-engine": "file:../srd-rules-engine-main"`, a symlink to a
   `git worktree` of the engine detached at its `main` (the engine session works in
   `../srd-rules-engine`, on its own branches, and never touches it). The app consumes its
-  **built** `dist/` through the package `exports`. `npm run engine:update` moves the worktree to
-  the engine's latest `main`, runs `npm ci`, builds `dist/` and copies the content. Later: a
-  GitHub tag or npm version, pinned.
+  **built** `dist/` through the package `exports`. The commit is pinned: `ENGINE_COMMIT` in
+  `scripts/engine-pin.ts`. `npm run engine:update` moves the worktree to it, runs `npm ci`,
+  builds `dist/`, verifies and copies the content; `npm run engine:verify` checks the worktree is
+  that commit, clean and built, and prints a hash of `dist/` (record it with a build). Moving to a
+  newer engine is a change of `ENGINE_COMMIT`, never `main`. Later: a GitHub tag or npm version.
 - Vite: allow that folder (`server.fs.allow`) and `resolve.dedupe: ["zod"]`, so the app and the
   engine share one Zod.
 - Needs an engine with the options API (`combatantOptions`, `checkAction`) and the content

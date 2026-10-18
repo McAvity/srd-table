@@ -49,6 +49,12 @@ export const en = {
   "errors.engine": "The rules engine failed: {message}",
   "errors.notFound": "Nothing here",
   "errors.badFile": "{file} isn't a JSON file.",
+  "errors.importDropsFields":
+    "Nothing was imported: the file has data this app doesn't keep ({fields}).",
+  "errors.importInvalid":
+    "Nothing was imported: the character doesn't fit the loaded content packs. Load the packs it needs (Settings) and import again.",
+  "errors.importWouldChange":
+    "Nothing was imported: fitting the play state to the build would change {fields}.",
 
   "toasts.region": "Notifications",
 

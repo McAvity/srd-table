@@ -51,3 +51,52 @@ export function pairCharacterFiles(
     .filter((f) => !isStateFile(f.name))
     .map((build) => ({ build, state: states.get(base(build.name)) ?? null }));
 }
+
+/**
+ * Where an imported file has data its parsed document doesn't keep (`stored_items`, an envelope's
+ * `session`, an item's `location`): paths like `inventory.0.location`. The engine's parse drops
+ * unknown fields silently, so an import compares the file with the document before committing.
+ */
+export function droppedFields(raw: unknown, parsed: unknown, path = ""): string[] {
+  if (Array.isArray(raw)) {
+    if (!Array.isArray(parsed)) return path ? [path] : [];
+    return raw.flatMap((v, i) =>
+      i < parsed.length
+        ? droppedFields(v, parsed[i], join(path, String(i)))
+        : [join(path, String(i))],
+    );
+  }
+  if (!isRecord(raw)) return [];
+  if (!isRecord(parsed)) return path ? [path] : [];
+  return Object.entries(raw).flatMap(([key, value]) =>
+    key in parsed ? droppedFields(value, parsed[key], join(path, key)) : [join(path, key)],
+  );
+}
+
+/** The top-level fields whose values differ between two documents (key order ignored). */
+export function changedFields(before: object, after: object): string[] {
+  const a = before as Record<string, unknown>;
+  const b = after as Record<string, unknown>;
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])]
+    .filter((key) => canonical(a[key]) !== canonical(b[key]))
+    .sort();
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function join(path: string, key: string): string {
+  return path ? `${path}.${key}` : key;
+}
+
+function canonical(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonical).join(",")}]`;
+  if (isRecord(v))
+    return `{${Object.keys(v)
+      .filter((k) => v[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonical(v[k])}`)
+      .join(",")}}`;
+  return JSON.stringify(v) ?? "null";
+}
