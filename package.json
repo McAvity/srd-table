@@ -9,6 +9,7 @@
   },
   "scripts": {
     "content": "tsx scripts/copy-content.ts",
+    "bundle:character": "tsx scripts/bundle-to-character.ts",
     "engine:update": "git -C ../srd-rules-engine-main checkout -q --detach main && (cd ../srd-rules-engine-main && npm ci --no-audit --no-fund && npx tsdown --config-loader tsx) && npm run content",
     "predev": "npm run content",
     "dev": "vite",
