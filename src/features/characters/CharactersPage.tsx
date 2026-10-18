@@ -1,45 +1,33 @@
-/** Characters: the list, create, import and export (JSON), duplicate, delete. */
+/**
+ * Characters: the list, create, import (files or a URL, kenli F-008) and export (the documents'
+ * JSON, or a transfer with their content's identity), duplicate, delete.
+ */
 
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Portrait } from "@/components/Portrait";
-import { Button, Dialog, Empty, HpBar, PageTitle, Reasons } from "@/components/ui";
+import { Button, Dialog, Empty, HpBar, PageTitle } from "@/components/ui";
+import { ImportDialog } from "@/features/import/ImportDialog";
 import { t, tn } from "@/i18n";
-import { downloadJson, pairCharacterFiles, readJsonFiles } from "@/lib/files";
+import { exportCharacter } from "@/import/export";
+import { contentLabel } from "@/import/plan";
+import { downloadJson } from "@/lib/files";
 import { fileSlug } from "@/lib/format";
+import { installationId } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
-import { useUi } from "@/store/ui";
 
 export function CharactersPage() {
   const characters = useDocuments((s) => s.characters);
   const create = useDocuments((s) => s.createCharacter);
-  const importCharacter = useDocuments((s) => s.importCharacter);
   const navigate = useNavigate();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
   const list = Object.values(characters).sort((a, b) => b.updated - a.updated);
 
   async function onCreate() {
     const id = await create();
     await navigate({ to: "/characters/$id/build", params: { id }, search: { step: "class" } });
-  }
-
-  async function onImport(files: FileList | null) {
-    if (!files?.length) return;
-    const { files: read, bad } = await readJsonFiles(Array.from(files));
-    const errors = bad.map((name) => t("errors.badFile", { file: name }));
-    const imported: string[] = [];
-    for (const { build, state } of pairCharacterFiles(read)) {
-      const result = await importCharacter(build.data, state?.data);
-      if (result.ok) imported.push(build.name);
-      else errors.push(`${build.name}: ${result.reasons.join("; ")}`);
-    }
-    setImportErrors(errors);
-    if (imported.length)
-      useUi.getState().toast(imported.map((name) => t("characters.imported", { name })));
-    if (fileInput.current) fileInput.current.value = "";
   }
 
   return (
@@ -51,24 +39,11 @@ export function CharactersPage() {
         <Button variant="primary" icon="plus" onClick={onCreate}>
           {t("characters.new")}
         </Button>
-        <Button
-          icon="upload"
-          onClick={() => fileInput.current?.click()}
-          title={t("characters.importHint")}
-        >
-          {t("common.import")}
+        <Button icon="upload" onClick={() => setImporting(true)} title={t("characters.importHint")}>
+          {t("import.open")}
         </Button>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json,.json"
-          multiple
-          hidden
-          aria-label={t("characters.importHint")}
-          onChange={(e) => void onImport(e.target.files)}
-        />
       </div>
-      <Reasons reasons={importErrors} className="mb-4" />
+      <ImportDialog open={importing} onOpenChange={setImporting} />
       {list.length === 0 ? (
         <div className="panel">
           <Empty icon="sheet">{t("characters.empty")}</Empty>
@@ -108,6 +83,11 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
           {sheet && classes
             ? t("characters.levelClass", { level: sheet.level, classes })
             : t("characters.noClass")}
+        </p>
+        <p className="text-[13px] text-ink-muted" data-testid="content-label">
+          {record.content
+            ? t("characters.contentPinned", { content: contentLabel(record.content) ?? "" })
+            : t("characters.contentCampaign")}
         </p>
         {sheet?.play && sheet.max_hp && (
           <div className="flex items-center gap-2 text-sm">
@@ -156,6 +136,17 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
             iconOnly
             label={t("characters.exportState")}
             onClick={() => downloadJson(`${slug}.state.json`, record.state)}
+          />
+          <Button
+            size="sm"
+            icon="upload"
+            iconOnly
+            label={t("characters.exportTransfer")}
+            onClick={() =>
+              void exportCharacter(record, installationId()).then((env) =>
+                downloadJson(`${slug}.transfer.json`, env),
+              )
+            }
           />
           <Button
             size="sm"

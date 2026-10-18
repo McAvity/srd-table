@@ -1,0 +1,16 @@
+{
+  "format": "srd-table.library-pointer/1",
+  "kind": "character",
+  "id": "synthetic/sable",
+  "title": "Sable",
+  "current": {
+    "href": "../../s/4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86.json",
+    "bytes_sha256": "4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86",
+    "sha256": "8bc09372a85a2b544701413877d0db828f41aef54d51555660d39219af38cdb0",
+    "version": null,
+    "revision": {
+      "seq": 1
+    }
+  },
+  "history": []
+}

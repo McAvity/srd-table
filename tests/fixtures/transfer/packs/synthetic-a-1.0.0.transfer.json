@@ -1,0 +1,132 @@
+{
+  "format": "srd-table.transfer/1",
+  "kind": "pack",
+  "id": "synthetic-a",
+  "revision": null,
+  "title": "Synthetic A 1.0.0",
+  "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291",
+  "content": {
+    "files": {
+      "manifest.json": {
+        "name": "synthetic-a",
+        "manifest": {
+          "id": "synthetic-a",
+          "version": "1.0.0",
+          "ruleset": "2024",
+          "source": "synthetic-a",
+          "requires": [
+            "srd-5.2.1"
+          ],
+          "description": "Synthetic F-008 T01 fixture pack, version 1.0.0."
+        },
+        "patches": [
+          {
+            "target": "species/human",
+            "op": "append",
+            "path": "grants.resistances",
+            "value": "fire"
+          }
+        ],
+        "tables": {
+          "spells": {
+            "file": "spells.json",
+            "count": 1
+          },
+          "monsters": {
+            "file": "monsters.json",
+            "count": 1
+          }
+        }
+      },
+      "spells.json": [
+        {
+          "id": "synthetic-spark",
+          "name": "Synthetic Spark",
+          "description": "Synthetic F-008 test spell, version 1. Not game text.",
+          "level": 0,
+          "school": "evocation",
+          "lists": [
+            "wizard"
+          ],
+          "casting_time": "Action",
+          "ritual": false,
+          "range": "120 feet",
+          "components": "V, S",
+          "duration": "Instantaneous",
+          "concentration": false,
+          "mechanics": {
+            "attack": "ranged",
+            "damage": [
+              {
+                "dice": "1d4",
+                "type": "fire",
+                "add_modifier": false,
+                "bonus": 0
+              }
+            ],
+            "targets": 1,
+            "cantrip_scaling": "dice"
+          }
+        }
+      ],
+      "monsters.json": [
+        {
+          "id": "synthetic-dummy",
+          "name": "Synthetic Dummy",
+          "description": "Synthetic F-008 test target.",
+          "size": "Medium",
+          "creature_type": "Construct",
+          "alignment": "Unaligned",
+          "armor_class": 5,
+          "initiative": 0,
+          "hit_points": 30,
+          "hit_dice": "4d8+12",
+          "speed": {
+            "walk": 0
+          },
+          "abilities": {
+            "str": 10,
+            "dex": 10,
+            "con": 10,
+            "int": 1,
+            "wis": 10,
+            "cha": 1
+          },
+          "saving_throws": {
+            "str": 0,
+            "dex": 0,
+            "con": 0,
+            "int": -5,
+            "wis": 0,
+            "cha": -5
+          },
+          "cr": "0",
+          "xp": 0,
+          "proficiency_bonus": 2,
+          "passive_perception": 10
+        }
+      ]
+    }
+  },
+  "requires": [
+    {
+      "kind": "pack",
+      "id": "srd-5.2.1",
+      "version": "5.2.1",
+      "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4",
+      "href": null,
+      "bytes_sha256": null
+    }
+  ],
+  "provenance": {
+    "publisher": "synthetic",
+    "generator": {
+      "name": "f008-t01-generate-fixtures",
+      "version": "1"
+    },
+    "notes": [
+      "Synthetic F-008 T01 contract fixture; no SRD text beyond ids, no private content."
+    ]
+  },
+  "extensions": {}
+}

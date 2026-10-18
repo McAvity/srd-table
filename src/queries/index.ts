@@ -7,7 +7,9 @@
 import { keepPreviousData, QueryClient, useQuery } from "@tanstack/react-query";
 import type { AreaRequest, Encounter, EncounterAction, Message, TableName } from "srd-rules-engine";
 import { engine } from "@/engine/client";
-import { partyOf, useDocuments } from "@/store/documents";
+import { type ContentContext, contextKey } from "@/lib/canonical";
+import { db } from "@/persistence/db";
+import { characterKeysOf, partyOf, useDocuments } from "@/store/documents";
 import { useLocale } from "@/store/locale";
 import { useSettings } from "@/store/settings";
 
@@ -34,18 +36,33 @@ function useContentKey(): string {
   return `${packs.join(",")}|${sources?.join(",") ?? "*"}|${locale}`;
 }
 
+/**
+ * A document's content key: its own packs when it's pinned to them (kenli F-008), else the
+ * campaign's. Two documents on two versions of a pack never share a cached view.
+ */
+function useDocumentContentKey(content: ContentContext | undefined): string {
+  const campaign = useContentKey();
+  const locale = useLocale((s) => s.applied);
+  return content ? `${contextKey(content)}|${locale}` : campaign;
+}
+
+function useCharacterContent(id: string | undefined): ContentContext | undefined {
+  return useDocuments((s) => (id ? s.characters[id]?.content : undefined));
+}
+
 function useRev(id: string | undefined): number {
   return useDocuments((s) => (id ? (s.revs[id] ?? 0) : 0));
 }
 
 /** The builder's view of a character's build (`evaluate`). */
 export function useBuildView(id: string) {
-  const content = useContentKey();
+  const own = useCharacterContent(id);
+  const content = useDocumentContentKey(own);
   const rev = useRev(id);
   const build = useDocuments((s) => s.characters[id]?.build);
   return useQuery({
     queryKey: ["build", id, rev, content],
-    queryFn: () => engine().evaluate(build as NonNullable<typeof build>),
+    queryFn: () => engine().evaluate(build as NonNullable<typeof build>, own),
     enabled: build !== undefined,
     placeholderData: keepPreviousData,
   });
@@ -53,12 +70,13 @@ export function useBuildView(id: string) {
 
 /** What each option of a builder choice would change on the sheet (`previewOption`). */
 export function useOptionPreviews(id: string | undefined, choiceKey: string) {
-  const content = useContentKey();
+  const own = useCharacterContent(id);
+  const content = useDocumentContentKey(own);
   const rev = useRev(id);
   const build = useDocuments((s) => (id ? s.characters[id]?.build : undefined));
   return useQuery({
     queryKey: ["option-previews", id, choiceKey, rev, content],
-    queryFn: () => engine().optionPreviews(build as NonNullable<typeof build>, choiceKey),
+    queryFn: () => engine().optionPreviews(build as NonNullable<typeof build>, choiceKey, own),
     enabled: build !== undefined,
     placeholderData: keepPreviousData,
   });
@@ -78,38 +96,40 @@ export function useRenderedMessages(key: string, lists: readonly (readonly Messa
   });
 }
 
-/** The items a magic item can be made from (`magicItemBases`). */
-export function useMagicItemBases(magicItemId: string | null) {
-  const content = useContentKey();
+/** The items a magic item can be made from (`magicItemBases`), in a character's content. */
+export function useMagicItemBases(magicItemId: string | null, characterId?: string) {
+  const own = useCharacterContent(characterId);
+  const content = useDocumentContentKey(own);
   return useQuery({
     queryKey: ["magic-bases", magicItemId, content],
-    queryFn: () => engine().magicItemBases(magicItemId as string),
+    queryFn: () => engine().magicItemBases(magicItemId as string, own),
     enabled: magicItemId !== null,
   });
 }
 
 /** What `take_starting_equipment` would add, asked only while it isn't taken (`enabled`). */
 export function useStartingEquipment(id: string, enabled: boolean) {
-  const content = useContentKey();
+  const own = useCharacterContent(id);
+  const content = useDocumentContentKey(own);
   const rev = useRev(id);
   const build = useDocuments((s) => s.characters[id]?.build);
   return useQuery({
     queryKey: ["starting-equipment", id, rev, content],
-    queryFn: () => engine().startingEquipment(build as NonNullable<typeof build>),
+    queryFn: () => engine().startingEquipment(build as NonNullable<typeof build>, own),
     enabled: enabled && build !== undefined,
   });
 }
 
 /** The build as played today (`playBuild`): the options of "after a rest" choices today. */
 export function usePlayBuildView(id: string) {
-  const content = useContentKey();
+  const content = useDocumentContentKey(useCharacterContent(id));
   const rev = useRev(id);
   const record = useDocuments((s) => s.characters[id]);
   return useQuery({
     queryKey: ["play-build", id, rev, content],
     queryFn: () => {
       if (!record) throw new Error("no character");
-      return engine().evaluatePlay(record.build, record.state);
+      return engine().evaluatePlay(record.build, record.state, record.content);
     },
     enabled: record !== undefined,
     placeholderData: keepPreviousData,
@@ -118,28 +138,33 @@ export function usePlayBuildView(id: string) {
 
 /** The play sheet (`computePlaySheet`) and the state's issues. */
 export function usePlayView(id: string | undefined) {
-  const content = useContentKey();
+  const content = useDocumentContentKey(useCharacterContent(id));
   const rev = useRev(id);
   const record = useDocuments((s) => (id ? s.characters[id] : undefined));
   return useQuery({
     queryKey: ["play", id, rev, content],
     queryFn: () => {
       if (!record) throw new Error("no character");
-      return engine().playSheet(record.build, record.state);
+      return engine().playSheet(record.build, record.state, record.content);
     },
     enabled: record !== undefined,
     placeholderData: keepPreviousData,
   });
 }
 
-/** The encounter's party: changes when the encounter or any of its characters changes. */
+/**
+ * The encounter's party: changes when the encounter or any of its characters changes, their
+ * content included (each character plays on its own packs).
+ */
 function usePartyKey(encounterId: string): string {
   return useDocuments((s) => {
     const record = s.encounters[encounterId];
     if (!record) return "";
-    return record.encounter.combatants
-      .filter((c) => c.character !== null)
-      .map((c) => `${c.character}:${s.revs[c.character as string] ?? 0}`)
+    return characterKeysOf(record.encounter)
+      .map((key) => {
+        const own = s.characters[key]?.content;
+        return `${key}:${s.revs[key] ?? 0}:${own ? contextKey(own) : "-"}`;
+      })
       .join(",");
   });
 }
@@ -148,7 +173,7 @@ function useEncounterInputs(encounterId: string) {
   const record = useDocuments((s) => s.encounters[encounterId]);
   const partyKey = usePartyKey(encounterId);
   const rev = useRev(encounterId);
-  const content = useContentKey();
+  const content = useDocumentContentKey(record?.content);
   return { record, key: [encounterId, rev, partyKey, content] as const };
 }
 
@@ -162,6 +187,7 @@ export function useEncounterView(encounterId: string) {
       return engine().encounterView(
         record.encounter,
         partyOf(record.encounter, useDocuments.getState().characters),
+        record.content,
       );
     },
     enabled: record !== undefined,
@@ -177,7 +203,7 @@ export function useCombatantOptions(encounterId: string, combatantId: string | n
     queryFn: () => {
       if (!record || !combatantId) throw new Error("no combatant");
       const party = partyOf(record.encounter, useDocuments.getState().characters);
-      return engine().combatantOptions(record.encounter, party, combatantId);
+      return engine().combatantOptions(record.encounter, party, combatantId, record.content);
     },
     enabled: record !== undefined && combatantId !== null && record.encounter.pending === null,
     placeholderData: keepPreviousData,
@@ -192,7 +218,7 @@ export function useActionCheck(encounterId: string, action: EncounterAction | nu
     queryFn: () => {
       if (!record || !action) throw new Error("no action");
       const party = partyOf(record.encounter, useDocuments.getState().characters);
-      return engine().checkAction(record.encounter, party, action);
+      return engine().checkAction(record.encounter, party, action, record.content);
     },
     enabled: record !== undefined && action !== null,
   });
@@ -238,6 +264,7 @@ export function useSquaresWithin(
         partyOf(record?.encounter as Encounter, useDocuments.getState().characters),
         combatantId as string,
         feet as number,
+        record?.content,
       ),
     enabled: record !== undefined && combatantId !== null && feet !== null,
   });
@@ -251,7 +278,7 @@ export function useAreaPreview(encounterId: string, request: AreaRequest | null)
     queryFn: () => {
       if (!record || !request) throw new Error("no area");
       const party = partyOf(record.encounter, useDocuments.getState().characters);
-      return engine().previewArea(record.encounter, party, request);
+      return engine().previewArea(record.encounter, party, request, record.content);
     },
     enabled: record !== undefined && request !== null,
   });
@@ -265,7 +292,7 @@ export function useReachable(encounterId: string, combatantId: string | null) {
     queryFn: () => {
       if (!record || !combatantId) throw new Error("no combatant");
       const party = partyOf(record.encounter, useDocuments.getState().characters);
-      return engine().reachable(record.encounter, party, combatantId);
+      return engine().reachable(record.encounter, party, combatantId, record.content);
     },
     enabled: record !== undefined && combatantId !== null,
   });
@@ -283,7 +310,7 @@ export function useMovePreview(
     queryFn: () => {
       if (!record || !combatantId || !to) throw new Error("no move");
       const party = partyOf(record.encounter, useDocuments.getState().characters);
-      return engine().previewMove(record.encounter, party, { id: combatantId, to });
+      return engine().previewMove(record.encounter, party, { id: combatantId, to }, record.content);
     },
     enabled: record !== undefined && combatantId !== null && to !== null,
     placeholderData: keepPreviousData,
@@ -316,4 +343,17 @@ export function useModifiers(scores: Readonly<Record<string, number>> | null) {
 export function usePacks() {
   const content = useContentKey();
   return useQuery({ queryKey: ["packs", content], queryFn: () => engine().packs() });
+}
+
+/** Imported packs (kenli F-008): their exact refs, by key, for Settings. */
+export function useInstalledPacks() {
+  return useQuery({
+    queryKey: ["installed-packs", useDocuments((s) => Object.keys(s.revs).length)],
+    queryFn: async () =>
+      (await (await db()).getAll("packs")).map((p) => ({
+        key: p.key,
+        ref: p.ref,
+        installed_at: p.installed_at,
+      })),
+  });
 }

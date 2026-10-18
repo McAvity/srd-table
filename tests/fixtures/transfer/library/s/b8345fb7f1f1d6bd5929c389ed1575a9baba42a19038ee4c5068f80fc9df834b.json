@@ -1,0 +1,274 @@
+{
+  "format": "srd-table.transfer/1",
+  "kind": "encounter",
+  "id": "synthetic/mixed-duel",
+  "revision": {
+    "seq": 1
+  },
+  "title": "Mixed duel",
+  "sha256": "f6dee56d683e231239cebef86b97ac33cc743fe2ab04af71ad38ea1185239686",
+  "content": {
+    "name": "Mixed duel",
+    "encounter": {
+      "version": 1,
+      "round": 0,
+      "turn": 0,
+      "order": [],
+      "combatants": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "side": "party",
+          "monster": null,
+          "character": "wren",
+          "initiative": null,
+          "hp": null,
+          "temp_hp": 0,
+          "conditions": [],
+          "defeated": false,
+          "regeneration_blocked": false,
+          "used": {
+            "action": false,
+            "bonus_action": false,
+            "reaction": false
+          },
+          "moved": 0,
+          "extra_movement": 0,
+          "attacks_left": 0,
+          "riders_used": [],
+          "expended": [],
+          "daily_used": {},
+          "concentration": null,
+          "toggled_on": [],
+          "toggle_rounds": {},
+          "extended": false,
+          "in_lair": false,
+          "legendary_used": 0,
+          "legendary_taken": [],
+          "legendary_resistance_used": 0,
+          "auto_legendary_resistance": true,
+          "dodging": false,
+          "disengaged": false,
+          "light_attacks": [],
+          "nick_used": false,
+          "cleave": null,
+          "cleave_used": false,
+          "surged": false,
+          "granted_attacks": null,
+          "hits": [],
+          "last_hit": null,
+          "features_used": [],
+          "decisions": null,
+          "position": null,
+          "hidden": null,
+          "readied": null,
+          "inspiration": null
+        },
+        {
+          "id": "sable",
+          "name": "Sable",
+          "side": "rivals",
+          "monster": null,
+          "character": "sable",
+          "initiative": null,
+          "hp": null,
+          "temp_hp": 0,
+          "conditions": [],
+          "defeated": false,
+          "regeneration_blocked": false,
+          "used": {
+            "action": false,
+            "bonus_action": false,
+            "reaction": false
+          },
+          "moved": 0,
+          "extra_movement": 0,
+          "attacks_left": 0,
+          "riders_used": [],
+          "expended": [],
+          "daily_used": {},
+          "concentration": null,
+          "toggled_on": [],
+          "toggle_rounds": {},
+          "extended": false,
+          "in_lair": false,
+          "legendary_used": 0,
+          "legendary_taken": [],
+          "legendary_resistance_used": 0,
+          "auto_legendary_resistance": true,
+          "dodging": false,
+          "disengaged": false,
+          "light_attacks": [],
+          "nick_used": false,
+          "cleave": null,
+          "cleave_used": false,
+          "surged": false,
+          "granted_attacks": null,
+          "hits": [],
+          "last_hit": null,
+          "features_used": [],
+          "decisions": null,
+          "position": null,
+          "hidden": null,
+          "readied": null,
+          "inspiration": null
+        },
+        {
+          "id": "synthetic-dummy",
+          "name": "Synthetic Dummy",
+          "side": "rivals",
+          "monster": "synthetic-dummy",
+          "character": null,
+          "initiative": null,
+          "hp": 30,
+          "temp_hp": 0,
+          "conditions": [],
+          "defeated": false,
+          "regeneration_blocked": false,
+          "used": {
+            "action": false,
+            "bonus_action": false,
+            "reaction": false
+          },
+          "moved": 0,
+          "extra_movement": 0,
+          "attacks_left": 0,
+          "riders_used": [],
+          "expended": [],
+          "daily_used": {},
+          "concentration": null,
+          "toggled_on": [],
+          "toggle_rounds": {},
+          "extended": false,
+          "in_lair": false,
+          "legendary_used": 0,
+          "legendary_taken": [],
+          "legendary_resistance_used": 0,
+          "auto_legendary_resistance": true,
+          "dodging": false,
+          "disengaged": false,
+          "light_attacks": [],
+          "nick_used": false,
+          "cleave": null,
+          "cleave_used": false,
+          "surged": false,
+          "granted_attacks": null,
+          "hits": [],
+          "last_hit": null,
+          "features_used": [],
+          "decisions": null,
+          "position": null,
+          "hidden": null,
+          "readied": null,
+          "inspiration": null
+        }
+      ],
+      "effects": [],
+      "next_effect": 1,
+      "helps": [],
+      "masteries": [],
+      "marks": [],
+      "zones": [],
+      "decisions": "auto",
+      "pending": null,
+      "auto_death_saves": true,
+      "map": {
+        "walls": [],
+        "difficult": [],
+        "blocked": []
+      },
+      "points": [],
+      "next_point": 1,
+      "pace": "normal",
+      "notice_stops": "noticer",
+      "halted": null,
+      "positions": "optional"
+    },
+    "world": {
+      "packs": [
+        {
+          "id": "srd-5.2.1",
+          "version": "5.2.1",
+          "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+        },
+        {
+          "id": "synthetic-a",
+          "version": "1.0.0",
+          "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291"
+        }
+      ],
+      "sources": null
+    },
+    "party": [
+      {
+        "key": "wren",
+        "character": {
+          "id": "synthetic/wren",
+          "revision": {
+            "seq": 2
+          },
+          "sha256": "11f5d4b28d017c2f340e52aa7a4bc8a085ea74e6935dfd6d0c6be9ef95470ad2"
+        }
+      },
+      {
+        "key": "sable",
+        "character": {
+          "id": "synthetic/sable",
+          "revision": {
+            "seq": 1
+          },
+          "sha256": "8bc09372a85a2b544701413877d0db828f41aef54d51555660d39219af38cdb0"
+        }
+      }
+    ]
+  },
+  "requires": [
+    {
+      "kind": "pack",
+      "id": "srd-5.2.1",
+      "version": "5.2.1",
+      "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4",
+      "href": null,
+      "bytes_sha256": null
+    },
+    {
+      "kind": "pack",
+      "id": "synthetic-a",
+      "version": "1.0.0",
+      "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291",
+      "href": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8.json",
+      "bytes_sha256": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8"
+    },
+    {
+      "kind": "character",
+      "id": "synthetic/wren",
+      "revision": {
+        "seq": 2
+      },
+      "sha256": "11f5d4b28d017c2f340e52aa7a4bc8a085ea74e6935dfd6d0c6be9ef95470ad2",
+      "href": "b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58.json",
+      "bytes_sha256": "b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58"
+    },
+    {
+      "kind": "character",
+      "id": "synthetic/sable",
+      "revision": {
+        "seq": 1
+      },
+      "sha256": "8bc09372a85a2b544701413877d0db828f41aef54d51555660d39219af38cdb0",
+      "href": "4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86.json",
+      "bytes_sha256": "4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86"
+    }
+  ],
+  "provenance": {
+    "publisher": "synthetic",
+    "generator": {
+      "name": "f008-t01-generate-fixtures",
+      "version": "1"
+    },
+    "notes": [
+      "Synthetic F-008 T01 contract fixture; no SRD text beyond ids, no private content."
+    ]
+  },
+  "extensions": {}
+}

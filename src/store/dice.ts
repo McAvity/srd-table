@@ -25,7 +25,7 @@ export async function rollDice(
 export async function rollTest(characterId: string, request: D20TestRequest) {
   const record = useDocuments.getState().characters[characterId];
   if (!record) return null;
-  const test = await engine().rollCheck(record.build, record.state, request);
+  const test = await engine().rollCheck(record.build, record.state, request, record.content);
   useUi.getState().showDice([{ kind: "test", who: record.build.name ?? "", test }]);
   return test;
 }

@@ -1,0 +1,16 @@
+{
+  "format": "srd-table.library-pointer/1",
+  "kind": "character",
+  "id": "synthetic/wren",
+  "title": "Wren",
+  "current": {
+    "href": "../../s/b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58.json",
+    "bytes_sha256": "b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58",
+    "sha256": "11f5d4b28d017c2f340e52aa7a4bc8a085ea74e6935dfd6d0c6be9ef95470ad2",
+    "version": null,
+    "revision": {
+      "seq": 2
+    }
+  },
+  "history": []
+}

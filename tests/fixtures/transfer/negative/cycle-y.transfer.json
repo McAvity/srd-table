@@ -1,0 +1,47 @@
+{
+  "format": "srd-table.transfer/1",
+  "kind": "pack",
+  "id": "synthetic-cycle-y",
+  "revision": null,
+  "title": "cycle y",
+  "sha256": "c8b7e1555a90a1b8be8f898c65d38bd71535a09cf36a6181a4898ce1a9963434",
+  "content": {
+    "files": {
+      "manifest.json": {
+        "name": "synthetic-cycle-y",
+        "manifest": {
+          "id": "synthetic-cycle-y",
+          "version": "1.0.0",
+          "ruleset": "2024",
+          "source": "synthetic-cycle-y",
+          "requires": [
+            "synthetic-cycle-x"
+          ],
+          "description": "cycle"
+        },
+        "tables": {}
+      }
+    }
+  },
+  "requires": [
+    {
+      "kind": "pack",
+      "id": "synthetic-cycle-x",
+      "version": "1.0.0",
+      "sha256": "fed0d98331dc63ca72533bc247a25454cbe36e3ec7beb1244f56a97448094cf2",
+      "href": "7a9234b5b2f5f7766869aeab1b583fb16dd3cf71dbd2b6a5d680ebc4c0891425.json",
+      "bytes_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "provenance": {
+    "publisher": "synthetic",
+    "generator": {
+      "name": "f008-t01-generate-fixtures",
+      "version": "1"
+    },
+    "notes": [
+      "Synthetic F-008 T01 contract fixture; no SRD text beyond ids, no private content."
+    ]
+  },
+  "extensions": {}
+}

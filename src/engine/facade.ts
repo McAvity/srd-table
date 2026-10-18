@@ -26,6 +26,7 @@ import {
   builder,
   type Catalog,
   type CharacterBuild,
+  type CharacterRef,
   type CharacterState,
   type CheckedCost,
   type ChoiceKind,
@@ -106,6 +107,7 @@ import {
   seededRng,
   skillName,
   startingEquipment,
+  TABLE_NAMES,
   type TableName,
   unassignedValues,
   type ValidationReport,
@@ -113,7 +115,8 @@ import {
 } from "srd-rules-engine";
 import { z } from "zod";
 import type { EngineLanguage } from "@/i18n/engine";
-import { ContentLoader, type ContentSettings, type FetchPackFile } from "./content";
+import type { ContentContext, PackFiles, PackRef } from "@/lib/canonical";
+import { ContentRegistry, type ContentSettings, type FetchPackFile } from "./content";
 import { engineLanguage, localize, renderAll } from "./messages";
 
 // --- results ------------------------------------------------------------------------------
@@ -264,10 +267,11 @@ export interface SheetRoll extends PlayChange {
   readonly messages: readonly Message[];
 }
 
-/** A character an encounter refers to, by its key. */
+/** A character an encounter refers to, by its key; `content`: its own packs (else the campaign's). */
 export interface CharacterDocs {
   readonly build: CharacterBuild;
   readonly state: CharacterState;
+  readonly content?: ContentContext;
 }
 export type Party = Readonly<Record<string, CharacterDocs>>;
 
@@ -374,6 +378,15 @@ export interface EngineFacade {
   constants(): Promise<EngineConstants>;
   /** Packs and allowed sources; the catalog is rebuilt on the next operation. */
   configure(settings: ContentSettings): Promise<void>;
+  /**
+   * Imported packs (kenli F-008), by their split files: kept for the session under their hash,
+   * for documents whose `content` names them. Returns their exact refs.
+   */
+  registerPacks(packs: readonly PackFiles[]): Promise<PackRef[]>;
+  /** The exact ref of a pack served with the app (`srd-5.2.1`), read whole for the session. */
+  servedPack(id: string): Promise<PackRef>;
+  /** Whether a content context builds a valid catalog (every pack here, layered in order). */
+  checkContent(content: ContentContext): Promise<Outcome<{ packs: readonly PackManifest[] }>>;
   /** The language engine texts are rendered in (`ENGINE_LANGUAGES`; English otherwise). */
   setLocale(locale: string): Promise<void>;
   /** Engine messages rendered in the current language (a stored combat log), list by list. */
@@ -397,15 +410,27 @@ export interface EngineFacade {
   newEncounter(options?: { decisions?: "ask" | "auto" }): Promise<Encounter>;
 
   // builder
-  evaluate(build: CharacterBuild): Promise<BuildView>;
+  evaluate(build: CharacterBuild, content?: ContentContext): Promise<BuildView>;
   /**
    * The builder's view of the build as played today (the state's "after a rest" picks overlaid,
    * the engine's `playBuild`): the options those choices offer today.
    */
-  evaluatePlay(build: CharacterBuild, state: CharacterState): Promise<BuildView>;
-  editBuild(build: CharacterBuild, edit: BuildEdit): Promise<Outcome<BuildChange>>;
+  evaluatePlay(
+    build: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<BuildView>;
+  editBuild(
+    build: CharacterBuild,
+    edit: BuildEdit,
+    content?: ContentContext,
+  ): Promise<Outcome<BuildChange>>;
   /** What an edit would remove and ask again, without applying it. */
-  previewEdit(build: CharacterBuild, edit: BuildEdit): Promise<Outcome<ChangePreview>>;
+  previewEdit(
+    build: CharacterBuild,
+    edit: BuildEdit,
+    content?: ContentContext,
+  ): Promise<Outcome<ChangePreview>>;
   /**
    * The sheet numbers each option of a choice would change (`builder.previewOption`), by option
    * id; options that change nothing are left out.
@@ -413,11 +438,12 @@ export interface EngineFacade {
   optionPreviews(
     build: CharacterBuild,
     choiceKey: string,
+    content?: ContentContext,
   ): Promise<Readonly<Record<string, readonly StatChange[]>>>;
   rollAbilityScores(): Promise<readonly AbilityRoll[]>;
 
   // play
-  createState(build: CharacterBuild): Promise<CharacterState>;
+  createState(build: CharacterBuild, content?: ContentContext): Promise<CharacterState>;
   /**
    * A character's D20 Test outside an encounter (a sheet's roll button): an ability check, a
    * saving throw or an attack roll, with the Advantage, Disadvantage and automatic failures its
@@ -427,21 +453,35 @@ export interface EngineFacade {
     build: CharacterBuild,
     state: CharacterState,
     request: D20TestRequest,
+    content?: ContentContext,
   ): Promise<D20TestResult>;
   /** The catalog items a magic item can be made from (`[]`: none, or no base). */
-  magicItemBases(magicItemId: string): Promise<readonly string[]>;
+  magicItemBases(magicItemId: string, content?: ContentContext): Promise<readonly string[]>;
   /** What `take_starting_equipment` adds: the build's starting equipment and gold. */
-  startingEquipment(build: CharacterBuild): Promise<StartingEquipment>;
-  playSheet(build: CharacterBuild, state: CharacterState): Promise<PlayView>;
+  startingEquipment(build: CharacterBuild, content?: ContentContext): Promise<StartingEquipment>;
+  playSheet(
+    build: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<PlayView>;
   /** What's wrong with a state for its build and the loaded content (`validateState`). */
-  validateState(build: CharacterBuild, state: CharacterState): Promise<readonly StateIssue[]>;
+  validateState(
+    build: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<readonly StateIssue[]>;
   /** One action or a list, in order; all or nothing. */
   applyPlayAction(
     build: CharacterBuild,
     state: CharacterState,
     action: PlayAction | readonly PlayAction[],
+    content?: ContentContext,
   ): Promise<Outcome<PlayChange>>;
-  reconcileState(build: CharacterBuild, state: CharacterState): Promise<PlayChange>;
+  reconcileState(
+    build: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<PlayChange>;
   /**
    * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's free
    * `rollByHand`, its costs checked (`checkCosts`) and paid on the state with `applyAction`, as
@@ -453,6 +493,7 @@ export interface EngineFacade {
     state: CharacterState,
     what: RollWhat,
     force?: boolean,
+    content?: ContentContext,
   ): Promise<Outcome<SheetRoll>>;
 
   // encounters
@@ -461,19 +502,41 @@ export interface EngineFacade {
     encounter: Encounter,
     party: Party,
     action: EncounterAction | readonly EncounterAction[],
+    world?: ContentContext,
   ): Promise<Outcome<EncounterChange>>;
-  encounterView(encounter: Encounter, party: Party): Promise<EncounterView>;
-  combatantOptions(encounter: Encounter, party: Party, id: string): Promise<CombatantOptions>;
-  checkAction(encounter: Encounter, party: Party, action: EncounterAction): Promise<ActionCheck>;
+  encounterView(encounter: Encounter, party: Party, world?: ContentContext): Promise<EncounterView>;
+  combatantOptions(
+    encounter: Encounter,
+    party: Party,
+    id: string,
+    world?: ContentContext,
+  ): Promise<CombatantOptions>;
+  checkAction(
+    encounter: Encounter,
+    party: Party,
+    action: EncounterAction,
+    world?: ContentContext,
+  ): Promise<ActionCheck>;
   /** What an area would cover if placed now: its squares and creatures (`previewArea`). */
-  previewArea(encounter: Encounter, party: Party, request: AreaRequest): Promise<AreaPreview>;
+  previewArea(
+    encounter: Encounter,
+    party: Party,
+    request: AreaRequest,
+    world?: ContentContext,
+  ): Promise<AreaPreview>;
   /** Squares a combatant can end a move on now, with their cost (`reachableSquares`). */
-  reachable(encounter: Encounter, party: Party, id: string): Promise<Reachable>;
+  reachable(
+    encounter: Encounter,
+    party: Party,
+    id: string,
+    world?: ContentContext,
+  ): Promise<Reachable>;
   /** What a move would do: its path, cost, zones and Opportunity Attacks (`previewMove`). */
   previewMove(
     encounter: Encounter,
     party: Party,
     move: { id: string; to: { x: number; y: number } },
+    world?: ContentContext,
   ): Promise<MovePreview>;
   /** Feet between two squares on the grid (`gridDistance`), for measuring. */
   distance(from: { x: number; y: number }, to: { x: number; y: number }): Promise<number>;
@@ -483,6 +546,7 @@ export interface EngineFacade {
     party: Party,
     id: string,
     feet: number,
+    world?: ContentContext,
   ): Promise<readonly string[]>;
 
   // dice
@@ -507,7 +571,29 @@ export function randomSeed(): number {
 }
 
 export function createInProcessFacade(options: FacadeOptions): EngineFacade {
-  const content = new ContentLoader(options.fetchFile);
+  const content = new ContentRegistry(options.fetchFile);
+  /**
+   * The encounter's catalog (its world) and each character's (its own `content`, else the
+   * campaign's), every table loaded: the engine judges each combatant by its catalog.
+   */
+  const withEncounter = async <T>(
+    world: ContentContext | undefined,
+    party: Party,
+    fn: (ctx: { catalog: Catalog; characters: Record<string, CharacterRef> }) => T,
+  ): Promise<T> => {
+    const catalog = await content.catalog(world, TABLE_NAMES);
+    // A character without its own content plays on the campaign's packs, whatever the world.
+    let campaign: Catalog | undefined = world ? undefined : catalog;
+    const characters: Record<string, CharacterRef> = {};
+    for (const [key, docs] of Object.entries(party)) {
+      campaign ??= docs.content ? undefined : await content.catalog(undefined, TABLE_NAMES);
+      const own = docs.content
+        ? await content.catalog(docs.content, TABLE_NAMES)
+        : (campaign as Catalog);
+      characters[key] = { build: docs.build, state: docs.state, catalog: own };
+    }
+    return fn({ catalog, characters });
+  };
   let rng: Rng = options.rng ?? seededRng(options.seed ?? randomSeed());
   let language: EngineLanguage | null = null;
 
@@ -538,6 +624,16 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     async configure(settings) {
       content.configure(settings);
     },
+    registerPacks: (packs) => content.register(packs),
+    servedPack: (id) => content.servedRef(id),
+    checkContent: async (ctx) => {
+      try {
+        const catalog = await content.catalog(ctx, TABLE_NAMES);
+        return { ok: true, packs: catalog.packs };
+      } catch (error) {
+        return { ok: false, reasons: [error instanceof Error ? error.message : String(error)] };
+      }
+    },
     async setLocale(locale) {
       language = engineLanguage(locale);
     },
@@ -547,15 +643,15 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     },
 
     entries: async (table) => {
-      const catalog = await content.catalog([table]);
+      const catalog = await content.catalog(undefined, [table]);
       return Object.values(catalog[table] as Record<string, unknown>);
     },
     entry: async (table, id) => {
-      const catalog = await content.catalog([table]);
+      const catalog = await content.catalog(undefined, [table]);
       return lookup(catalog[table] as Record<string, unknown>, id) ?? null;
     },
-    packs: () => content.run("builder", (catalog) => catalog.packs),
-    creation: () => content.run("builder", (catalog) => catalog.creation),
+    packs: () => content.run(undefined, "builder", (catalog) => catalog.packs),
+    creation: () => content.run(undefined, "builder", (catalog) => catalog.creation),
     modifiers: async (scores) =>
       Object.fromEntries(Object.entries(scores).map(([k, v]) => [k, abilityModifier(v)])),
 
@@ -565,13 +661,15 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     newBuild: async () => createBuild(),
     newEncounter: async (opts) => createEncounter(opts),
 
-    evaluate: (build) => content.run("builder", (catalog) => buildView(build, catalog)),
-    evaluatePlay: (build, state) =>
-      content.run("builder", (catalog) => buildView(playBuild(build, state, catalog), catalog)),
-    editBuild: (build, edit) =>
-      content.run("builder", (catalog) => attempt(() => applyEdit(build, catalog, edit))),
-    previewEdit: (build, edit) =>
-      content.run("builder", (catalog) =>
+    evaluate: (build, ctx) => content.run(ctx, "builder", (catalog) => buildView(build, catalog)),
+    evaluatePlay: (build, state, ctx) =>
+      content.run(ctx, "builder", (catalog) =>
+        buildView(playBuild(build, state, catalog), catalog),
+      ),
+    editBuild: (build, edit, ctx) =>
+      content.run(ctx, "builder", (catalog) => attempt(() => applyEdit(build, catalog, edit))),
+    previewEdit: (build, edit, ctx) =>
+      content.run(ctx, "builder", (catalog) =>
         attempt(() =>
           builder.previewChange(
             build,
@@ -581,8 +679,8 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           ),
         ),
       ),
-    optionPreviews: (build, choiceKey) =>
-      content.run("builder", (catalog) => {
+    optionPreviews: (build, choiceKey, ctx) =>
+      content.run(ctx, "builder", (catalog) => {
         const res = resolve(build, catalog);
         const choice = res.choices.find((c) => c.key === choiceKey);
         if (!choice) return {};
@@ -595,19 +693,19 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       }),
     rollAbilityScores: async () => rollAbilityScores(rng),
 
-    createState: (build) => content.run("play", (catalog) => createState(build, catalog)),
-    rollCheck: (build, state, request) =>
-      content.run("play", (catalog) => rollCheck(build, state, catalog, request, { rng })),
-    magicItemBases: (id) => content.run("play", (catalog) => magicItemBases(catalog, id)),
-    startingEquipment: (build) =>
-      content.run("play", (catalog) => startingEquipment(build, catalog)),
-    playSheet: (build, state) =>
-      content.run("play", (catalog) => ({
+    createState: (build, ctx) => content.run(ctx, "play", (catalog) => createState(build, catalog)),
+    rollCheck: (build, state, request, ctx) =>
+      content.run(ctx, "play", (catalog) => rollCheck(build, state, catalog, request, { rng })),
+    magicItemBases: (id, ctx) => content.run(ctx, "play", (catalog) => magicItemBases(catalog, id)),
+    startingEquipment: (build, ctx) =>
+      content.run(ctx, "play", (catalog) => startingEquipment(build, catalog)),
+    playSheet: (build, state, ctx) =>
+      content.run(ctx, "play", (catalog) => ({
         sheet: computePlaySheet(build, state, catalog),
         issues: validateState(build, state, catalog),
       })),
-    applyPlayAction: (build, state, action) =>
-      content.run("play", (catalog) =>
+    applyPlayAction: (build, state, action, ctx) =>
+      content.run(ctx, "play", (catalog) =>
         attempt(() => {
           let current = state;
           const notes: string[] = [];
@@ -619,12 +717,12 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           return { state: current, notes };
         }),
       ),
-    validateState: (build, state) =>
-      content.run("play", (catalog) => validateState(build, state, catalog)),
-    reconcileState: (build, state) =>
-      content.run("play", (catalog) => reconcileState(build, state, catalog)),
-    rollByHand: (build, state, what, force = false) =>
-      content.run("play", (catalog) =>
+    validateState: (build, state, ctx) =>
+      content.run(ctx, "play", (catalog) => validateState(build, state, catalog)),
+    reconcileState: (build, state, ctx) =>
+      content.run(ctx, "play", (catalog) => reconcileState(build, state, catalog)),
+    rollByHand: (build, state, what, force = false, ctx) =>
+      content.run(ctx, "play", (catalog) =>
         attempt(() => {
           const character = { build, state };
           const combatant = combatantFromCharacter(build, state, catalog);
@@ -653,10 +751,10 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
         }),
       ),
 
-    applyEncounterAction: (encounter, party, action) =>
-      content.run("encounter", (catalog) =>
+    applyEncounterAction: (encounter, party, action, world) =>
+      withEncounter(world, party, (ctx) =>
         attempt(() => {
-          const characters: Record<string, CharacterDocs> = { ...party };
+          const characters = ctx.characters;
           let current = encounter;
           const states: Record<string, CharacterState> = {};
           const notes: string[] = [];
@@ -664,7 +762,11 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           const results: NonNullable<ActionResult>[] = [];
           let applied = 0;
           for (const a of listOf(action)) {
-            const result = engineApplyEncounterAction(current, a, { catalog, characters, rng });
+            const result = engineApplyEncounterAction(current, a, {
+              catalog: ctx.catalog,
+              characters,
+              rng,
+            });
             current = result.encounter;
             notes.push(...result.notes);
             messages.push(...result.messages);
@@ -682,10 +784,11 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
             }
             applied += 1;
             for (const [key, state] of Object.entries(result.states)) {
-              const docs = characters[key];
-              if (!docs) continue;
+              const ref = characters[key];
+              if (!ref) continue;
               states[key] = state;
-              characters[key] = { build: docs.build, state };
+              // The whole reference goes on: the next action uses the same catalog.
+              characters[key] = { ...ref, state };
             }
           }
           return {
@@ -699,35 +802,25 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           };
         }),
       ),
-    encounterView: (encounter, party) =>
-      content.run("encounter", (catalog) => encounterView(encounter, party, catalog)),
-    combatantOptions: (encounter, party, id) =>
-      content.run("encounter", (catalog) =>
-        combatantOptions(encounter, id, { catalog, characters: party }),
-      ),
-    checkAction: (encounter, party, action) =>
-      content.run("encounter", (catalog) =>
-        checkAction(encounter, action, { catalog, characters: party }),
-      ),
+    encounterView: (encounter, party, world) =>
+      withEncounter(world, party, (ctx) => encounterView(encounter, ctx)),
+    combatantOptions: (encounter, party, id, world) =>
+      withEncounter(world, party, (ctx) => combatantOptions(encounter, id, ctx)),
+    checkAction: (encounter, party, action, world) =>
+      withEncounter(world, party, (ctx) => checkAction(encounter, action, ctx)),
 
-    previewArea: (encounter, party, request) =>
-      content.run("encounter", (catalog) =>
-        enginePreviewArea(encounter, request, { catalog, characters: party }),
-      ),
-    reachable: (encounter, party, id) =>
-      content.run("encounter", (catalog) =>
-        reachableSquares(encounter, id, { catalog, characters: party }),
-      ),
-    previewMove: (encounter, party, move) =>
-      content.run("encounter", (catalog) =>
-        enginePreviewMove(encounter, move, { catalog, characters: party }),
-      ),
+    previewArea: (encounter, party, request, world) =>
+      withEncounter(world, party, (ctx) => enginePreviewArea(encounter, request, ctx)),
+    reachable: (encounter, party, id, world) =>
+      withEncounter(world, party, (ctx) => reachableSquares(encounter, id, ctx)),
+    previewMove: (encounter, party, move, world) =>
+      withEncounter(world, party, (ctx) => enginePreviewMove(encounter, move, ctx)),
     distance: async (from, to) => gridDistance(from, 1, to, 1),
-    squaresWithin: (encounter, party, id, feet) =>
-      content.run("encounter", (catalog) => {
+    squaresWithin: (encounter, party, id, feet, world) =>
+      withEncounter(world, party, (ctx) => {
         const c = encounter.combatants.find((x) => x.id === id);
         if (!c?.position) return [];
-        const space = encounterCombatant(encounter, id, { catalog, characters: party }).space;
+        const space = encounterCombatant(encounter, id, ctx).space;
         const r = Math.ceil(feet / 5);
         const out: string[] = [];
         for (let x = c.position.x - r; x <= c.position.x + space - 1 + r; x++) {
@@ -966,9 +1059,12 @@ function buildView(build: CharacterBuild, catalog: Catalog): BuildView {
   };
 }
 
-function encounterView(encounter: Encounter, party: Party, catalog: Catalog): EncounterView {
-  const ctx = { catalog, characters: party };
-  const conditionName = (id: string) => lookup(catalog.conditions, id)?.name ?? id;
+function encounterView(
+  encounter: Encounter,
+  ctx: { catalog: Catalog; characters: Record<string, CharacterRef> },
+): EncounterView {
+  const party = ctx.characters;
+  const conditionName = (id: string) => lookup(ctx.catalog.conditions, id)?.name ?? id;
   const ordered = [
     ...encounter.order,
     ...encounter.combatants.map((c) => c.id).filter((id) => !encounter.order.includes(id)),
@@ -992,7 +1088,9 @@ function encounterView(encounter: Encounter, party: Party, catalog: Catalog): En
     try {
       const view = encounterCombatant(encounter, c.id, ctx);
       const docs = c.character !== null ? party[c.character] : undefined;
-      const play = docs ? computePlaySheet(docs.build, docs.state, catalog).play : null;
+      const play = docs
+        ? computePlaySheet(docs.build, docs.state, docs.catalog ?? ctx.catalog).play
+        : null;
       return [
         {
           ...base,

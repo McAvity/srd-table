@@ -6,7 +6,10 @@
 import { useState } from "react";
 import { Button, PageTitle, Reasons, Section } from "@/components/ui";
 import { LOCALES, t } from "@/i18n";
-import { usePacks } from "@/queries";
+import { exportInstalledPack } from "@/import/export";
+import { downloadJson } from "@/lib/files";
+import { installationId } from "@/persistence/sync";
+import { useInstalledPacks, usePacks } from "@/queries";
 import { type DecisionMode, PLAY_WAYS, type Theme, useSettings } from "@/store/settings";
 
 const lines = (text: string) =>
@@ -185,9 +188,50 @@ export function SettingsPage() {
         <p className="mt-1 text-[13px] text-ink-muted">{t("settings.seedHint")}</p>
       </Section>
 
+      <InstalledPacks />
+
       <Section title={t("settings.data")}>
         <p className="text-sm text-ink-muted">{t("settings.dataHint")}</p>
       </Section>
     </div>
+  );
+}
+
+/**
+ * Packs imported with documents (kenli F-008): each version kept apart, by its exact hash, used by
+ * the documents pinned to it (not by the campaign's packs above). Exported as a transfer.
+ */
+function InstalledPacks() {
+  const { data } = useInstalledPacks();
+  const [error, setError] = useState<string[] | null>(null);
+  async function onExport(key: string) {
+    const env = await exportInstalledPack(key, installationId());
+    if (!env) return;
+    if ("ambiguous" in env) return setError([t("settings.packAmbiguous", { id: env.ambiguous })]);
+    setError(null);
+    downloadJson(`${env.id}-${key.split("@")[1]?.split("#")[0] || "x"}.transfer.json`, env);
+  }
+  return (
+    <Section title={t("settings.installedPacks")}>
+      <p className="text-sm text-ink-muted">{t("settings.installedPacksHint")}</p>
+      {data?.length ? (
+        <ul className="mt-2 space-y-1 text-sm">
+          {data.map((p) => (
+            <li key={p.key} className="flex items-center gap-2">
+              <span className="flex-1">
+                {p.ref.id} {p.ref.version ?? ""}{" "}
+                <span className="text-ink-muted">({p.ref.sha256.slice(0, 12)})</span>
+              </span>
+              <Button size="sm" icon="download" onClick={() => void onExport(p.key)}>
+                {t("common.export")}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-sm text-ink-muted">{t("settings.noInstalledPacks")}</p>
+      )}
+      <Reasons reasons={error} className="mt-2" />
+    </Section>
   );
 }

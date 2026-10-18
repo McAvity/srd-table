@@ -1,38 +1,31 @@
-/** Encounters: the list, create, import and export (the encounter document's JSON), delete. */
+/**
+ * Encounters: the list, create, import (files or a URL, with the characters they need: kenli
+ * F-008) and export (the encounter document's JSON, or transfers with its party), delete.
+ */
 
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/Icon";
-import { Button, Dialog, Empty, PageTitle, Reasons } from "@/components/ui";
+import { Button, Dialog, Empty, PageTitle } from "@/components/ui";
+import { ImportDialog } from "@/features/import/ImportDialog";
 import { t, tn } from "@/i18n";
-import { downloadJson, readJsonFiles } from "@/lib/files";
+import { exportEncounter } from "@/import/export";
+import { contentLabel } from "@/import/plan";
+import { downloadJson } from "@/lib/files";
 import { fileSlug } from "@/lib/format";
+import { installationId } from "@/persistence/sync";
 import { type EncounterRecord, useDocuments } from "@/store/documents";
 
 export function EncountersPage() {
   const encounters = useDocuments((s) => s.encounters);
   const create = useDocuments((s) => s.createEncounter);
-  const importEncounter = useDocuments((s) => s.importEncounter);
   const navigate = useNavigate();
-  const input = useRef<HTMLInputElement>(null);
-  const [errors, setErrors] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
   const list = Object.values(encounters).sort((a, b) => b.updated - a.updated);
 
   async function onCreate() {
     const id = await create(t("encounters.newName", { n: list.length + 1 }));
     await navigate({ to: "/encounters/$id", params: { id } });
-  }
-
-  async function onImport(files: FileList | null) {
-    if (!files?.length) return;
-    const { files: read, bad } = await readJsonFiles(Array.from(files));
-    const problems = bad.map((file) => t("errors.badFile", { file }));
-    for (const f of read) {
-      const result = await importEncounter(f.data, f.name.replace(/\.json$/i, ""));
-      if (!result.ok) problems.push(`${f.name}: ${result.reasons.join("; ")}`);
-    }
-    setErrors(problems);
-    if (input.current) input.current.value = "";
   }
 
   return (
@@ -44,20 +37,11 @@ export function EncountersPage() {
         <Button variant="primary" icon="plus" onClick={() => void onCreate()}>
           {t("encounters.new")}
         </Button>
-        <Button icon="upload" onClick={() => input.current?.click()}>
-          {t("common.import")}
+        <Button icon="upload" onClick={() => setImporting(true)}>
+          {t("import.open")}
         </Button>
-        <input
-          ref={input}
-          type="file"
-          accept="application/json,.json"
-          multiple
-          hidden
-          aria-label={t("common.import")}
-          onChange={(e) => void onImport(e.target.files)}
-        />
       </div>
-      <Reasons reasons={errors} className="mb-4" />
+      <ImportDialog open={importing} onOpenChange={setImporting} />
       {list.length === 0 ? (
         <div className="panel">
           <Empty icon="table">{t("encounters.empty")}</Empty>
@@ -99,6 +83,11 @@ function EncounterRow({ record }: { record: EncounterRecord }) {
           {" · "}
           {encounter.combatants.map((c) => c.name).join(", ")}
         </p>
+        {record.content && (
+          <p className="text-[13px] text-ink-muted">
+            {t("characters.contentPinned", { content: contentLabel(record.content) ?? "" })}
+          </p>
+        )}
       </div>
       <Link to="/encounters/$id" params={{ id: record.id }} className="btn btn-sm">
         <Icon name="play" size={16} />
@@ -110,6 +99,20 @@ function EncounterRow({ record }: { record: EncounterRecord }) {
         iconOnly
         label={t("common.export")}
         onClick={() => downloadJson(`${fileSlug(record.name, record.id)}.json`, encounter)}
+      />
+      <Button
+        size="sm"
+        icon="upload"
+        iconOnly
+        label={t("encounters.exportTransfer")}
+        onClick={() =>
+          void exportEncounter(record, useDocuments.getState().characters, installationId()).then(
+            ({ encounter: env, party }) => {
+              downloadJson(`${fileSlug(record.name, record.id)}.transfer.json`, env);
+              for (const p of party) downloadJson(`${fileSlug(p.title, p.id)}.transfer.json`, p);
+            },
+          )
+        }
       />
       <Button
         size="sm"

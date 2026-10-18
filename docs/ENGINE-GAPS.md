@@ -33,8 +33,10 @@ The app never works around a gap with rules of its own.
   engine's `evaluate` (`pack_missing`, unknown ids) or `validateState`, and a state
   `reconcileState` leaves unchanged (`changedFields`). The app compares documents; it decides no
   rule. A refusal shows the app's reason, then the engine's.
-- **Pack versions.** The app can't check one: whoever installs a private pack checks its files
-  (the tooling that produced it). Once builds can name a pack's version, refuse a mismatch here.
+- **Pack versions.** A record imported as a transfer (kenli F-008) names its packs exactly (id,
+  version, hash) and plays on them; a raw file is checked against the content the user picks.
+  The campaign's packs (Settings) still can't be told apart by version: whoever installs a private
+  pack into `content/` checks its files.
 
 ### Notes: manual play
 
@@ -52,6 +54,7 @@ The app never works around a gap with rules of its own.
 
 | Id | What | Engine | App |
 |---|---|---|---|
+| — (F-008 T03) | A character's own catalog in an encounter | `68da318` (fork, pinned) | the facade passes each character's `CharacterRef.catalog` (its `content`, else the campaign's) with the encounter's catalog (`withEncounter` in `facade.ts`) and keeps the whole reference between the actions of a list; two versions of a pack in one encounter, each judged by its own (`tests/import/import.test.ts`, `tests/engine/content.test.ts`) |
 | — (F-004 T03) | A spell's spellcasting feature | `e7f4302` (fork, pinned) | the sheet's "Roll" for a spell sends the feature the engine lists (`SpellLine.spellcasting`) as `spellcasting` (`SpellsTab.tsx` `RollSpell`); a spell listed with several (given twice) asks which one first, nothing preselected. Encounter casts send none: the engine uses the spell's feature when it has one; a spell given twice is cast as the engine picks there |
 | R1 | Starting equipment taken after the state exists | `aef3cf1` (main) | sheet notice + `take_starting_equipment` (`InventoryTab.tsx` `StartingEquipment`) |
 | R2 | Exploration and points of interest | `3b81071` (main) | `ExplorationPanel.tsx`, `PointPanel.tsx`, the map's Points tool and markers, the Move hint's turns |

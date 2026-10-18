@@ -1,0 +1,22 @@
+{
+  "format": "srd-table.library-pointer/1",
+  "kind": "pack",
+  "id": "synthetic-a",
+  "title": "Synthetic A 2.0.0",
+  "current": {
+    "href": "../../s/b3e85b4077d1595f523a7cdf903aa81252b6738ceb8b3773ed9065db41e41be7.json",
+    "bytes_sha256": "b3e85b4077d1595f523a7cdf903aa81252b6738ceb8b3773ed9065db41e41be7",
+    "sha256": "0d1f175fbe24499adba98b9d5500bd5b2f546ebfd4737460147bfa9ad95e3172",
+    "version": "2.0.0",
+    "revision": null
+  },
+  "history": [
+    {
+      "href": "../../s/1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8.json",
+      "bytes_sha256": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8",
+      "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291",
+      "version": "1.0.0",
+      "revision": null
+    }
+  ]
+}

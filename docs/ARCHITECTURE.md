@@ -58,13 +58,34 @@ message is parsed for this.
 Packs after the SRD are served from `content/<id>/` in the same split format (the engine's
 `splitPack`); `content/private/` is git-ignored, and non-SRD packs never ship in a public build.
 
+**A served pack is read whole once per session** (`SessionPacks`: the manifest and every table it
+lists), so a table never opened before, or a catalog rebuilt later, needs no network: the app keeps
+playing when the host goes away (not a restart offline: nothing is precached).
+
+**Content per document (kenli F-008).** A record can be pinned to exact packs (`content`: a
+`ContentContext`, each pack by id, version and SHA-256 of its split files). `ContentRegistry` keeps
+the campaign's loader (Settings, for records without `content`) and one loader per exact context
+(least recently used ones let go, eight at most, never one in use), so two versions of a pack never
+meet in one catalog. Imported packs are registered with the worker by their files and verified
+hash (`registerPacks`); the SRD the app serves is used for a context when its hash is the one the
+context names (`servedPack`). An unknown pack is refused (`context_unavailable`), never replaced by
+the campaign's. Every catalog-dependent facade method takes an optional `content` (a document's);
+encounter methods take the encounter's (`world`) and each character's own (`CharacterDocs.content`),
+and the engine judges each combatant with its catalog (`CharacterRef.catalog`, engine `68da318`);
+a character without `content` plays on the campaign's packs. The facade carries the whole reference
+between the actions of a list (`{ ...ref, state }`).
+
 ## Documents and the store (`src/store/documents.ts`)
 
 - A character record is `{ id, build, state, created, updated }`; an encounter record is
   `{ id, name, encounter, log, created, updated }`. `build`, `state` and `encounter` are exactly
-  the engine's documents. The record id is the character's key in encounters.
-- Every write is `serial` per document (a promise queue), so fast clicks never apply an action to
-  a stale copy.
+  the engine's documents. The record id is the character's key in encounters. Next to them (never
+  inside): `rev` (+1 on every lasting change), `gen` (+1 when an import replaces the record),
+  `content` (its packs, else the campaign's) and `origin` (where an import came from).
+- Every write goes through its document's queue (`serialMany`), deletions, renames, undo and redo
+  included; an encounter action takes the queues of the encounter and its party. Fast clicks never
+  apply an action to a stale copy. An action asked for while an import holds a record's queue runs
+  after it; aimed at a replaced version (another `gen`), it's refused with a message, never lost.
 - After a build changes, the store runs `reconcileState` and stores both, showing the setter's and
   the reconcile's notes as toasts.
 - An encounter action is sent with its **party**: the characters its combatants refer to, plus
@@ -79,14 +100,61 @@ Packs after the SRD are served from `content/<id>/` in the same split format (th
 
 ## Persistence (`src/persistence/`)
 
-IndexedDB through `idb`, one database with four stores: `characters`, `encounters`, `settings`
-(the campaign settings document) and `portraits`.
+IndexedDB through `idb`, one database with five stores: `characters`, `encounters`, `settings`
+(the campaign settings document), `portraits` and `packs` (version 2).
 
 - `loadAll` reads every record and passes each document through the engine's `parseBuild` /
   `parseState` / `parseEncounter` (validation and migration), then writes the migrated result
   back. A record that doesn't parse stays in the database untouched and is reported in a toast.
 - `startAutosave` subscribes to the stores and writes changed or deleted records (debounced
-  300 ms, flushed on `pagehide`).
+  300 ms, flushed on `pagehide`). Every write goes through one queue (`writeQueue`, imports too)
+  and is a compare-and-set: the database must still hold the revision this tab last wrote or read.
+  A record changed in another tab is never overwritten: it's no longer saved here, and a toast
+  asks to reload. The saved baseline moves only once the transaction is done (a failed save is
+  tried again). `loadAll` writes back a migrated document only when the parse changed it, with the
+  same check.
+- **Version 2** adds `packs` (imported packs, keyed `id@version#sha256`, written with `add` only,
+  never changed). The upgrade only creates the store: no record is rewritten or given a pin; one
+  without `content` plays on the campaign's packs as before. Another tab holding version 1 open
+  blocks the upgrade (a toast asks to close it); an old tab asked to let go closes its connection.
+  An installation id (`settings` key `installation`) names this Table in its exports.
+
+## Import by URL or files (`src/import/`, kenli F-008)
+
+One path for a URL and for files (`features/import/ImportDialog.tsx`), the format of the kenli
+F-008 contract (`srd-table.transfer/1`: the engine's documents unchanged in a small envelope with
+exact content identities; `srd-table.library-pointer/1` for a library's stable URLs).
+
+1. **Fetch** (`fetch.ts`): HTTPS only (HTTP on loopback), no credentials, no redirects, `no-store`;
+   20 MiB a file and 100 MiB in all counted as bytes arrive (whatever `Content-Length` says), 64
+   files, 8 levels, 30 s a file and 120 s in all, one Stop for everything. Dependencies only on the
+   root's origin; the library's are content-addressed (`href` + `bytes_sha256`).
+2. **Resolve** (`resolve.ts`): every dependency to its exact bytes, each once; satisfied by a pack
+   served or installed (same hash; same id and version with other bytes is a conflict), a record
+   this installation exported (`table/<installation>/<record>`, exactly that record), a chosen file
+   with that identity hash (never by name), or its `href`. A cycle, a missing piece, a changed
+   snapshot or a limit stops the whole import (Q-01). Raw files (no envelope) are classified as the
+   one engine document that keeps every field.
+3. **Preview** (`plan.ts`): every character checked by the engine on its own content as
+   `importCharacter` did (nothing dropped, the build valid, the state valid and unchanged by
+   `reconcileState`); what's already here (identical, changed here, older, unknown order — from the
+   source id and revision, never the clock); what blocks. Nothing is written; packs are registered
+   with the worker in memory for the checks only.
+4. **Decisions**: a new copy by default; a replacement only of a record picked by hand, with what
+   changes shown and the current one offered as a download; a party member as a new copy or an
+   existing character picked by hand; a build without a state only as a new character after
+   ticking its initialization (`createState`, `state_origin: initialized-on-import`) (Q-03); raw
+   files only after choosing their content, and every encounter key mapped by hand.
+5. **Commit** (`commit.ts`): the queues of the records it replaces or uses are held from the
+   autosave flush to the publication; one transaction checks their revisions in the database and
+   in the store, adds the packs, writes the records; only then are they shown and the autosave
+   baseline moved. Quota, an abort or a changed record writes nothing.
+
+**Export** (`export.ts`): a character, an encounter (with each party member as its own file) as
+transfers with this installation's identity and the exact refs of their content (the campaign's
+packs resolved to their hashes); an imported record keeps the import as `extensions.derived_from`.
+Exporting a campaign record and importing it back as a replacement is how a record without
+`content` gets pinned (an explicit action, never a migration).
 - **Portraits** are an exception to "documents are the only persistent state": images players
   upload (the SRD has no art), scaled down to 512 px and kept as blobs by character id. They're
   never part of a document or an export.

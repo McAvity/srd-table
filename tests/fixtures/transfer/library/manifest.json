@@ -1,0 +1,71 @@
+{
+  "format": "srd-table.library-manifest/1",
+  "generator": {
+    "name": "f008-t01-generate-fixtures",
+    "version": "1"
+  },
+  "snapshots": [
+    {
+      "path": "s/1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8.json",
+      "bytes_sha256": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8",
+      "size": 3299,
+      "kind": "pack",
+      "id": "synthetic-a",
+      "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291"
+    },
+    {
+      "path": "s/b3e85b4077d1595f523a7cdf903aa81252b6738ceb8b3773ed9065db41e41be7.json",
+      "bytes_sha256": "b3e85b4077d1595f523a7cdf903aa81252b6738ceb8b3773ed9065db41e41be7",
+      "size": 3104,
+      "kind": "pack",
+      "id": "synthetic-a",
+      "sha256": "0d1f175fbe24499adba98b9d5500bd5b2f546ebfd4737460147bfa9ad95e3172"
+    },
+    {
+      "path": "s/b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58.json",
+      "bytes_sha256": "b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58",
+      "size": 6268,
+      "kind": "character",
+      "id": "synthetic/wren",
+      "sha256": "11f5d4b28d017c2f340e52aa7a4bc8a085ea74e6935dfd6d0c6be9ef95470ad2"
+    },
+    {
+      "path": "s/4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86.json",
+      "bytes_sha256": "4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86",
+      "size": 6185,
+      "kind": "character",
+      "id": "synthetic/sable",
+      "sha256": "8bc09372a85a2b544701413877d0db828f41aef54d51555660d39219af38cdb0"
+    },
+    {
+      "path": "s/b8345fb7f1f1d6bd5929c389ed1575a9baba42a19038ee4c5068f80fc9df834b.json",
+      "bytes_sha256": "b8345fb7f1f1d6bd5929c389ed1575a9baba42a19038ee4c5068f80fc9df834b",
+      "size": 7589,
+      "kind": "encounter",
+      "id": "synthetic/mixed-duel",
+      "sha256": "f6dee56d683e231239cebef86b97ac33cc743fe2ab04af71ad38ea1185239686"
+    }
+  ],
+  "pointers": [
+    {
+      "path": "d/pack/synthetic-a.json",
+      "bytes_sha256": "561cfd0ea2b854f4d2cc0898e09c93235b7148612e6208dff914237a94e56cd1",
+      "current": "b3e85b4077d1595f523a7cdf903aa81252b6738ceb8b3773ed9065db41e41be7"
+    },
+    {
+      "path": "d/character/wren.json",
+      "bytes_sha256": "79346a2598fe894a3e95bce896bd0cac143553a74b044d13be6ad5b968d3b060",
+      "current": "b73b3a4e389144e8a86dee3ca06fb9591020c5c43a229ef1c8e9c5f49581ff58"
+    },
+    {
+      "path": "d/character/sable.json",
+      "bytes_sha256": "5f5216add53b026ebf62ab128d77d1c4d25cedf7872b1f360ae84df7d7f36d19",
+      "current": "4fb13b2e3c42ef85bc76f9d7cd619c34075795e1f18fe687eec526440cd12f86"
+    },
+    {
+      "path": "d/encounter/mixed-duel.json",
+      "bytes_sha256": "d36517eb1a576635f05d54ee493a361bdb06f94514480d1cc9f9075fe8040b02",
+      "current": "b8345fb7f1f1d6bd5929c389ed1575a9baba42a19038ee4c5068f80fc9df834b"
+    }
+  ]
+}

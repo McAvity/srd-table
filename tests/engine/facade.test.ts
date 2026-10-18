@@ -78,7 +78,7 @@ describe("in-process facade", () => {
 });
 
 describe("content tiers", () => {
-  it("loads spells only when a build needs them", async () => {
+  it("reads a pack whole once per session, so later tables need no network (kenli F-008)", async () => {
     const files: string[] = [];
     const { createInProcessFacade } = await import("../../src/engine/facade");
     const { readFile } = await import("node:fs/promises");
@@ -87,9 +87,11 @@ describe("content tiers", () => {
     const dir = dirname(
       createRequire(import.meta.url).resolve("srd-rules-engine/srd-5.2.1/manifest.json"),
     );
+    let hostUp = true;
     const facade = createInProcessFacade({
       seed: 1,
       fetchFile: async (_pack, file) => {
+        if (!hostUp) throw new Error("host down");
         files.push(file);
         return JSON.parse(await readFile(join(dir, file), "utf8"));
       },
@@ -97,14 +99,15 @@ describe("content tiers", () => {
     const build = await facade.editBuild(await facade.newBuild(), { type: "class", id: "fighter" });
     if (!build.ok) throw new Error("class");
     await facade.evaluate(build.build);
-    expect(files).not.toContain("monsters.json");
     expect(files).toContain("classes.json");
-    const before = files.length;
-    await facade.entries("monsters");
-    expect(files.slice(before)).toContain("monsters.json");
-    // Each file is fetched once.
-    await facade.entries("monsters");
-    expect(files.filter((f) => f === "monsters.json")).toHaveLength(1);
+    expect(files).toContain("monsters.json");
+    // Each file is fetched once; with the host gone, a table never opened before still loads.
+    const fetched = files.length;
+    hostUp = false;
+    expect((await facade.entries("monsters")).length).toBeGreaterThan(0);
+    expect((await facade.entries("magic_items")).length).toBeGreaterThan(0);
+    expect(files.length).toBe(fetched);
+    expect(new Set(files).size).toBe(files.length);
   });
 });
 

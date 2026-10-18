@@ -42,6 +42,25 @@ async function fillOpenChoices(page: Page) {
   }
 }
 
+/**
+ * Import character files as a player does (kenli F-008): the import dialog, the campaign's content
+ * for plain files, and for a build without a play state a new character with its state initialized.
+ */
+async function importBuilds(page: Page, files: string[], names: string[]) {
+  await page.goto("/#/characters");
+  await button(page, "Import…").click();
+  await page.getByLabel("Choose files").setInputFiles(files);
+  await page.getByRole("combobox", { name: "Content for these files" }).selectOption("campaign");
+  for (const name of names) {
+    const card = page.getByTestId(`import-character-${name}`);
+    await card.getByRole("combobox").selectOption("new");
+    await card.getByRole("checkbox").check();
+  }
+  await button(page, "Import").click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.goto("/#/characters");
+}
+
 async function nextStep(page: Page, title: string) {
   await page
     .getByRole("navigation", { name: "Steps" })
@@ -124,7 +143,7 @@ test("a level 1 character through every builder step, then levels 2 and 3 with a
 
 test("play: damage, a Short Rest with Hit Point Dice, a Long Rest", async ({ page }) => {
   await page.goto("/");
-  await page.locator('input[type="file"]').setInputFiles(fixture("aerin.json"));
+  await importBuilds(page, [fixture("aerin.json")], ["Aerin"]);
   await page
     .getByRole("article")
     .filter({ hasText: "Aerin" })
@@ -199,9 +218,7 @@ test("a reload restores characters, play states and encounters from IndexedDB", 
   page,
 }) => {
   await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles([fixture("aerin.json"), fixture("lirael.json")]);
+  await importBuilds(page, [fixture("aerin.json"), fixture("lirael.json")], ["Aerin", "Lirael"]);
   await page
     .getByRole("article")
     .filter({ hasText: "Aerin" })

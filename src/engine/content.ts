@@ -1,7 +1,13 @@
 /**
- * Content packs loaded by table. The worker keeps one catalog and rebuilds it with more tables
- * when an operation needs them: a catalog without a table throws `ContentError` on any read, so a
- * missing table is never a silent `undefined`.
+ * Content packs loaded by table. A catalog without a table throws `ContentError` on any read, so
+ * a missing table is never a silent `undefined`; a loader rebuilds its catalog with more tables
+ * when an operation needs them.
+ *
+ * The worker keeps one loader for the campaign's packs (Settings: documents without their own
+ * content) and one per exact content context (kenli F-008: a document pinned to packs by id,
+ * version and hash), so two versions of a pack never meet in one catalog. A pack's files are read
+ * whole the first time it's used and kept for the session (served packs) or registered with their
+ * verified hash (imported packs), so a table never opened before still loads with the host gone.
  */
 
 import {
@@ -14,6 +20,13 @@ import {
   TABLE_NAMES,
   type TableName,
 } from "srd-rules-engine";
+import {
+  type ContentContext,
+  contextKey,
+  type PackFiles,
+  type PackRef,
+  packRefOf,
+} from "@/lib/canonical";
 
 /** Fetch a pack's file (`manifest.json`, `classes.json`) as parsed JSON. */
 export type FetchPackFile = (pack: string, file: string) => Promise<unknown>;
@@ -111,6 +124,175 @@ export class ContentLoader {
       this.files.set(key, promise);
     }
     return promise;
+  }
+}
+
+/**
+ * Served packs read whole, once per session: the manifest and every table it lists. A later
+ * catalog (another table, another context, after the cache let one go) needs no network.
+ */
+export class SessionPacks {
+  private readonly packs = new Map<string, Promise<PackFiles>>();
+
+  constructor(private readonly fetchFile: FetchPackFile) {}
+
+  files(pack: string): Promise<PackFiles> {
+    let promise = this.packs.get(pack);
+    if (!promise) {
+      promise = (async () => {
+        const manifest = (await this.fetchFile(pack, "manifest.json")) as {
+          tables?: Record<string, { file: string }>;
+        };
+        const entries = await Promise.all(
+          Object.values(manifest.tables ?? {}).map(
+            async ({ file }) => [file, await this.fetchFile(pack, file)] as const,
+          ),
+        );
+        return { "manifest.json": manifest, ...Object.fromEntries(entries) } as PackFiles;
+      })().catch((error: unknown) => {
+        this.packs.delete(pack);
+        throw error;
+      });
+      this.packs.set(pack, promise);
+    }
+    return promise;
+  }
+
+  /** A file of a pack, from the session's copy. */
+  async file(pack: string, file: string): Promise<unknown> {
+    const files = await this.files(pack);
+    if (!(file in files)) throw new ContentError(`${pack} has no file ${file}`);
+    return files[file];
+  }
+}
+
+/** The packs a document's content needs aren't all here (contract `context_unavailable`). */
+export class ContextUnavailable extends ContentError {
+  override name = "ContextUnavailable";
+}
+
+const MAX_CONTEXTS = 8;
+
+/**
+ * The catalogs of the session: the campaign's (`undefined` content) and one per exact content
+ * context. Imported packs are registered with their files (checked against their hash); a served
+ * pack (the SRD) is used for a context when its hash is the one the context names.
+ */
+export class ContentRegistry {
+  readonly session: SessionPacks;
+  private readonly legacy: ContentLoader;
+  private readonly registered = new Map<string, PackFiles>();
+  private readonly served = new Map<string, Promise<PackRef>>();
+  private readonly loaders = new Map<
+    string,
+    { loader: ContentLoader; busy: number; used: number }
+  >();
+  private clock = 0;
+
+  constructor(fetchFile: FetchPackFile) {
+    this.session = new SessionPacks(fetchFile);
+    this.legacy = new ContentLoader((pack, file) => this.session.file(pack, file));
+  }
+
+  configure(settings: ContentSettings): void {
+    this.legacy.configure(settings);
+  }
+
+  /** Register imported packs (immutable, by hash); returns their refs. */
+  async register(packs: readonly PackFiles[]): Promise<PackRef[]> {
+    const refs: PackRef[] = [];
+    for (const files of packs) {
+      const ref = await packRefOf(files);
+      this.registered.set(ref.sha256, files);
+      refs.push(ref);
+    }
+    return refs;
+  }
+
+  /** The exact ref of a pack served with the app (the SRD), read whole and hashed once. */
+  servedRef(pack: string): Promise<PackRef> {
+    let promise = this.served.get(pack);
+    if (!promise) {
+      promise = this.session
+        .files(pack)
+        .then(packRefOf)
+        .catch((error: unknown) => {
+          this.served.delete(pack);
+          throw error;
+        });
+      this.served.set(pack, promise);
+    }
+    return promise;
+  }
+
+  private async filesOf(ref: PackRef): Promise<PackFiles> {
+    const own = this.registered.get(ref.sha256);
+    if (own) return own;
+    let served: PackRef | null = null;
+    try {
+      served = await this.servedRef(ref.id);
+    } catch {
+      served = null;
+    }
+    if (served?.sha256 === ref.sha256) return this.session.files(ref.id);
+    throw new ContextUnavailable(
+      `context_unavailable: ${ref.id} ${ref.version ?? ""} (${ref.sha256.slice(0, 12)}) isn't installed`,
+    );
+  }
+
+  /** The loader of a context (least recently used ones let go, never one in use). */
+  private loaderFor(content: ContentContext) {
+    const key = contextKey(content);
+    let entry = this.loaders.get(key);
+    if (!entry) {
+      const byId = new Map(content.packs.map((p) => [p.id, p]));
+      const loader = new ContentLoader(async (pack, file) => {
+        const ref = byId.get(pack);
+        if (!ref) throw new ContextUnavailable(`context_unavailable: no ${pack} in the context`);
+        const files = await this.filesOf(ref);
+        if (!(file in files)) throw new ContentError(`${pack} has no file ${file}`);
+        return files[file];
+      });
+      loader.configure({ packs: content.packs.map((p) => p.id), sources: content.sources });
+      const created = { loader, busy: 0, used: 0 };
+      this.loaders.set(key, created);
+      if (this.loaders.size > MAX_CONTEXTS) {
+        const idle = [...this.loaders.entries()]
+          .filter(([, e]) => e.busy === 0 && e !== created)
+          .sort(([, a], [, b]) => a.used - b.used)[0];
+        if (idle) this.loaders.delete(idle[0]);
+      }
+      entry = created;
+    }
+    entry.used = ++this.clock;
+    return entry;
+  }
+
+  private async use<T>(
+    content: ContentContext | undefined,
+    fn: (loader: ContentLoader) => Promise<T>,
+  ): Promise<T> {
+    if (!content) return fn(this.legacy);
+    const entry = this.loaderFor(content);
+    entry.busy++;
+    try {
+      return await fn(entry.loader);
+    } finally {
+      entry.busy--;
+    }
+  }
+
+  run<T>(content: ContentContext | undefined, tier: Tier, fn: (catalog: Catalog) => T): Promise<T> {
+    return this.use(content, (loader) => loader.run(tier, fn));
+  }
+
+  catalog(content: ContentContext | undefined, tables: readonly TableName[]): Promise<Catalog> {
+    return this.use(content, (loader) => loader.catalog(tables));
+  }
+
+  /** How many context catalogs are held (tests). */
+  get contexts(): number {
+    return this.loaders.size;
   }
 }
 

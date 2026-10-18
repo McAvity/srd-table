@@ -1,0 +1,16 @@
+{
+  "format": "srd-table.library-pointer/1",
+  "kind": "encounter",
+  "id": "synthetic/mixed-duel",
+  "title": "Mixed duel",
+  "current": {
+    "href": "../../s/b8345fb7f1f1d6bd5929c389ed1575a9baba42a19038ee4c5068f80fc9df834b.json",
+    "bytes_sha256": "b8345fb7f1f1d6bd5929c389ed1575a9baba42a19038ee4c5068f80fc9df834b",
+    "sha256": "f6dee56d683e231239cebef86b97ac33cc743fe2ab04af71ad38ea1185239686",
+    "version": null,
+    "revision": {
+      "seq": 1
+    }
+  },
+  "history": []
+}

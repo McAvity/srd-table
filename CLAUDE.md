@@ -195,7 +195,9 @@ rendered from their `messages` (codes and parameters) in the app's language, in 
   opened last (remembered per viewer in the browser, `routes/paneTargets.ts`); the list when
   there's nothing to open. Opening the app (`/`) goes to that table, else that character, else
   the characters list. Each document page links back to its list (`BackLink`).
-- **Characters** — list, create, import/export JSON, duplicate.
+- **Characters** — list, create, import (files or a URL, with everything they need, previewed
+  first: `src/import/`, docs/ARCHITECTURE.md "Import by URL or files") and export (JSON, or a
+  transfer with its content's identity), duplicate.
 - **Builder** — the engine's step order (Class, Species, Background, Ability Scores, Equipment,
   Features, Spells, Skills & Tools, Languages, Name & Alignment), free navigation between steps,
   each step's missing picks from `issuesForStep`, options with their `unavailable` reason

@@ -1,0 +1,262 @@
+{
+  "format": "srd-table.transfer/1",
+  "kind": "character",
+  "id": "synthetic/wren",
+  "revision": {
+    "seq": 1
+  },
+  "title": "Wren",
+  "sha256": "3b8a33e490571986d9a8d947a6b8bd92731902082d898c82f2ed23628475f8cb",
+  "content": {
+    "build": {
+      "version": 1,
+      "name": "Wren",
+      "alignment": "N",
+      "class_id": "wizard",
+      "species_id": "human",
+      "background_id": "sage",
+      "ability_method": "standard_array",
+      "rolled_pool": [],
+      "base_scores": {
+        "str": 8,
+        "dex": 14,
+        "con": 13,
+        "int": 15,
+        "wis": 12,
+        "cha": 10
+      },
+      "background_bonus": {
+        "int": 2,
+        "con": 1
+      },
+      "choices": {
+        "creation#languages": [
+          "common-sign-language",
+          "draconic"
+        ],
+        "class:wizard#skills": [
+          "insight",
+          "investigation"
+        ],
+        "class:wizard#equipment": [
+          "a"
+        ],
+        "class:wizard#cantrips": [
+          "synthetic-spark",
+          "acid-splash",
+          "chill-touch"
+        ],
+        "class:wizard#spellbook": [
+          "alarm",
+          "burning-hands",
+          "charm-person",
+          "chromatic-orb",
+          "color-spray",
+          "comprehend-languages"
+        ],
+        "class:wizard#prepared": [
+          "alarm",
+          "burning-hands",
+          "charm-person",
+          "chromatic-orb"
+        ],
+        "species:human#size": [
+          "medium"
+        ],
+        "species:human#skillful": [
+          "acrobatics"
+        ],
+        "species:human#versatile": [
+          "alert"
+        ],
+        "feat:magic-initiate@background:sage#spellcasting_ability": [
+          "int"
+        ],
+        "feat:magic-initiate@background:sage#cantrips": [
+          "dancing-lights",
+          "elementalism"
+        ],
+        "feat:magic-initiate@background:sage#spell": [
+          "detect-magic"
+        ],
+        "background:sage#equipment": [
+          "a"
+        ]
+      },
+      "levels": [],
+      "packs": [
+        "synthetic-a"
+      ]
+    },
+    "state": {
+      "version": 1,
+      "hp": {
+        "current": null,
+        "temp": 0
+      },
+      "hit_dice_spent": {},
+      "death_saves": {
+        "successes": 0,
+        "failures": 0
+      },
+      "stable": false,
+      "dead": false,
+      "exhaustion": 0,
+      "conditions": [],
+      "concentration": null,
+      "active": [],
+      "heroic_inspiration": false,
+      "spell_slots_spent": [],
+      "pact_slots_spent": 0,
+      "uses_spent": {},
+      "choices": {},
+      "inventory": [
+        {
+          "id": "i1",
+          "item": "dagger",
+          "base": null,
+          "variant": null,
+          "qty": 2,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i2",
+          "item": "quarterstaff",
+          "base": null,
+          "variant": null,
+          "qty": 2,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i3",
+          "item": "robe",
+          "base": null,
+          "variant": null,
+          "qty": 2,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i4",
+          "item": "spellbook",
+          "base": null,
+          "variant": null,
+          "qty": 1,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i5",
+          "item": "scholars-pack",
+          "base": null,
+          "variant": null,
+          "qty": 1,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i6",
+          "item": "calligraphers-supplies",
+          "base": null,
+          "variant": null,
+          "qty": 1,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i7",
+          "item": "book-history",
+          "base": null,
+          "variant": null,
+          "qty": 1,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        },
+        {
+          "id": "i8",
+          "item": "parchment",
+          "base": null,
+          "variant": null,
+          "qty": 8,
+          "equipped": false,
+          "attuned": false,
+          "charges_spent": 0,
+          "notes": ""
+        }
+      ],
+      "currency": {
+        "cp": 0,
+        "sp": 0,
+        "ep": 0,
+        "gp": 13,
+        "pp": 0
+      },
+      "next_item": 9,
+      "starting_equipment": true
+    },
+    "state_origin": {
+      "kind": "synthetic",
+      "fixture": "FX-WREN-FRESH"
+    },
+    "context": {
+      "packs": [
+        {
+          "id": "srd-5.2.1",
+          "version": "5.2.1",
+          "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+        },
+        {
+          "id": "synthetic-a",
+          "version": "1.0.0",
+          "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291"
+        }
+      ],
+      "sources": null
+    }
+  },
+  "requires": [
+    {
+      "kind": "pack",
+      "id": "srd-5.2.1",
+      "version": "5.2.1",
+      "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4",
+      "href": null,
+      "bytes_sha256": null
+    },
+    {
+      "kind": "pack",
+      "id": "synthetic-a",
+      "version": "1.0.0",
+      "sha256": "71de63f9acfc2e507cafc03062d41b018f29a186a5779a32949b966fb9630291",
+      "href": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8.json",
+      "bytes_sha256": "1ad5595f45156b54dc290112d2fa584f77a09ab480eb5d64e42faa6b18c44dc8"
+    }
+  ],
+  "provenance": {
+    "publisher": "synthetic",
+    "generator": {
+      "name": "f008-t01-generate-fixtures",
+      "version": "1"
+    },
+    "notes": [
+      "Synthetic F-008 T01 contract fixture; no SRD text beyond ids, no private content."
+    ]
+  },
+  "extensions": {}
+}
