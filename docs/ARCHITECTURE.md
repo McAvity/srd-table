@@ -270,10 +270,14 @@ content (`record.content`).
 - **The GM's additions** (`RollOptions`, `src/store/rolls.ts` `useRollAdditions`): a mode, a
   modifier, a bonus die and damage additions for the character's next rolls, sent as
   `rollCheck` options or `RollWhat.attack/cast.dm`; a luck-style use (`spend_for`) can be declared
-  for the next D20 Test and is spent in the same commit.
+  for the next D20 Test, attack or spell attack by hand: one more Advantage reason the engine rolls
+  with (`modes`, `dm.modes`), and the use paid in the same commit as the roll's own costs; refused
+  (no use left, no d20 the engine rolls) with nothing changed, cleared only once spent.
 - **The last roll** (`useRolls`, `RollFollowUps`): kept per character with the record's `rev`/`gen`
   after its cost was paid; any later change (or an import replacing the record) closes it
-  (`errors.rerollWindowClosed`), and a reload too (memory only). Heroic Inspiration rerolls one die
+  (`errors.rerollWindowClosed`), and a reload too (memory only); so does any later result of the
+  character: a free Damage or Critical roll (itself the last roll then) or a Hit Die in the rest
+  dialog. Heroic Inspiration rerolls one die
   (`heroicReroll`: d20, bonus die, damage die, a feature's die), late Advantage spends a use
   (`lateAdvantage`), the table sets a Critical Hit (`setCritical`, nothing spent): never through
   `rollByHand` again, so a roll's slot or use is paid once. A death save is the engine's d20 then
@@ -282,7 +286,10 @@ content (`record.content`).
 - **Short Rest** spends Hit Point Dice one at a time: each die is the engine's roll, the dialog
   shows the engine's preview (`applyPlayAction`, not committed), Heroic Inspiration can reroll the
   last die; Confirm is one `short_rest` with every die, so what it gives back comes once; Cancel
-  saves nothing.
+  saves nothing. The dialog's steps run one after another, each applied whole and only in the
+  opening it was asked in (closing drops the answers to come); the rest is made on the record's
+  `rev`/`gen` when it began: changed meanwhile, it starts again, and Confirm (`playAction`'s `at`)
+  is refused for the old one. Nothing is confirmed while a step is pending.
 - Grapple and Shove are on the sheet (`rollByHand` `unarmed`); the engine's notes (what the save
   decides, a ritual's extra time, a feature's effect left to the table) are shown as toasts.
 

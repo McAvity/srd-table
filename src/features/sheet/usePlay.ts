@@ -6,6 +6,7 @@
 import { useState } from "react";
 import type { PlayAction, RollWhat } from "srd-rules-engine";
 import { useDocuments } from "@/store/documents";
+import { type DeclaredLucky, luckySpent, type RecordVersion } from "@/store/rolls";
 
 export function usePlay(id: string) {
   const playAction = useDocuments((s) => s.playAction);
@@ -22,8 +23,16 @@ export function usePlay(id: string) {
       setBusy(false);
     }
   }
-  const act = (action: PlayAction | readonly PlayAction[]) => run(() => playAction(id, action));
-  const roll = (what: RollWhat) => run(() => rollByHand(id, what));
+  /** With `at`, only on the record as it was then (a dialog's preview), else refused. */
+  const act = (action: PlayAction | readonly PlayAction[], at?: RecordVersion) =>
+    run(() => playAction(id, action, at));
+  /** With `lucky`, the declared luck-style use is spent with the roll, then cleared. */
+  const roll = (what: RollWhat, lucky?: DeclaredLucky) =>
+    run(async () => {
+      const result = await rollByHand(id, what, lucky);
+      if (result.ok && lucky) luckySpent(id);
+      return result;
+    });
   return { act, roll, reasons, busy, clear: () => setReasons(null) };
 }
 

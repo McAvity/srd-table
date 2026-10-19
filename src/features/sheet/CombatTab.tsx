@@ -12,9 +12,8 @@ import type { PlaySheet, RollWhat } from "srd-rules-engine";
 import { Icon } from "@/components/Icon";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { signed, t } from "@/i18n";
-import { rollDamage } from "@/store/dice";
 import { useDocuments } from "@/store/documents";
-import { attackDm, useRollAdditions } from "@/store/rolls";
+import { attackDm, declaredLucky, useRollAdditions } from "@/store/rolls";
 import { useSettings } from "@/store/settings";
 import { useRoller } from "./OverviewTab";
 import { usePlay } from "./usePlay";
@@ -43,7 +42,7 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 }
 
 function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const name = useDocuments((s) => s.characters[id]?.build.name ?? "");
+  const rollDamage = useDocuments((s) => s.rollDamage);
   const { roll, reasons, busy } = usePlay(id);
   const additions = useRollAdditions((s) => s.by[id]);
   const test = useRoller(id, sheet);
@@ -98,11 +97,10 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       title={t("sheet.rollAttackHint")}
                       disabled={busy}
                       onClick={() =>
-                        void roll({
-                          type: "attack",
-                          attack: a.name,
-                          ...attackDm(additions),
-                        } as RollWhat)
+                        void roll(
+                          { type: "attack", attack: a.name, ...attackDm(additions) } as RollWhat,
+                          declaredLucky(additions, sheet),
+                        )
                       }
                     >
                       {t("sheet.rollByHand")}
@@ -119,14 +117,14 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       icon="flame"
                       iconOnly
                       label={`${a.name}: ${t("sheet.damageCol")}`}
-                      onClick={() => void rollDamage(a.damage_parts, false, `${name} · ${a.name}`)}
+                      onClick={() => void rollDamage(id, a.damage_parts, false, a.name)}
                     />
                     <Button
                       size="sm"
                       icon="bolt"
                       iconOnly
                       label={`${a.name}: ${t("dice.critical")}`}
-                      onClick={() => void rollDamage(a.damage_parts, true, `${name} · ${a.name}`)}
+                      onClick={() => void rollDamage(id, a.damage_parts, true, a.name)}
                     />
                   </div>
                 </td>

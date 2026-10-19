@@ -9,6 +9,7 @@ import type { CharacterBuild, CharacterState } from "srd-rules-engine";
 import type { EngineFacade } from "../../src/engine/facade";
 import type { ContentContext, PackFiles } from "../../src/lib/canonical";
 import { useDocuments } from "../../src/store/documents";
+import { wizard } from "./characters";
 
 const human = (op: "append" | "set", path: string, value: unknown) => ({
   target: "species/human",
@@ -142,6 +143,31 @@ export async function bard(engine: EngineFacade, level = 5): Promise<CharacterBu
   }
   return build;
 }
+
+/**
+ * A level 3 human Wizard (the test pack's luck-style use on humans) whose spellbook has Ray of
+ * Sickness, a level 1 spell attack the engine rolls: Lucky declared for a spell paid with a slot.
+ */
+export async function humanWizard(engine: EngineFacade): Promise<CharacterBuild> {
+  const build = await fill(
+    engine,
+    await apply(engine, await wizard(engine, 3), [{ type: "species", id: "human" }]),
+    3,
+  );
+  let current = build;
+  // In the spellbook, then prepared: the first choice offering it, then the next one.
+  for (let step = 0; step < 2; step++) {
+    const view = await engine.evaluate(current);
+    const open = view.choices.find(
+      (c) => c.required > 0 && c.options.some((o) => o.id === RAY) && !c.selected.includes(RAY),
+    );
+    if (!open) break;
+    const values = [RAY, ...open.selected].slice(0, open.required);
+    current = await apply(engine, current, [{ type: "choice", key: open.key, values }]);
+  }
+  return current;
+}
+export const RAY = "ray-of-sickness";
 
 /** The test pack installed in the facade and the content context a record pinned to it has. */
 export async function testContext(engine: EngineFacade): Promise<ContentContext> {

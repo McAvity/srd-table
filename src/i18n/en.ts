@@ -742,6 +742,8 @@ export const en = {
   "errors.rerollWindowClosed":
     "That roll can't be changed any more: the character changed since (reroll_window_closed).",
   "errors.rollNotApplicable": "That doesn't apply to this roll.",
+  "errors.recordChangedSince":
+    "Not applied: the character changed since this was prepared (another action or an import). Look at it again.",
   "rollopts.title": "GM additions to the next rolls",
   "rollopts.titleActive": "GM additions to the next rolls (set)",
   "rollopts.mode": "Mode",
@@ -775,6 +777,8 @@ export const en = {
     "Roll Hit Point Dice one at a time; decide on the next after seeing it. Nothing is saved until you confirm.",
   "sheet.hitDiceRolled": "Rolled: {dice}",
   "sheet.restPreview": "After the rest: {hp} / {max} HP",
+  "sheet.restRestarted":
+    "The character changed meanwhile: the rest starts again from it (the dice rolled so far are dropped).",
   "sheet.heroicLastHitDie": "Heroic Inspiration: reroll the last die",
   "dice.featureDie": "Its die ({dice})",
   "dice.modifier": "{label} {value}",

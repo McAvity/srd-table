@@ -24,10 +24,12 @@ import type {
   CharacterState,
   D20TestRequest,
   D20TestResult,
+  DamagePart,
   Encounter,
   EncounterAction,
   Message,
   PlayAction,
+  RolledDamage,
   RollWhat,
 } from "srd-rules-engine";
 import { create } from "zustand";
@@ -50,7 +52,7 @@ import { canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
 import type { RecordMeta } from "@/persistence/db";
 import { rollDice } from "./dice";
-import { type LastRoll, openRoll, useRolls } from "./rolls";
+import { type DeclaredLucky, type LastRoll, openRoll, type RecordVersion, useRolls } from "./rolls";
 import { type PlayWay, useSettings } from "./settings";
 import { useUi } from "./ui";
 
@@ -167,9 +169,29 @@ export interface DocumentsState {
   levelUp(id: string, classId: string, hp: "fixed" | "roll"): Promise<Outcome<BuildChange>>;
   /** Change how a past level's Hit Points were gained. */
   setLevelHp(id: string, level: number, hp: "fixed" | "roll"): Promise<Outcome<BuildChange>>;
-  playAction(id: string, action: PlayAction | readonly PlayAction[]): Promise<Outcome<PlayChange>>;
-  /** Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. */
-  rollByHand(id: string, what: RollWhat): Promise<Outcome<SheetRoll>>;
+  /**
+   * Play actions in one commit. With `at`, only on the record as it was then (its `rev` and
+   * `gen`): changed since (another action, an import), refused with nothing applied.
+   */
+  playAction(
+    id: string,
+    action: PlayAction | readonly PlayAction[],
+    at?: RecordVersion,
+  ): Promise<Outcome<PlayChange>>;
+  /**
+   * Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. With
+   * `lucky` (an attack, or a spell's attack rolls), a luck-style use spent for Advantage declared
+   * before the roll: the engine rolls with it, and the use is paid with the roll's own costs in
+   * one commit; refused (no use left, nothing to roll it on), nothing changes.
+   */
+  rollByHand(id: string, what: RollWhat, lucky?: DeclaredLucky): Promise<Outcome<SheetRoll>>;
+  /** An attack line's damage rolled freely (nothing spent): the character's last roll. */
+  rollDamage(
+    id: string,
+    parts: readonly DamagePart[],
+    critical: boolean,
+    label: string,
+  ): Promise<RolledDamage | null>;
   /**
    * A D20 Test from the sheet (`rollCheck`) with the GM's additions; with `lucky`, a luck-style
    * use spent for Advantage declared before the roll, in the same commit. The result is the
@@ -179,7 +201,7 @@ export interface DocumentsState {
     id: string,
     request: D20TestRequest,
     options?: TestOptions,
-    lucky?: { readonly use: string; readonly label: string },
+    lucky?: DeclaredLucky,
   ): Promise<Outcome<{ test: D20TestResult }>>;
   /** A death saving throw: the engine's d20, applied; remembered so Heroic Inspiration can redo it. */
   deathSave(id: string): Promise<Outcome<PlayChange>>;
@@ -506,6 +528,9 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           },
         },
       ]);
+    } else if (last.kind === "damage") {
+      next = { kind: "damage", label: last.label, damage: change.roll as RolledDamage };
+      useUi.getState().showDice([{ kind: "damage", who: last.label, damage: next.damage }]);
     } else return;
     if (spent) remember(id, next);
     else {
@@ -700,12 +725,14 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       return get().editBuild(id, { type: "level_hp", level, hp: roll });
     },
 
-    playAction(id, action) {
+    playAction(id, action, at) {
       return guarded(
         [id],
         async () => {
           const record = get().characters[id];
           if (!record) return missing();
+          if (at && ((record.rev ?? 0) !== at.rev || (record.gen ?? 0) !== at.gen))
+            return changedSince();
           const result = await engine().applyPlayAction(
             record.build,
             record.state,
@@ -721,21 +748,49 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    rollByHand(id, what) {
+    rollByHand(id, what, lucky) {
       return guarded(
         [id],
         async () => {
           const record = get().characters[id];
           if (!record) return missing();
-          const result = await engine().rollByHand(
+          const f = engine();
+          // Declared Advantage: one more reason for it in the GM's additions (the engine rolls).
+          if (lucky && what.type !== "attack" && what.type !== "cast") return notApplicable();
+          const asked: RollWhat =
+            lucky && (what.type === "attack" || what.type === "cast")
+              ? {
+                  ...what,
+                  dm: {
+                    ...what.dm,
+                    modes: [...(what.dm?.modes ?? []), { mode: "advantage", label: lucky.label }],
+                  },
+                }
+              : what;
+          const result = await f.rollByHand(
             record.build,
             record.state,
-            what,
+            asked,
             false,
             record.content,
           );
           if (!result.ok) return result;
-          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          let state = result.state;
+          if (lucky) {
+            // A spell without an attack roll the engine rolls (a save, its effects by hand):
+            // no d20 to give Advantage to, so the use isn't spent.
+            if (result.roll.rolls.attacks.length === 0) return notApplicable();
+            // The use with the roll's own costs, one commit; no use left: nothing at all.
+            const paid = await f.applyPlayAction(
+              record.build,
+              state,
+              { type: "use", key: lucky.use },
+              record.content,
+            );
+            if (!paid.ok) return paid;
+            state = paid.state;
+          }
+          if (!commitCharacter(record, record.build, state)) return replaced();
           const { roll } = result;
           // The tray shows the dice as the encounter's by-hand card does; its notes say the same.
           useUi.getState().showDice([
@@ -753,12 +808,23 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               },
             },
           ]);
-          remember(id, { kind: "sheet", what, roll });
+          remember(id, { kind: "sheet", what: asked, roll });
           toastNotes(result.notes);
-          return result;
+          return { ...result, state };
         },
         replaced,
       );
+    },
+
+    async rollDamage(id, parts, critical, label) {
+      const record = get().characters[id];
+      if (!record) return null;
+      const damage = await engine().rollDamage(parts, critical);
+      const who = `${record.build.name ?? ""} · ${label}`;
+      useUi.getState().showDice([{ kind: "damage", who, damage }]);
+      // A later result of the character: the previous one can't be changed any more.
+      remember(id, { kind: "damage", label: who, damage });
+      return damage;
     },
 
     rollTest(id, request, options, lucky) {
@@ -1187,6 +1253,14 @@ function rerollTarget(
       };
     return null;
   }
+  if (last.kind === "damage") {
+    return target.kind === "damage" && target.attack === undefined
+      ? {
+          target: { kind: "damage", roll: last.damage, part: target.part, die: target.die },
+          at: { damage: true },
+        }
+      : null;
+  }
   if (last.kind !== "sheet") return null;
   const rolls = last.roll.rolls;
   if (target.kind === "feature_die") {
@@ -1212,6 +1286,13 @@ function rerollTarget(
       at,
     };
   return { target: { kind: "damage", roll: attack, part: target.part, die: target.die }, at };
+}
+
+/** Refused: the record changed since what was asked was prepared on it (`playAction`'s `at`). */
+function changedSince(): Refusal {
+  const reason = t("errors.recordChangedSince");
+  useUi.getState().toast([reason], "error");
+  return { ok: false, reasons: [reason] };
 }
 
 function missing(): Refusal {

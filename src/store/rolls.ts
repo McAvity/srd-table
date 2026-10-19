@@ -9,20 +9,37 @@
  * this module only remembers which roll is the last one.
  */
 
-import type { CharacterState, D20TestResult, RollResult, RollWhat } from "srd-rules-engine";
+import type {
+  CharacterState,
+  D20TestResult,
+  PlaySheet,
+  RolledDamage,
+  RollResult,
+  RollWhat,
+} from "srd-rules-engine";
 import { create } from "zustand";
 import type { SheetRoll } from "@/engine/facade";
 
-interface Window {
+/** A record as it was: its revision and generation (`gen`, +1 when an import replaces it). */
+export interface RecordVersion {
   readonly rev: number;
   readonly gen: number;
 }
+
+/** The record's version now (`rev`/`gen`, 0 when never set). */
+export function versionOf(record: { readonly rev?: number; readonly gen?: number }): RecordVersion {
+  return { rev: record.rev ?? 0, gen: record.gen ?? 0 };
+}
+
+type Window = RecordVersion;
 
 /** What was rolled last for a character, with the window it can be changed in. */
 export type LastRoll = Window &
   (
     | { readonly kind: "test"; readonly test: D20TestResult }
     | { readonly kind: "sheet"; readonly what: RollWhat; readonly roll: SheetRoll["roll"] }
+    /** An attack line's damage rolled freely (`rollDamage`, nothing spent). */
+    | { readonly kind: "damage"; readonly label: string; readonly damage: RolledDamage }
     | {
         readonly kind: "death_save";
         /** The d20 as rolled, and the state the save was made on (to make it again). */
@@ -70,8 +87,33 @@ export interface RollAdditions {
   readonly damage_modifier?: number;
   readonly damage_die?: string;
   readonly damage_type?: string;
-  /** A luck-style use spent for Advantage on the next D20 Test (declared before the roll). */
+  /**
+   * A luck-style use spent for Advantage on the next D20 Test, attack or spell attack (declared
+   * before the roll); cleared once it was spent.
+   */
   readonly lucky?: string;
+}
+
+/** A luck-style use declared for Advantage: the use spent and the label of the Advantage. */
+export interface DeclaredLucky {
+  readonly use: string;
+  readonly label: string;
+}
+
+/** The declared luck-style use of these additions, as the sheet lists it (else none). */
+export function declaredLucky(
+  a: RollAdditions | undefined,
+  sheet: PlaySheet,
+): DeclaredLucky | undefined {
+  const use = a?.lucky ? sheet.play.uses.find((u) => u.key === a.lucky) : undefined;
+  return use ? { use: use.key, label: use.name } : undefined;
+}
+
+/** After the declared use was spent: the same additions without it. */
+export function luckySpent(id: string) {
+  const { by, set } = useRollAdditions.getState();
+  const a = by[id];
+  if (a?.lucky) set(id, { ...a, lucky: undefined });
 }
 
 interface AdditionsState {

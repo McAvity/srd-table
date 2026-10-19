@@ -3,7 +3,7 @@
  * saves, conditions and Exhaustion, Concentration, Heroic Inspiration; and the rests.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ConditionDef, PlayAction, PlaySheet, RollResult } from "srd-rules-engine";
 import { Explain } from "@/components/Explain";
 import { Icon } from "@/components/Icon";
@@ -13,7 +13,8 @@ import { damageTypes } from "@/engine/constants";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
-import { useDocuments } from "@/store/documents";
+import { type CharacterRecord, useDocuments } from "@/store/documents";
+import { type RecordVersion, useRolls, versionOf } from "@/store/rolls";
 import { useUi } from "@/store/ui";
 import { usePlay, usePlayResult } from "./usePlay";
 
@@ -308,80 +309,172 @@ export function ConditionMedal({ label }: { label?: string }) {
  * saved), and the player decides on the next die after seeing it; Heroic Inspiration can reroll
  * the last die before confirming. Confirm is one `short_rest` with every die rolled, so what a
  * Short Rest gives back comes once; Cancel saves nothing (contract actions.md §7.1).
+ *
+ * The dialog's steps (a die, the reroll, the preview) run one after another, each applied whole
+ * (dice and preview together) and only in the opening it was asked in: closing or opening the
+ * dialog drops the answers still to come. A rest is made on the record as it was when it began
+ * (`rev`/`gen`): changed meanwhile (another action, an import replacing it), the rest starts again
+ * from it, and Confirm is refused for the old one (`playAction`'s `at`). Nothing is confirmed while
+ * a step is pending.
  */
+interface RestDie {
+  readonly die: number;
+  readonly roll: RollResult;
+}
+interface RestDraft {
+  readonly kind: "short" | "long";
+  /** The record the rest is made on. */
+  readonly at: RecordVersion;
+  readonly rolled: readonly RestDie[];
+  readonly heroic: boolean;
+  readonly preview: { readonly hp: number; readonly max: number } | null;
+  readonly problem: readonly string[] | null;
+  /** Started again because the record changed. */
+  readonly restarted: boolean;
+}
+/** A step's result: the dice so far (and a die to show), or the engine's reasons. */
+type RestStep =
+  | { readonly rolled: readonly RestDie[]; readonly heroic: boolean; readonly shown?: RollResult }
+  | { readonly problem: readonly string[] };
+
+const sameVersion = (record: CharacterRecord, at: RecordVersion) => {
+  const now = versionOf(record);
+  return now.rev === at.rev && now.gen === at.gen;
+};
+const restActions = (dice: readonly RestDie[], spent: boolean): PlayAction[] => [
+  ...(spent ? [{ type: "spend_inspiration" as const }] : []),
+  { type: "short_rest", hit_dice: dice.map((d) => ({ die: d.die, roll: d.roll.total })) },
+];
+
 export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons, busy, clear } = usePlay(id);
   const record = useDocuments((s) => s.characters[id]);
-  const [open, setOpen] = useState<"short" | "long" | null>(null);
-  const [rolled, setRolled] = useState<readonly { die: number; roll: RollResult }[]>([]);
-  const [heroic, setHeroic] = useState(false);
-  const [preview, setPreview] = useState<{ hp: number; max: number } | null>(null);
-  const [problem, setProblem] = useState<readonly string[] | null>(null);
+  const [draft, setDraft] = useState<RestDraft | null>(null);
+  const [pending, setPending] = useState(0);
+  // The draft as the steps see it, the opening the dialog is in (each opening and closing a new
+  // one), the steps of this opening one after another, and a Confirm under way.
+  const current = useRef<RestDraft | null>(null);
+  const session = useRef(0);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const confirming = useRef(false);
+  // A die or reroll asked and not answered yet: another click is ignored (a double click is one).
+  const asking = useRef(false);
+  const put = (next: RestDraft | null) => {
+    current.current = next;
+    setDraft(next);
+  };
+  const newSession = () => {
+    session.current += 1;
+    queue.current = Promise.resolve();
+    confirming.current = false;
+    asking.current = false;
+    setPending(0);
+  };
   const close = () => {
-    setOpen(null);
-    setRolled([]);
-    setHeroic(false);
-    setPreview(null);
-    setProblem(null);
+    newSession();
+    put(null);
     clear();
   };
-  const actions = (
-    dice: readonly { die: number; roll: RollResult }[],
-    spent: boolean,
-  ): PlayAction[] => [
-    ...(spent ? [{ type: "spend_inspiration" as const }] : []),
-    { type: "short_rest", hit_dice: dice.map((d) => ({ die: d.die, roll: d.roll.total })) },
-  ];
-  async function show(dice: readonly { die: number; roll: RollResult }[], spent: boolean) {
-    if (!record) return;
-    const f = engine();
-    const after = await f.applyPlayAction(
-      record.build,
-      record.state,
-      actions(dice, spent),
-      record.content,
-    );
-    if (!after.ok) {
-      setProblem(after.reasons);
-      setPreview(null);
-      return;
-    }
-    setProblem(null);
-    const view = await f.playSheet(record.build, after.state, record.content);
-    setPreview({ hp: view.sheet.play.hp.current, max: view.sheet.play.hp.max });
+  const begin = (kind: "short" | "long", restarted = false) => {
+    const now = useDocuments.getState().characters[id];
+    newSession();
+    if (!restarted) clear();
+    if (!now) return put(null);
+    const at = versionOf(now);
+    put({ kind, at, rolled: [], heroic: false, preview: null, problem: null, restarted });
+    // The rest with no die yet: what it gives back as it is.
+    if (kind === "short") step(async () => ({ rolled: [], heroic: false }));
+  };
+  /** A step of this opening, after the ones before it; applied only if still this opening. */
+  function step(make: (draft: RestDraft, on: CharacterRecord) => Promise<RestStep>, asked = false) {
+    if (asked && asking.current) return;
+    const mine = session.current;
+    const live = () => session.current === mine;
+    if (asked) asking.current = true;
+    setPending((n) => n + 1);
+    queue.current = queue.current.then(async () => {
+      try {
+        const draft = current.current;
+        const on = useDocuments.getState().characters[id];
+        if (!live() || !draft || !on || !sameVersion(on, draft.at)) return;
+        const made = await make(draft, on);
+        if (!live()) return;
+        if ("problem" in made) return put({ ...draft, problem: made.problem });
+        const f = engine();
+        const after = await f.applyPlayAction(
+          on.build,
+          on.state,
+          restActions(made.rolled, made.heroic),
+          on.content,
+        );
+        const view = after.ok ? await f.playSheet(on.build, after.state, on.content) : null;
+        const still = useDocuments.getState().characters[id];
+        if (!live() || !still || !sameVersion(still, draft.at)) return;
+        if (made.shown) {
+          useUi.getState().showDice([{ kind: "roll", who: on.build.name ?? "", roll: made.shown }]);
+          // A later result of the character: its last roll can't be changed any more (§5.5).
+          useRolls.getState().forget(id);
+        }
+        put({
+          ...draft,
+          rolled: made.rolled,
+          heroic: made.heroic,
+          preview: view ? { hp: view.sheet.play.hp.current, max: view.sheet.play.hp.max } : null,
+          problem: after.ok ? null : after.reasons,
+        });
+      } catch (error) {
+        const draft = current.current;
+        if (live() && draft) put({ ...draft, problem: [String(error)] });
+      } finally {
+        if (live()) {
+          if (asked) asking.current = false;
+          setPending((n) => n - 1);
+        }
+      }
+    });
   }
-  async function rollDie(die: number) {
-    const r = await engine().roll(`1d${die}`);
-    if (!r.ok) return setProblem(r.reasons);
-    useUi.getState().showDice([{ kind: "roll", who: record?.build.name ?? "", roll: r.roll }]);
-    const next = [...rolled, { die, roll: r.roll }];
-    setRolled(next);
-    await show(next, heroic);
-  }
-  async function rerollLast() {
-    const last = rolled.at(-1);
-    if (!record || !last) return;
-    const r = await engine().heroicReroll(
-      record.build,
-      record.state,
-      { kind: "single", roll: last.roll, die: 0 },
-      record.content,
-    );
-    if (!r.ok) return setProblem(r.reasons);
-    const again = r.roll as RollResult;
-    useUi.getState().showDice([{ kind: "roll", who: record.build.name ?? "", roll: again }]);
-    const next = [...rolled.slice(0, -1), { die: last.die, roll: again }];
-    setRolled(next);
-    setHeroic(true);
-    await show(next, true);
-  }
+  const rollDie = (die: number) =>
+    step(async (d) => {
+      const r = await engine().roll(`1d${die}`);
+      if (!r.ok) return { problem: r.reasons };
+      return { rolled: [...d.rolled, { die, roll: r.roll }], heroic: d.heroic, shown: r.roll };
+    }, true);
+  const rerollLast = () =>
+    step(async (d, on) => {
+      const last = d.rolled.at(-1);
+      if (!last) return { problem: [t("errors.rollNotApplicable")] };
+      const r = await engine().heroicReroll(
+        on.build,
+        on.state,
+        { kind: "single", roll: last.roll, die: 0 },
+        on.content,
+      );
+      if (!r.ok) return { problem: r.reasons };
+      const again = r.roll as RollResult;
+      return {
+        rolled: [...d.rolled.slice(0, -1), { die: last.die, roll: again }],
+        heroic: true,
+        shown: again,
+      };
+    }, true);
+  // The record changed since the rest began (and not by its own Confirm): start it again from it.
+  const stale = draft !== null && (!record || !sameVersion(record, draft.at));
+  // biome-ignore lint/correctness/useExhaustiveDependencies: restarts only when it goes stale
+  useEffect(() => {
+    if (!stale || busy || confirming.current || !draft) return;
+    if (!record) close();
+    else begin(draft.kind, true);
+  }, [stale, busy]);
+  const rolled = draft?.rolled ?? [];
   const spentOf = (die: number) => rolled.filter((d) => d.die === die).length;
+  const waiting = pending > 0 || stale;
+  const open = draft?.kind ?? null;
   return (
     <>
-      <Button size="sm" icon="hourglass" onClick={() => setOpen("short")}>
+      <Button size="sm" icon="hourglass" onClick={() => begin("short")}>
         {t("sheet.shortRest")}
       </Button>
-      <Button size="sm" icon="moon" onClick={() => setOpen("long")}>
+      <Button size="sm" icon="moon" onClick={() => begin("long")}>
         {t("sheet.longRest")}
       </Button>
       <Dialog
@@ -396,13 +489,19 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
             <Button
               variant="primary"
               icon={open === "long" ? "moon" : "hourglass"}
-              disabled={busy || (open === "short" && problem !== null)}
+              disabled={busy || waiting || (open === "short" && draft?.problem != null)}
               onClick={async () => {
-                const ok =
-                  open === "long"
-                    ? await act({ type: "long_rest" })
-                    : await act(actions(rolled, heroic));
-                if (ok) close();
+                const d = current.current;
+                if (!d || confirming.current) return;
+                confirming.current = true;
+                const ok = await act(
+                  d.kind === "long" ? { type: "long_rest" } : restActions(d.rolled, d.heroic),
+                  d.at,
+                );
+                if (ok) return close();
+                confirming.current = false;
+                const now = useDocuments.getState().characters[id];
+                if (!now || !sameVersion(now, d.at)) begin(d.kind, true);
               }}
             >
               {t("common.confirm")}
@@ -410,7 +509,12 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
           </>
         }
       >
-        <Reasons reasons={reasons ?? problem} className="mb-2" />
+        <Reasons reasons={reasons ?? draft?.problem ?? null} className="mb-2" />
+        {draft?.restarted && (
+          <p className="mb-2 text-sm text-ink-muted" role="status">
+            {t("sheet.restRestarted")}
+          </p>
+        )}
         {open === "short" && (
           <div className="space-y-2">
             <p className="text-sm text-ink-muted">{t("sheet.shortRestSequential")}</p>
@@ -426,8 +530,8 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     size="sm"
                     icon="d20"
                     className="ml-auto"
-                    disabled={busy || left <= 0}
-                    onClick={() => void rollDie(d.die)}
+                    disabled={busy || waiting || left <= 0}
+                    onClick={() => rollDie(d.die)}
                   >
                     {t("sheet.spendHitDie", { die: d.die })}
                   </Button>
@@ -441,13 +545,13 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 })}
               </p>
             )}
-            {preview && (
+            {draft?.preview && (
               <p className="text-sm font-semibold" data-testid="rest-preview">
-                {t("sheet.restPreview", { hp: preview.hp, max: preview.max })}
+                {t("sheet.restPreview", { hp: draft.preview.hp, max: draft.preview.max })}
               </p>
             )}
-            {rolled.length > 0 && sheet.play.heroic_inspiration && !heroic && (
-              <Button size="sm" disabled={busy} onClick={() => void rerollLast()}>
+            {rolled.length > 0 && sheet.play.heroic_inspiration && !draft?.heroic && (
+              <Button size="sm" disabled={busy || waiting} onClick={() => rerollLast()}>
                 {t("sheet.heroicLastHitDie")}
               </Button>
             )}

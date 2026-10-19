@@ -158,6 +158,17 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
           )}
         </ul>
       )}
+      {last.kind === "damage" && (
+        <div className="space-y-1">
+          <div className="font-semibold">
+            {last.label}: {last.damage.total}
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[13px] text-ink-muted">{t("followups.heroic")}:</span>
+            {damageButtons(last.damage, (part, die) => ({ kind: "damage", part, die }))}
+          </div>
+        </div>
+      )}
       {last.kind === "death_save" && (
         <div className="flex flex-wrap items-center gap-2">
           <span>{t("followups.deathSave", { value: last.die.total })}</span>

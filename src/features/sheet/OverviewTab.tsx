@@ -11,7 +11,7 @@ import { signed, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useNames } from "@/queries";
 import { useDocuments } from "@/store/documents";
-import { testOptions, useRollAdditions } from "@/store/rolls";
+import { declaredLucky, luckySpent, testOptions, useRollAdditions } from "@/store/rolls";
 
 /**
  * The engine rolls the check, save or attack for this character (`rollCheck`), with the GM's
@@ -20,18 +20,10 @@ import { testOptions, useRollAdditions } from "@/store/rolls";
 export function useRoller(id: string, sheet: PlaySheet) {
   const rollTest = useDocuments((s) => s.rollTest);
   return (request: D20TestRequest) => {
-    const { by, set } = useRollAdditions.getState();
-    const additions = by[id];
-    const use = additions?.lucky
-      ? sheet.play.uses.find((u) => u.key === additions.lucky)
-      : undefined;
-    void rollTest(
-      id,
-      request,
-      testOptions(additions),
-      use ? { use: use.key, label: use.name } : undefined,
-    ).then((r) => {
-      if (r.ok && use && additions) set(id, { ...additions, lucky: undefined });
+    const additions = useRollAdditions.getState().by[id];
+    const lucky = declaredLucky(additions, sheet);
+    void rollTest(id, request, testOptions(additions), lucky).then((r) => {
+      if (r.ok && lucky) luckySpent(id);
     });
   };
 }

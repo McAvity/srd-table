@@ -19,7 +19,7 @@ import { abilityName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
-import { attackDm, useRollAdditions } from "@/store/rolls";
+import { attackDm, declaredLucky, useRollAdditions } from "@/store/rolls";
 import { MoreText } from "../builder/ChoiceCard";
 import { usePlay } from "./usePlay";
 
@@ -142,18 +142,21 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                         spell={s}
                         busy={busy}
                         onRoll={(pay, spellcasting) =>
-                          void roll({
-                            type: "cast",
-                            spell: s.id,
-                            ...(pay?.kind === "slot" ? { slot_level: pay.slot.level } : {}),
-                            ...(pay?.kind === "slot" && pay.slot.pact ? { pact: true } : {}),
-                            ...(pay?.kind === "free"
-                              ? { payment: { type: "free", use: pay.use } }
-                              : {}),
-                            ...(pay?.kind === "ritual" ? { payment: { type: "ritual" } } : {}),
-                            ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
-                            ...attackDm(additions),
-                          } as RollWhat)
+                          void roll(
+                            {
+                              type: "cast",
+                              spell: s.id,
+                              ...(pay?.kind === "slot" ? { slot_level: pay.slot.level } : {}),
+                              ...(pay?.kind === "slot" && pay.slot.pact ? { pact: true } : {}),
+                              ...(pay?.kind === "free"
+                                ? { payment: { type: "free", use: pay.use } }
+                                : {}),
+                              ...(pay?.kind === "ritual" ? { payment: { type: "ritual" } } : {}),
+                              ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
+                              ...attackDm(additions),
+                            } as RollWhat,
+                            declaredLucky(additions, sheet),
+                          )
                         }
                       />
                       {def?.description && <MoreText title={s.name} text={def.description} />}

@@ -763,6 +763,8 @@ export const it: Messages = {
   "errors.rerollWindowClosed":
     "Quel tiro non si può più cambiare: il personaggio è cambiato nel frattempo (reroll_window_closed).",
   "errors.rollNotApplicable": "Non si applica a questo tiro.",
+  "errors.recordChangedSince":
+    "Non applicato: il personaggio è cambiato da quando era stato preparato (un'altra azione o un'importazione). Guardalo di nuovo.",
   "rollopts.title": "Aggiunte del GM ai prossimi tiri",
   "rollopts.titleActive": "Aggiunte del GM ai prossimi tiri (impostate)",
   "rollopts.mode": "Modalità",
@@ -796,6 +798,8 @@ export const it: Messages = {
     "Tira i Dadi Vita uno alla volta; decidi il prossimo dopo averlo visto. Nulla viene salvato finché non confermi.",
   "sheet.hitDiceRolled": "Tirati: {dice}",
   "sheet.restPreview": "Dopo il riposo: {hp} / {max} PF",
+  "sheet.restRestarted":
+    "Il personaggio è cambiato nel frattempo: il riposo ricomincia da com'è ora (i dadi tirati finora sono scartati).",
   "sheet.heroicLastHitDie": "Ispirazione Eroica: ritira l'ultimo dado",
   "dice.featureDie": "Il suo dado ({dice})",
   "dice.modifier": "{label} {value}",

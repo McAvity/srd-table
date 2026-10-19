@@ -7,7 +7,9 @@ import {
   BI,
   bard,
   FONT,
+  humanWizard,
   LUCK,
+  RAY,
   storeCharacter,
   TAUNT,
   testContext,
@@ -258,5 +260,170 @@ describe("rolls changed afterwards (AC-03)", () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reasons).toEqual([t("errors.documentReplaced")]);
     expect(record(id)?.state.heroic_inspiration).toBe(true);
+  });
+});
+
+// Review 04: Lucky declared before a roll by hand (§5.4), each later result closing the last one's window (§5.5),
+// Heroic Inspiration on an attack's bonus and damage dice, and a change prepared on an older record refused.
+describe("rolls by hand and the last roll (review 04)", () => {
+  async function luckyWizard() {
+    const build = await humanWizard(engine);
+    const content = await testContext(engine);
+    return { id: await storeCharacter(engine, build, content), build, content };
+  }
+  const lucky = { use: LUCK, label: "Test Luck" };
+
+  it("Lucky before a weapon attack by hand: Advantage rolled by the engine, the use paid in the attack's commit", async () => {
+    const { id } = await pinnedBard();
+    const before = record(id);
+    dice.push(5, 14);
+    const r = await docs().rollByHand(id, { type: "attack", attack: "Dagger" }, lucky);
+    if (!r.ok) throw new Error(r.reasons.join("; "));
+    expect(r.roll.rolls.attacks[0]?.roll).toMatchObject({ mode: "advantage", rolls: [5, 14] });
+    expect(r.roll.rolls.attacks[0]?.reasons).toContain("Advantage: Test Luck");
+    expect(record(id)?.state.uses_spent[LUCK]).toBe(1);
+    expect(record(id)?.rev).toBe((before?.rev ?? 0) + 1);
+    const last = useRolls.getState().last[id];
+    expect(last?.kind === "sheet" ? last.rev : null).toBe(record(id)?.rev);
+  });
+
+  it("Lucky before a spell attack paid with a slot: one slot, one use, one commit", async () => {
+    const { id } = await luckyWizard();
+    dice.push(3, 18);
+    const r = await docs().rollByHand(id, { type: "cast", spell: RAY, slot_level: 1 }, lucky);
+    if (!r.ok) throw new Error(r.reasons.join("; "));
+    expect(r.roll.rolls.attacks[0]?.roll).toMatchObject({ mode: "advantage", rolls: [3, 18] });
+    expect(record(id)?.state.spell_slots_spent).toEqual([1]);
+    expect(record(id)?.state.uses_spent[LUCK]).toBe(1);
+    expect(record(id)?.rev).toBe(1);
+  });
+
+  it("Lucky with no use left: the roll by hand is refused, nothing spent, the last roll kept", async () => {
+    const { id } = await luckyWizard();
+    await docs().playAction(id, { type: "use", key: LUCK, amount: 3 });
+    dice.push(9);
+    await docs().rollTest(id, { skill: "athletics" });
+    const kept = useRolls.getState().last[id];
+    const before = record(id);
+    const r = await docs().rollByHand(id, { type: "cast", spell: RAY, slot_level: 1 }, lucky);
+    expect(r.ok).toBe(false);
+    expect(record(id)).toBe(before);
+    expect(useRolls.getState().last[id]).toBe(kept);
+  });
+
+  it("Lucky on a spell whose effects are by hand (no attack roll by the engine): refused, neither slot nor use spent", async () => {
+    const { id } = await luckyWizard();
+    const before = record(id);
+    const r = await docs().rollByHand(
+      id,
+      { type: "cast", spell: "chromatic-orb", slot_level: 1 },
+      lucky,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reasons).toEqual([t("errors.rollNotApplicable")]);
+    expect(record(id)).toBe(before);
+  });
+
+  it("Lucky on a roll by hand without a d20 is refused before anything", async () => {
+    const { id } = await pinnedBard();
+    const before = record(id);
+    const r = await docs().rollByHand(id, { type: "feature", feature: TAUNT }, lucky);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reasons).toEqual([t("errors.rollNotApplicable")]);
+    expect(record(id)).toBe(before);
+  });
+
+  it("Heroic on an attack's bonus die, then on another attack's damage die: one die each, nothing paid again", async () => {
+    const build = await fighter(engine, 3);
+    const id = await storeCharacter(engine, build);
+    const sheet = (await engine.playSheet(build, record(id)?.state as never)).sheet;
+    const line = sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice))?.name as string;
+    await docs().playAction(id, { type: "set_inspiration", value: true });
+    dice.push(11, 1);
+    const first = await docs().rollByHand(id, {
+      type: "attack",
+      attack: line,
+      dm: { bonus_dice: [{ dice: "1d4", label: "GM" }] },
+    });
+    if (!first.ok) throw new Error(first.reasons.join("; "));
+    const attack = first.roll.rolls.attacks[0];
+    expect(attack?.bonus_dice[0]?.rolls).toEqual([1]);
+    dice.push(4);
+    expect(
+      (await docs().heroicReroll(id, { kind: "bonus_die", group: 0, die: 0, attack: 0 })).ok,
+    ).toBe(true);
+    let last = useRolls.getState().last[id];
+    const rerolled = last?.kind === "sheet" ? last.roll.rolls.attacks[0] : undefined;
+    expect(rerolled?.bonus_dice[0]?.rolls).toEqual([4]);
+    expect(rerolled?.total).toBe((attack?.total ?? 0) + 3);
+    expect(record(id)?.state.heroic_inspiration).toBe(false);
+
+    await docs().playAction(id, { type: "set_inspiration", value: true });
+    dice.push(15, 1);
+    const second = await docs().rollByHand(id, { type: "attack", attack: line });
+    if (!second.ok) throw new Error(second.reasons.join("; "));
+    const damage = second.roll.rolls.attacks[0]?.damage;
+    const part = damage?.parts.findIndex((p) => p.dice) ?? -1;
+    expect(damage?.parts[part]?.rolls[0]).toBe(1);
+    const state = record(id)?.state;
+    dice.push(6);
+    expect((await docs().heroicReroll(id, { kind: "damage", part, die: 0, attack: 0 })).ok).toBe(
+      true,
+    );
+    last = useRolls.getState().last[id];
+    const hit = last?.kind === "sheet" ? last.roll.rolls.attacks[0] : undefined;
+    expect(hit?.damage?.parts[part]?.rolls[0]).toBe(6);
+    expect(hit?.damage?.total).toBe((damage?.total ?? 0) + 5);
+    expect({ ...record(id)?.state, heroic_inspiration: true }).toEqual(state);
+  });
+
+  it("free Damage and Critical rolls are the last roll: the attack's window closes; Heroic on the free damage's die", async () => {
+    const build = await fighter(engine, 3);
+    const id = await storeCharacter(engine, build);
+    const sheet = (await engine.playSheet(build, record(id)?.state as never)).sheet;
+    const line = sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice));
+    if (!line) throw new Error("no attack with dice");
+    await docs().playAction(id, { type: "set_inspiration", value: true });
+    dice.push(12);
+    await docs().rollByHand(id, { type: "attack", attack: line.name });
+    const rev = record(id)?.rev;
+    dice.push(2);
+    const free = await docs().rollDamage(id, line.damage_parts, false, line.name);
+    expect(record(id)?.rev).toBe(rev);
+    expect(useRolls.getState().last[id]?.kind).toBe("damage");
+    const old = await docs().heroicReroll(id, { kind: "d20", die: 0, attack: 0 });
+    expect(old.ok).toBe(false);
+    expect(record(id)?.state.heroic_inspiration).toBe(true);
+    const crit = await docs().rollDamage(id, line.damage_parts, true, line.name);
+    const last = useRolls.getState().last[id];
+    expect(last?.kind === "damage" ? last.damage : null).toBe(crit);
+    expect(crit?.parts[0]?.rolls.length).toBe((free?.parts[0]?.rolls.length ?? 0) * 2);
+    const part = crit?.parts.findIndex((p) => p.dice) ?? -1;
+    dice.push(3);
+    expect((await docs().heroicReroll(id, { kind: "damage", part, die: 0 })).ok).toBe(true);
+    const after = useRolls.getState().last[id];
+    expect(after?.kind === "damage" ? after.damage.parts[part]?.rolls[0] : null).toBe(3);
+    expect(record(id)?.state.heroic_inspiration).toBe(false);
+  });
+
+  it("a change prepared on an older record (playAction's `at`) is refused with nothing applied", async () => {
+    const build = await fighter(engine, 3);
+    const id = await storeCharacter(engine, build);
+    const at = { rev: record(id)?.rev ?? 0, gen: record(id)?.gen ?? 0 };
+    await docs().playAction(id, { type: "damage", amount: 3 });
+    const before = record(id);
+    const r = await docs().playAction(
+      id,
+      { type: "short_rest", hit_dice: [{ die: 10, roll: 5 }] },
+      at,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reasons).toEqual([t("errors.recordChangedSince")]);
+    expect(record(id)).toBe(before);
+    const now = { rev: before?.rev ?? 0, gen: before?.gen ?? 0 };
+    expect(
+      (await docs().playAction(id, { type: "short_rest", hit_dice: [{ die: 10, roll: 5 }] }, now))
+        .ok,
+    ).toBe(true);
   });
 });
