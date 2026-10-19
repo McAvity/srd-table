@@ -26,3 +26,20 @@ export function usePlay(id: string) {
   const roll = (what: RollWhat) => run(() => rollByHand(id, what));
   return { act, roll, reasons, busy, clear: () => setReasons(null) };
 }
+
+/** Busy state and the engine's reasons of the last refused call, for any store call. */
+export function usePlayResult() {
+  const [reasons, setReasons] = useState<readonly string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function run(send: () => Promise<{ ok: boolean; reasons?: readonly string[] }>) {
+    setBusy(true);
+    try {
+      const result = await send();
+      setReasons(result.ok ? null : (result.reasons ?? null));
+      return result.ok;
+    } finally {
+      setBusy(false);
+    }
+  }
+  return { run, reasons, busy };
+}

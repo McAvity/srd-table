@@ -19,8 +19,11 @@
  */
 
 import type {
+  AttackDice,
   CharacterBuild,
   CharacterState,
+  D20TestRequest,
+  D20TestResult,
   Encounter,
   EncounterAction,
   Message,
@@ -40,12 +43,14 @@ import type {
   PlayChange,
   Refusal,
   SheetRoll,
+  TestOptions,
 } from "@/engine/facade";
 import { t } from "@/i18n";
 import { canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
 import type { RecordMeta } from "@/persistence/db";
 import { rollDice } from "./dice";
+import { type LastRoll, openRoll, useRolls } from "./rolls";
 import { type PlayWay, useSettings } from "./settings";
 import { useUi } from "./ui";
 
@@ -54,6 +59,24 @@ export interface UnpaidRefusal extends Refusal {
   readonly unpaid: true;
 }
 export type RollOutcome = Outcome<EncounterChange> | UnpaidRefusal;
+
+/** A die of the last roll for Heroic Inspiration (`rerollDie`'s target, by position in the roll). */
+export type HeroicTarget =
+  | { readonly kind: "d20"; readonly die: number; readonly attack?: number }
+  | {
+      readonly kind: "bonus_die";
+      readonly group: number;
+      readonly die: number;
+      readonly attack?: number;
+    }
+  | {
+      readonly kind: "damage";
+      readonly part: number;
+      readonly die: number;
+      readonly attack?: number;
+    }
+  | { readonly kind: "feature_die"; readonly die: number }
+  | { readonly kind: "death_save" };
 
 export interface CharacterRecord extends RecordMeta {
   readonly id: string;
@@ -147,6 +170,25 @@ export interface DocumentsState {
   playAction(id: string, action: PlayAction | readonly PlayAction[]): Promise<Outcome<PlayChange>>;
   /** Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. */
   rollByHand(id: string, what: RollWhat): Promise<Outcome<SheetRoll>>;
+  /**
+   * A D20 Test from the sheet (`rollCheck`) with the GM's additions; with `lucky`, a luck-style
+   * use spent for Advantage declared before the roll, in the same commit. The result is the
+   * character's last roll (`useRolls`).
+   */
+  rollTest(
+    id: string,
+    request: D20TestRequest,
+    options?: TestOptions,
+    lucky?: { readonly use: string; readonly label: string },
+  ): Promise<Outcome<{ test: D20TestResult }>>;
+  /** A death saving throw: the engine's d20, applied; remembered so Heroic Inspiration can redo it. */
+  deathSave(id: string): Promise<Outcome<PlayChange>>;
+  /** Late Advantage on the last roll (a test, or attack `attack` of a roll by hand), spending `use`. */
+  lateAdvantage(id: string, use: string, attack?: number): Promise<Outcome<PlayChange>>;
+  /** Heroic Inspiration on one die of the last roll; a death save is made again from before it. */
+  heroicReroll(id: string, target: HeroicTarget): Promise<Outcome<PlayChange>>;
+  /** A Critical Hit the table decides for attack `attack` of the last roll by hand (nothing spent). */
+  setCritical(id: string, attack: number, critical: boolean): Promise<Outcome<object>>;
 
   createEncounter(name: string): Promise<string>;
   importEncounter(json: unknown, name: string): Promise<Outcome<{ id: string }>>;
@@ -409,6 +451,68 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
   const quietly = () => {
     replaced();
   };
+  /** Remember a character's last roll with its window: the record as it is now. */
+  const remember = (id: string, roll: DistributiveOmit<LastRoll, "rev" | "gen">) => {
+    const r = get().characters[id];
+    if (r)
+      useRolls.getState().remember(id, { ...roll, rev: r.rev ?? 0, gen: r.gen ?? 0 } as LastRoll);
+  };
+  /** The last roll if it can still be changed, else the refusal `reroll_window_closed`. */
+  const windowOf = (id: string): { ok: true; roll: LastRoll } | Refusal => {
+    const roll = openRoll(useRolls.getState().last[id], get().characters[id]);
+    if (roll) return { ok: true, roll };
+    const reason = t("errors.rerollWindowClosed");
+    useUi.getState().toast([reason], "error");
+    return { ok: false, reasons: [reason] };
+  };
+  /** A changed roll: shown again, and the last roll, in a window that starts after its cost. */
+  const changed = (
+    id: string,
+    who: string,
+    last: LastRoll,
+    change: { attack?: number; damage?: boolean; die?: boolean; roll: unknown },
+    spent = true,
+  ) => {
+    let next: DistributiveOmit<LastRoll, "rev" | "gen">;
+    if (last.kind === "test") {
+      next = { kind: "test", test: change.roll as D20TestResult };
+      showTest(who, next.test);
+    } else if (last.kind === "sheet") {
+      const rolls = last.roll.rolls;
+      const updated = change.die
+        ? { ...rolls, die: change.roll as never }
+        : change.damage
+          ? { ...rolls, damage: change.roll as never }
+          : {
+              ...rolls,
+              attacks: rolls.attacks.map((a, i) =>
+                i === (change.attack ?? 0) ? (change.roll as AttackDice) : a,
+              ),
+            };
+      const roll = { ...last.roll, rolls: updated };
+      next = { kind: "sheet", what: last.what, roll };
+      useUi.getState().showDice([
+        {
+          kind: "action",
+          who,
+          result: {
+            manual: true,
+            by: id,
+            action: roll.action,
+            name: roll.name,
+            slot_level: roll.slot_level,
+            rolls: roll.rolls,
+            costs: roll.costs,
+          },
+        },
+      ]);
+    } else return;
+    if (spent) remember(id, next);
+    else {
+      const r = useRolls.getState().last[id];
+      if (r) useRolls.getState().remember(id, { ...next, rev: r.rev, gen: r.gen } as LastRoll);
+    }
+  };
 
   return {
     hydrated: false,
@@ -649,7 +753,174 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               },
             },
           ]);
+          remember(id, { kind: "sheet", what, roll });
+          toastNotes(result.notes);
           return result;
+        },
+        replaced,
+      );
+    },
+
+    rollTest(id, request, options, lucky) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const modes = lucky ? [{ mode: "advantage" as const, label: lucky.label }] : [];
+          const test = await engine().rollCheck(
+            record.build,
+            record.state,
+            request,
+            record.content,
+            {
+              ...options,
+              ...(modes.length ? { modes: [...(options?.modes ?? []), ...modes] } : {}),
+            },
+          );
+          if (lucky) {
+            const paid = await engine().applyPlayAction(
+              record.build,
+              record.state,
+              { type: "use", key: lucky.use },
+              record.content,
+            );
+            if (!paid.ok) return paid;
+            if (!commitCharacter(record, record.build, paid.state)) return replaced();
+          }
+          showTest(record.build.name ?? "", test);
+          remember(id, { kind: "test", test });
+          return { ok: true as const, test };
+        },
+        replaced,
+      );
+    },
+
+    deathSave(id) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const die = await engine().roll("1d20");
+          if (!die.ok) return die;
+          const result = await engine().applyPlayAction(
+            record.build,
+            record.state,
+            { type: "death_save", roll: die.roll.total },
+            record.content,
+          );
+          if (!result.ok) return result;
+          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          useUi
+            .getState()
+            .showDice([{ kind: "roll", who: record.build.name ?? "", roll: die.roll }]);
+          toastNotes(result.notes);
+          remember(id, { kind: "death_save", die: die.roll, before: record.state });
+          return result;
+        },
+        replaced,
+      );
+    },
+
+    lateAdvantage(id, use, attack = 0) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const last = windowOf(id);
+          if (!last.ok) return last;
+          const roll =
+            last.roll.kind === "test"
+              ? last.roll.test
+              : last.roll.kind === "sheet"
+                ? last.roll.roll.rolls.attacks[attack]
+                : undefined;
+          if (!roll) return notApplicable();
+          const result = await engine().lateAdvantage(
+            record.build,
+            record.state,
+            roll,
+            use,
+            record.content,
+          );
+          if (!result.ok) return result;
+          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll });
+          return { ok: true as const, state: result.state, notes: [] };
+        },
+        replaced,
+      );
+    },
+
+    heroicReroll(id, target) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const last = windowOf(id);
+          if (!last.ok) return last;
+          const who = record.build.name ?? "";
+          const f = engine();
+          if (target.kind === "death_save") {
+            if (last.roll.kind !== "death_save") return notApplicable();
+            // The die again (Inspiration checked), then the same save on the state before it.
+            const die = await f.heroicReroll(
+              record.build,
+              record.state,
+              { kind: "single", roll: last.roll.die, die: 0 },
+              record.content,
+            );
+            if (!die.ok) return die;
+            const again = die.roll as typeof last.roll.die;
+            const result = await f.applyPlayAction(
+              record.build,
+              last.roll.before,
+              [{ type: "spend_inspiration" }, { type: "death_save", roll: again.total }],
+              record.content,
+            );
+            if (!result.ok) return result;
+            if (!commitCharacter(record, record.build, result.state)) return replaced();
+            useUi.getState().showDice([{ kind: "roll", who, roll: again }]);
+            toastNotes(result.notes);
+            remember(id, { kind: "death_save", die: again, before: last.roll.before });
+            return result;
+          }
+          const resolved = rerollTarget(last.roll, target);
+          if (!resolved) return notApplicable();
+          const result = await f.heroicReroll(
+            record.build,
+            record.state,
+            resolved.target,
+            record.content,
+          );
+          if (!result.ok) return result;
+          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          changed(id, who, last.roll, { ...resolved.at, roll: result.roll });
+          return { ok: true as const, state: result.state, notes: [] };
+        },
+        replaced,
+      );
+    },
+
+    setCritical(id, attack, critical) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const last = windowOf(id);
+          if (!last.ok) return last;
+          const roll =
+            last.roll.kind === "sheet" ? last.roll.roll.rolls.attacks[attack] : undefined;
+          if (!roll) return notApplicable();
+          const result = await engine().setCritical(roll, critical);
+          if (!result.ok) return result;
+          // Nothing spent: the record (and so the window) doesn't change.
+          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll }, false);
+          return { ok: true as const };
         },
         replaced,
       );
@@ -885,6 +1156,63 @@ const recordOf = (record: EncounterRecord): Pick<EncounterRecord, "name" | "log"
   log: record.log,
   ...(record.modes ? { modes: record.modes } : {}),
 });
+
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+function showTest(who: string, test: D20TestResult) {
+  useUi.getState().showDice([{ kind: "test", who, test }]);
+}
+
+function notApplicable(): Refusal {
+  const reason = t("errors.rollNotApplicable");
+  useUi.getState().toast([reason], "error");
+  return { ok: false, reasons: [reason] };
+}
+
+/** The engine's reroll target for a die of the last roll, and where its result goes back. */
+function rerollTarget(
+  last: LastRoll,
+  target: Exclude<HeroicTarget, { kind: "death_save" }>,
+): {
+  target: import("srd-rules-engine").RerollTarget;
+  at: { attack?: number; damage?: boolean; die?: boolean };
+} | null {
+  if (last.kind === "test") {
+    if (target.kind === "d20")
+      return { target: { kind: "d20", roll: last.test, die: target.die }, at: {} };
+    if (target.kind === "bonus_die")
+      return {
+        target: { kind: "bonus_die", roll: last.test, group: target.group, die: target.die },
+        at: {},
+      };
+    return null;
+  }
+  if (last.kind !== "sheet") return null;
+  const rolls = last.roll.rolls;
+  if (target.kind === "feature_die") {
+    return rolls.die
+      ? { target: { kind: "single", roll: rolls.die, die: target.die }, at: { die: true } }
+      : null;
+  }
+  if (target.kind === "damage" && target.attack === undefined) {
+    return rolls.damage
+      ? {
+          target: { kind: "damage", roll: rolls.damage, part: target.part, die: target.die },
+          at: { damage: true },
+        }
+      : null;
+  }
+  const attack = rolls.attacks[target.attack ?? 0];
+  if (!attack) return null;
+  const at = { attack: target.attack ?? 0 };
+  if (target.kind === "d20") return { target: { kind: "d20", roll: attack, die: target.die }, at };
+  if (target.kind === "bonus_die")
+    return {
+      target: { kind: "bonus_die", roll: attack, group: target.group, die: target.die },
+      at,
+    };
+  return { target: { kind: "damage", roll: attack, part: target.part, die: target.die }, at };
+}
 
 function missing(): Refusal {
   return { ok: false, reasons: [t("errors.documentGone")] };

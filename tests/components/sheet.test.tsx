@@ -281,6 +281,9 @@ describe("sheet", () => {
     );
     const dialog = await screen.findByRole("dialog");
     await userEvent.click(within(dialog).getByRole("button", { name: "Spend a d10" }));
+    // The die is the engine's roll, then its preview (F-005: one die at a time, nothing saved yet).
+    await within(dialog).findByTestId("rest-preview", {}, { timeout: 10_000 });
+    expect(useDocuments.getState().characters[id]?.state.hit_dice_spent["10"]).toBeUndefined();
     await userEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
     await waitFor(() =>
       expect(useDocuments.getState().characters[id]?.state.hit_dice_spent["10"]).toBe(1),

@@ -22,6 +22,8 @@ import { FeaturesTab } from "./FeaturesTab";
 import { HitPointsPanel, RestButtons } from "./HitPoints";
 import { InventoryTab, StartingEquipment } from "./InventoryTab";
 import { OverviewTab } from "./OverviewTab";
+import { RollFollowUps } from "./RollFollowUps";
+import { RollOptions } from "./RollOptions";
 import { SpellsTab } from "./SpellsTab";
 import type { SheetTab } from "./tabs";
 
@@ -168,6 +170,8 @@ function Sheet({
       <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <HitPointsPanel id={id} sheet={sheet} />
+          <RollFollowUps id={id} sheet={sheet} />
+          <RollOptions id={id} sheet={sheet} />
         </aside>
         <Tabs<SheetTab>
           label={t("sheet.tabs")}

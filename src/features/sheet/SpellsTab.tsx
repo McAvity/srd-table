@@ -7,17 +7,25 @@
  */
 
 import { useState } from "react";
-import type { PlaySheet, PlaySpellLine, SpellDef, SpellSlotChoice } from "srd-rules-engine";
+import type {
+  PlaySheet,
+  PlaySpellLine,
+  RollWhat,
+  SpellDef,
+  SpellSlotChoice,
+} from "srd-rules-engine";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { abilityName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
+import { attackDm, useRollAdditions } from "@/store/rolls";
 import { MoreText } from "../builder/ChoiceCard";
 import { usePlay } from "./usePlay";
 
 export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, roll, reasons, busy } = usePlay(id);
+  const additions = useRollAdditions((st) => st.by[id]);
   const { data: spells } = useTable<SpellDef>("spells", { character: id });
   const byId = new Map((spells ?? []).map((s) => [s.id, s]));
   const levels = [...new Set(sheet.spells.map((s) => s.level))].sort((a, b) => a - b);
@@ -133,14 +141,19 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       <RollSpell
                         spell={s}
                         busy={busy}
-                        onRoll={(slot, spellcasting) =>
+                        onRoll={(pay, spellcasting) =>
                           void roll({
                             type: "cast",
                             spell: s.id,
-                            ...(slot ? { slot_level: slot.level } : {}),
-                            ...(slot?.pact ? { pact: true } : {}),
-                            ...(spellcasting ? { spellcasting } : {}),
-                          })
+                            ...(pay?.kind === "slot" ? { slot_level: pay.slot.level } : {}),
+                            ...(pay?.kind === "slot" && pay.slot.pact ? { pact: true } : {}),
+                            ...(pay?.kind === "free"
+                              ? { payment: { type: "free", use: pay.use } }
+                              : {}),
+                            ...(pay?.kind === "ritual" ? { payment: { type: "ritual" } } : {}),
+                            ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
+                            ...attackDm(additions),
+                          } as RollWhat)
                         }
                       />
                       {def?.description && <MoreText title={s.name} text={def.description} />}
@@ -163,6 +176,11 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
  * when it lists several (the same spell given twice), the player picks one first: nothing is
  * chosen for them.
  */
+export type SpellPay =
+  | { readonly kind: "slot"; readonly slot: SpellSlotChoice }
+  | { readonly kind: "free"; readonly use: string }
+  | { readonly kind: "ritual" };
+
 function RollSpell({
   spell,
   busy,
@@ -170,21 +188,36 @@ function RollSpell({
 }: {
   spell: PlaySpellLine;
   busy: boolean;
-  onRoll: (slot: SpellSlotChoice | null, spellcasting: string | null) => void;
+  onRoll: (pay: SpellPay | null, spellcasting: string | null) => void;
 }) {
   const key = (slot: SpellSlotChoice) => `${slot.pact ? "pact" : "slot"}:${slot.level}`;
   const first = spell.slots.find((slot) => slot.available);
-  const [picked, setPicked] = useState(() => (first ? key(first) : ""));
-  const slot = spell.slots.find((x) => key(x) === picked) ?? first ?? null;
+  const free = spell.free.find((f) => f.available);
+  const [picked, setPicked] = useState(() =>
+    first ? key(first) : free ? `free:${free.use}` : spell.ritual ? "ritual" : "",
+  );
+  const slot = spell.slots.find((x) => key(x) === picked) ?? null;
+  const pay: SpellPay | null = picked.startsWith("free:")
+    ? { kind: "free", use: picked.slice(5) }
+    : picked === "ritual"
+      ? { kind: "ritual" }
+      : slot
+        ? { kind: "slot", slot }
+        : null;
   const leveled = spell.slots.length > 0;
   const sources = spell.spellcasting;
   const [castWith, setCastWith] = useState<string | null>(null);
   const spellcasting = sources.length === 1 ? (sources[0] ?? null) : castWith;
-  // Nothing to cast it with: the first slot's reason (they all say the same thing).
-  const slotReason = leveled && !first ? (spell.slots[0]?.reason?.text ?? null) : null;
-  const reason =
-    slotReason ??
-    (sources.length > 1 && spellcasting === null ? t("sheet.chooseSpellcasting") : null);
+  // Nothing to cast it with: the first slot's reason (they all say the same thing), unless a free
+  // cast or a ritual still can.
+  const otherWay = Boolean(free) || spell.ritual;
+  const slotReason = leveled && !first && !otherWay ? (spell.slots[0]?.reason?.text ?? null) : null;
+  const pickSource = sources.length > 1 && spellcasting === null && pay?.kind !== "free";
+  let reason: string | null = null;
+  if (spell.blocked) reason = spell.blocked.text;
+  else if (slotReason) reason = slotReason;
+  else if (leveled && pay === null) reason = spell.slots[0]?.reason?.text ?? null;
+  else if (pickSource) reason = t("sheet.chooseSpellcasting");
   const reasonId = `cast-${spell.id}-${spell.source}`;
   return (
     <>
@@ -203,11 +236,11 @@ function RollSpell({
           ))}
         </select>
       )}
-      {leveled && first && (
+      {leveled && (first || otherWay) && (
         <select
           className="field w-auto py-1 text-sm"
           aria-label={t("sheet.castAt", { spell: spell.name })}
-          value={slot ? key(slot) : ""}
+          value={picked}
           onChange={(e) => setPicked(e.target.value)}
         >
           {spell.slots.map((x) => (
@@ -218,6 +251,15 @@ function RollSpell({
               {x.reason ? ` · ${x.reason.text}` : ""}
             </option>
           ))}
+          {spell.free.map((f) => (
+            <option key={f.use} value={`free:${f.use}`} disabled={!f.available}>
+              {t("sheet.castFree", { use: f.name })}
+              {f.reason
+                ? ` · ${f.reason.text}`
+                : ` · ${t("common.left", { left: f.left, total: f.left })}`}
+            </option>
+          ))}
+          {spell.ritual && <option value="ritual">{t("sheet.castRitual")}</option>}
         </select>
       )}
       {reason && (
@@ -231,7 +273,7 @@ function RollSpell({
         title={t("sheet.rollSpellHint")}
         disabled={busy || reason !== null}
         aria-describedby={reason ? reasonId : undefined}
-        onClick={() => onRoll(leveled ? slot : null, spellcasting)}
+        onClick={() => onRoll(leveled ? pay : null, spellcasting)}
       >
         {t("sheet.rollByHand")}
       </Button>

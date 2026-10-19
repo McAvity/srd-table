@@ -98,6 +98,7 @@ function Test({ test }: { test: D20TestResult }) {
         {...(outcome ? { outcome } : {})}
         tone={tone}
       />
+      <BonusDice dice={test.bonus_dice} modifiers={test.modifiers} />
       {test.reasons.length > 0 && (
         <ul className="mt-1 text-[13px] text-ink-muted">
           {test.reasons.map((r) => (
@@ -106,6 +107,36 @@ function Test({ test }: { test: D20TestResult }) {
         </ul>
       )}
     </>
+  );
+}
+
+/** The GM's modifiers and bonus dice the engine added to a roll, as it lists them. */
+function BonusDice({
+  dice,
+  modifiers,
+}: {
+  dice:
+    | readonly { label: string; dice: string; rolls: readonly number[]; total: number }[]
+    | undefined;
+  modifiers: readonly { label: string; value: number }[] | undefined;
+}) {
+  if (!dice?.length && !modifiers?.length) return null;
+  return (
+    <ul className="mt-1 text-[13px] text-ink-muted">
+      {modifiers?.map((m, i) => (
+        <li key={`m${i}`}>{t("dice.modifier", { label: m.label, value: signed(m.value) })}</li>
+      ))}
+      {dice?.map((d, i) => (
+        <li key={`d${i}`}>
+          {t("dice.bonusDie", {
+            label: d.label,
+            dice: d.dice,
+            rolls: d.rolls.join(", "),
+            total: signed(d.total),
+          })}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -341,6 +372,7 @@ function Declared({ result }: { result: DeclaredResult }) {
                 ? { outcome: t("dice.naturalOne"), tone: "bad" as const }
                 : {})}
           />
+          <BonusDice dice={a.bonus_dice} modifiers={a.modifiers} />
           {a.reasons.length > 0 && (
             <ul className="text-[13px] text-ink-muted">
               {a.reasons.map((r) => (
@@ -352,6 +384,12 @@ function Declared({ result }: { result: DeclaredResult }) {
         </div>
       ))}
       {rolls.damage && <Damage damage={rolls.damage} />}
+      {rolls.die && (
+        <div className="text-sm">
+          {t("dice.featureDie", { dice: rolls.die.dice_expression })}:{" "}
+          <span className="font-bold">{rolls.die.total}</span>
+        </div>
+      )}
       {rolls.healing !== null && (
         <div className="text-sm">
           {t("dice.healingRolled")}: <span className="font-bold text-green">{rolls.healing}</span>

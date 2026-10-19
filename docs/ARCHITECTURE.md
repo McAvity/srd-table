@@ -257,6 +257,35 @@ seed). The **dice tray** (`components/DiceTray.tsx`) shows each result as text f
 it's the stub for 3D dice, which can replace `DiceCard` and animate the same numbers after the
 fact (dice-box-threejs accepts predetermined results).
 
+## Player actions on the sheet (kenli F-005)
+
+The engine computes, the sheet picks and shows; every change is one engine call and one commit
+through the document queue (`guarded`, `commitCharacter` with `rev`/`gen`), on the record's own
+content (`record.content`).
+
+- **Payments.** A spell's play-sheet line lists its slots, free casts (`free`) and `ritual`; the
+  Spells tab offers them and sends `RollWhat.cast.payment`. A feature with `slot_payment` gets a
+  slot picker (`use_feature.payment`: Font of Inspiration always, a slot instead of a spent use);
+  `blocked` (armor without training) disables the roll with the engine's reason.
+- **The GM's additions** (`RollOptions`, `src/store/rolls.ts` `useRollAdditions`): a mode, a
+  modifier, a bonus die and damage additions for the character's next rolls, sent as
+  `rollCheck` options or `RollWhat.attack/cast.dm`; a luck-style use (`spend_for`) can be declared
+  for the next D20 Test and is spent in the same commit.
+- **The last roll** (`useRolls`, `RollFollowUps`): kept per character with the record's `rev`/`gen`
+  after its cost was paid; any later change (or an import replacing the record) closes it
+  (`errors.rerollWindowClosed`), and a reload too (memory only). Heroic Inspiration rerolls one die
+  (`heroicReroll`: d20, bonus die, damage die, a feature's die), late Advantage spends a use
+  (`lateAdvantage`), the table sets a Critical Hit (`setCritical`, nothing spent): never through
+  `rollByHand` again, so a roll's slot or use is paid once. A death save is the engine's d20 then
+  `death_save` with that roll; Heroic Inspiration makes it again from the state before it (one
+  commit; Undo goes back to the first result).
+- **Short Rest** spends Hit Point Dice one at a time: each die is the engine's roll, the dialog
+  shows the engine's preview (`applyPlayAction`, not committed), Heroic Inspiration can reroll the
+  last die; Confirm is one `short_rest` with every die, so what it gives back comes once; Cancel
+  saves nothing.
+- Grapple and Shove are on the sheet (`rollByHand` `unarmed`); the engine's notes (what the save
+  decides, a ritual's extra time, a feature's effect left to the table) are shown as toasts.
+
 ## Manual play
 
 Redesigned 2026-10-10 by the app's owner (the first design, with an outcome step and dice

@@ -20,7 +20,9 @@ import {
   type Alignment,
   type AreaPreview,
   type AreaRequest,
+  type AttackDice,
   abilityModifier,
+  addAdvantageDie,
   BuildError,
   type ByHandRoll,
   builder,
@@ -42,6 +44,7 @@ import {
   createEncounter,
   createState,
   currentCombatant,
+  type D20TestOptions,
   type D20TestRequest,
   type D20TestResult,
   DAMAGE_TYPES,
@@ -57,6 +60,7 @@ import {
   applyEncounterAction as engineApplyEncounterAction,
   previewArea as enginePreviewArea,
   previewMove as enginePreviewMove,
+  setCritical as engineSetCritical,
   zoneSquares as engineZoneSquares,
   evaluate,
   gridDistance,
@@ -85,6 +89,7 @@ import {
   playBuild,
   pointBuyStatus,
   type Reachable,
+  type RerollTarget,
   type Rng,
   type RolledDamage,
   type RollResult,
@@ -92,6 +97,7 @@ import {
   RuleError,
   reachableSquares,
   reconcileState,
+  rerollDie,
   resolve,
   roll,
   rollAbilityScores,
@@ -132,6 +138,11 @@ export interface Refusal {
   readonly reason_messages?: readonly Message[];
 }
 export type Outcome<T> = ({ readonly ok: true } & T) | Refusal;
+
+/** The GM's additions to a sheet's D20 Test (`D20TestOptions` without the dice). */
+export type TestOptions = Omit<D20TestOptions, "rng">;
+/** A roll that a late Advantage, a reroll or a Critical Hit can change. */
+export type ChangeableRoll = D20TestResult | AttackDice;
 
 export type LevelUpOption = builder.LevelUpOption;
 export type StatChange = builder.StatChange;
@@ -457,7 +468,31 @@ export interface EngineFacade {
     state: CharacterState,
     request: D20TestRequest,
     content?: ContentContext,
+    options?: TestOptions,
   ): Promise<D20TestResult>;
+  /**
+   * Advantage after the roll (a luck-style resource: `spend_for: d20_advantage`): the `use` spent
+   * on the state and `addAdvantageDie` on the roll, both or neither. No cost of the roll itself.
+   */
+  lateAdvantage(
+    build: CharacterBuild,
+    state: CharacterState,
+    roll: ChangeableRoll,
+    use: string,
+    content?: ContentContext,
+  ): Promise<Outcome<{ roll: ChangeableRoll; state: CharacterState }>>;
+  /**
+   * Heroic Inspiration: `spend_inspiration` on the state and `rerollDie` on the target (a d20, a
+   * bonus die, a damage die, a single die), both or neither; a Critical Hit gained rolls its dice.
+   */
+  heroicReroll(
+    build: CharacterBuild,
+    state: CharacterState,
+    target: RerollTarget,
+    content?: ContentContext,
+  ): Promise<Outcome<{ roll: RerollTarget["roll"]; state: CharacterState }>>;
+  /** A Critical Hit the table decides or takes back (`setCritical`): nothing is spent. */
+  setCritical(attack: AttackDice, critical: boolean): Promise<Outcome<{ roll: AttackDice }>>;
   /** The catalog items a magic item can be made from (`[]`: none, or no base). */
   magicItemBases(magicItemId: string, content?: ContentContext): Promise<readonly string[]>;
   /** What `take_starting_equipment` adds: the build's starting equipment and gold. */
@@ -698,8 +733,36 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     rollAbilityScores: async () => rollAbilityScores(rng),
 
     createState: (build, ctx) => content.run(ctx, "play", (catalog) => createState(build, catalog)),
-    rollCheck: (build, state, request, ctx) =>
-      content.run(ctx, "play", (catalog) => rollCheck(build, state, catalog, request, { rng })),
+    rollCheck: (build, state, request, ctx, options) =>
+      content.run(ctx, "play", (catalog) =>
+        rollCheck(build, state, catalog, request, { ...options, rng }),
+      ),
+    lateAdvantage: (build, state, rolled, use, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const sheet = computePlaySheet(build, state, catalog);
+          const label = sheet.play.uses.find((u) => u.key === use)?.name ?? use;
+          const paid = engineApplyAction(build, state, catalog, { type: "use", key: use }, { rng });
+          // Disadvantage alone becomes a normal roll keeping its first die: no new die.
+          const source = rolled.roll.mode === "disadvantage" ? null : { rng };
+          return { roll: addAdvantageDie(rolled, source, label, { rng }), state: paid.state };
+        }),
+      ),
+    heroicReroll: (build, state, target, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const paid = engineApplyAction(
+            build,
+            state,
+            catalog,
+            { type: "spend_inspiration" },
+            { rng },
+          );
+          return { roll: rerollDie(target, { rng }, { rng }), state: paid.state };
+        }),
+      ),
+    setCritical: async (attack, critical) =>
+      attempt(() => ({ roll: engineSetCritical(attack, critical, { rng }) })),
     magicItemBases: (id, ctx) => content.run(ctx, "play", (catalog) => magicItemBases(catalog, id)),
     startingEquipment: (build, ctx) =>
       content.run(ctx, "play", (catalog) => startingEquipment(build, catalog)),

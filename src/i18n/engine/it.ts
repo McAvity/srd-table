@@ -830,6 +830,40 @@ export const ENGINE_IT = {
   "manual.save":
     "{what}: tiro salvezza su {ability, select, none {Forza o Destrezza (a scelta del bersaglio)} other {{ability}}} con CD {dc}.",
   "manual.declared": "{name} usa {what}{level, plural, =0 {} other { al livello #}}, a mano.",
+  // Azioni del giocatore: pagamenti, lanci gratuiti e rituali, tiri cambiati dopo (F-005).
+  "reason.armor_untrained": "{name} indossa {armor} senza addestramento",
+  "reason.mode_override":
+    "il GM impone {mode, select, advantage {Vantaggio} disadvantage {Svantaggio} other {un tiro normale}}: {reason}",
+  "reason.d20_floor": "{label}: il d20 conta come {min}",
+  "refusal.nothing_to_restore": "{feature}: nessun uso di {use} da recuperare",
+  "refusal.payment_required": "{feature} richiede uno slot incantesimo",
+  "refusal.payment_not_accepted": "{feature} non si paga con uno slot incantesimo",
+  "refusal.incapacitated_feature": "{feature}: {name} è Incapacitato",
+  "refusal.free_cast_spent": "{use}: nessun uso rimasto",
+  "refusal.free_cast_not_for_spell": "{use} non lancia {spell}",
+  "refusal.free_cast_base_level": "{spell} tramite {use} si lancia al livello {level}",
+  "refusal.free_cast_source": "{spell} tramite {use} si lancia con {spellcasting}",
+  "refusal.not_ritual": "{spell} non è un rituale",
+  "refusal.ritual_no_slot": "{spell} come rituale non richiede slot incantesimo",
+  "refusal.roll_not_applicable": "Questo tiro non si può cambiare così",
+  "refusal.dice_unexpected": "Nessun nuovo dado: il tiro tiene il primo d20",
+  "refusal.dice_missing": "Indica il valore del nuovo dado",
+  "refusal.reroll_die_unknown": "Nessun dado del genere da ritirare",
+  "refusal.dm_roll_not_applicable":
+    "{what}: nessun {part, select, attack {tiro per colpire} other {danno}} a cui aggiungere",
+  "refusal.no_heroic_inspiration": "{name} non ha Ispirazione Eroica",
+  "refusal.armor_untrained_no_spellcasting":
+    "{name} non può lanciare incantesimi in {armor} senza addestramento",
+  "play.feature_restores": "{feature}: recuperato un uso di {use}",
+  "play.forced": "{feature}: usato comunque (decisione del GM)",
+  "feature.manual_effect": "{feature}: il suo effetto lo risolve il tavolo",
+  "cast.ritual": "{spell} lanciato come rituale: nessuno slot, 10 minuti in più",
+  "cast.free": "{spell} lanciato con {use}: nessuno slot",
+  "unarmed.grapple":
+    "Lotta, CD {dc}: il bersaglio fa un tiro salvezza su Forza o Destrezza (a sua scelta) o ha la condizione Afferrato. Solo una creatura al massimo di una taglia più grande di te, con una tua mano libera.",
+  "unarmed.shove":
+    "Spinta, CD {dc}: il bersaglio fa un tiro salvezza su Forza o Destrezza (a sua scelta) o lo spingi di 1,5 metri o lo fai cadere Prono. Solo una creatura al massimo di una taglia più grande di te.",
+  "roll.initiative": "Iniziativa",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */

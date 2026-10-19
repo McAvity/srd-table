@@ -4,18 +4,26 @@
  */
 
 import { useState } from "react";
-import type { ConditionDef, PlaySheet } from "srd-rules-engine";
+import type { ConditionDef, PlayAction, PlaySheet, RollResult } from "srd-rules-engine";
 import { Explain } from "@/components/Explain";
 import { Icon } from "@/components/Icon";
 import { Button, cx, Dialog, Gems, HpBar, Reasons, Section } from "@/components/ui";
+import { engine } from "@/engine/client";
 import { damageTypes } from "@/engine/constants";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
-import { usePlay } from "./usePlay";
+import { useDocuments } from "@/store/documents";
+import { useUi } from "@/store/ui";
+import { usePlay, usePlayResult } from "./usePlay";
 
 export function HitPointsPanel({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const { act, reasons, busy } = usePlay(id);
+  const { act, reasons: actReasons, busy: acting } = usePlay(id);
+  // A death save is rolled by the engine and remembered, so Heroic Inspiration can redo it.
+  const { run, reasons: saveReasons, busy: saving } = usePlayResult();
+  const deathSave = useDocuments((s) => s.deathSave);
+  const reasons = actReasons ?? saveReasons;
+  const busy = acting || saving;
   const { play } = sheet;
   const [amount, setAmount] = useState("");
   const [damageType, setDamageType] = useState("");
@@ -145,7 +153,7 @@ export function HitPointsPanel({ id, sheet }: { id: string; sheet: PlaySheet }) 
                 size="sm"
                 icon="d20"
                 disabled={busy}
-                onClick={() => void act({ type: "death_save" })}
+                onClick={() => void run(() => deathSave(id))}
               >
                 {t("sheet.rollDeathSave")}
               </Button>
@@ -294,15 +302,80 @@ export function ConditionMedal({ label }: { label?: string }) {
   );
 }
 
+/**
+ * Short and Long Rests. A Short Rest spends Hit Point Dice one at a time: each is the engine's
+ * roll (shown in the tray), the dialog shows the engine's preview of the rest so far (nothing
+ * saved), and the player decides on the next die after seeing it; Heroic Inspiration can reroll
+ * the last die before confirming. Confirm is one `short_rest` with every die rolled, so what a
+ * Short Rest gives back comes once; Cancel saves nothing (contract actions.md §7.1).
+ */
 export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons, busy, clear } = usePlay(id);
+  const record = useDocuments((s) => s.characters[id]);
   const [open, setOpen] = useState<"short" | "long" | null>(null);
-  const [spend, setSpend] = useState<Record<number, number>>({});
+  const [rolled, setRolled] = useState<readonly { die: number; roll: RollResult }[]>([]);
+  const [heroic, setHeroic] = useState(false);
+  const [preview, setPreview] = useState<{ hp: number; max: number } | null>(null);
+  const [problem, setProblem] = useState<readonly string[] | null>(null);
   const close = () => {
     setOpen(null);
-    setSpend({});
+    setRolled([]);
+    setHeroic(false);
+    setPreview(null);
+    setProblem(null);
     clear();
   };
+  const actions = (
+    dice: readonly { die: number; roll: RollResult }[],
+    spent: boolean,
+  ): PlayAction[] => [
+    ...(spent ? [{ type: "spend_inspiration" as const }] : []),
+    { type: "short_rest", hit_dice: dice.map((d) => ({ die: d.die, roll: d.roll.total })) },
+  ];
+  async function show(dice: readonly { die: number; roll: RollResult }[], spent: boolean) {
+    if (!record) return;
+    const f = engine();
+    const after = await f.applyPlayAction(
+      record.build,
+      record.state,
+      actions(dice, spent),
+      record.content,
+    );
+    if (!after.ok) {
+      setProblem(after.reasons);
+      setPreview(null);
+      return;
+    }
+    setProblem(null);
+    const view = await f.playSheet(record.build, after.state, record.content);
+    setPreview({ hp: view.sheet.play.hp.current, max: view.sheet.play.hp.max });
+  }
+  async function rollDie(die: number) {
+    const r = await engine().roll(`1d${die}`);
+    if (!r.ok) return setProblem(r.reasons);
+    useUi.getState().showDice([{ kind: "roll", who: record?.build.name ?? "", roll: r.roll }]);
+    const next = [...rolled, { die, roll: r.roll }];
+    setRolled(next);
+    await show(next, heroic);
+  }
+  async function rerollLast() {
+    const last = rolled.at(-1);
+    if (!record || !last) return;
+    const r = await engine().heroicReroll(
+      record.build,
+      record.state,
+      { kind: "single", roll: last.roll, die: 0 },
+      record.content,
+    );
+    if (!r.ok) return setProblem(r.reasons);
+    const again = r.roll as RollResult;
+    useUi.getState().showDice([{ kind: "roll", who: record.build.name ?? "", roll: again }]);
+    const next = [...rolled.slice(0, -1), { die: last.die, roll: again }];
+    setRolled(next);
+    setHeroic(true);
+    await show(next, true);
+  }
+  const spentOf = (die: number) => rolled.filter((d) => d.die === die).length;
   return (
     <>
       <Button size="sm" icon="hourglass" onClick={() => setOpen("short")}>
@@ -323,17 +396,12 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
             <Button
               variant="primary"
               icon={open === "long" ? "moon" : "hourglass"}
-              disabled={busy}
+              disabled={busy || (open === "short" && problem !== null)}
               onClick={async () => {
                 const ok =
                   open === "long"
                     ? await act({ type: "long_rest" })
-                    : await act({
-                        type: "short_rest",
-                        hit_dice: Object.entries(spend).flatMap(([die, count]) =>
-                          Array.from({ length: count }, () => ({ die: Number(die) })),
-                        ),
-                      });
+                    : await act(actions(rolled, heroic));
                 if (ok) close();
               }}
             >
@@ -342,41 +410,47 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
           </>
         }
       >
-        <Reasons reasons={reasons} className="mb-2" />
+        <Reasons reasons={reasons ?? problem} className="mb-2" />
         {open === "short" && (
           <div className="space-y-2">
-            <p className="text-sm text-ink-muted">{t("sheet.shortRestDice")}</p>
+            <p className="text-sm text-ink-muted">{t("sheet.shortRestSequential")}</p>
             {sheet.play.hit_dice.map((d) => {
-              const left = d.total - d.spent;
-              const count = spend[d.die] ?? 0;
+              const left = d.total - d.spent - spentOf(d.die);
               return (
                 <div key={d.die} className="flex items-center gap-3">
                   <span className="w-12 font-semibold">d{d.die}</span>
                   <span className="text-sm text-ink-muted">
                     {t("common.left", { left, total: d.total })}
                   </span>
-                  <span className="ml-auto flex items-center gap-1.5">
-                    <Button
-                      size="sm"
-                      icon="minus"
-                      iconOnly
-                      label={`${t("common.remove")} d${d.die}`}
-                      disabled={count === 0}
-                      onClick={() => setSpend({ ...spend, [d.die]: count - 1 })}
-                    />
-                    <output className="w-6 text-center tabular-nums">{count}</output>
-                    <Button
-                      size="sm"
-                      icon="plus"
-                      iconOnly
-                      label={t("sheet.spendHitDie", { die: d.die })}
-                      disabled={count >= left}
-                      onClick={() => setSpend({ ...spend, [d.die]: count + 1 })}
-                    />
-                  </span>
+                  <Button
+                    size="sm"
+                    icon="d20"
+                    className="ml-auto"
+                    disabled={busy || left <= 0}
+                    onClick={() => void rollDie(d.die)}
+                  >
+                    {t("sheet.spendHitDie", { die: d.die })}
+                  </Button>
                 </div>
               );
             })}
+            {rolled.length > 0 && (
+              <p className="text-sm" data-testid="rest-dice">
+                {t("sheet.hitDiceRolled", {
+                  dice: rolled.map((d) => `d${d.die}: ${d.roll.total}`).join(", "),
+                })}
+              </p>
+            )}
+            {preview && (
+              <p className="text-sm font-semibold" data-testid="rest-preview">
+                {t("sheet.restPreview", { hp: preview.hp, max: preview.max })}
+              </p>
+            )}
+            {rolled.length > 0 && sheet.play.heroic_inspiration && !heroic && (
+              <Button size="sm" disabled={busy} onClick={() => void rerollLast()}>
+                {t("sheet.heroicLastHitDie")}
+              </Button>
+            )}
           </div>
         )}
       </Dialog>

@@ -8,13 +8,15 @@
  */
 
 import { useState } from "react";
-import type { PlaySheet } from "srd-rules-engine";
+import type { PlaySheet, RollWhat } from "srd-rules-engine";
 import { Icon } from "@/components/Icon";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { signed, t } from "@/i18n";
-import { rollDamage, rollTest } from "@/store/dice";
+import { rollDamage } from "@/store/dice";
 import { useDocuments } from "@/store/documents";
+import { attackDm, useRollAdditions } from "@/store/rolls";
 import { useSettings } from "@/store/settings";
+import { useRoller } from "./OverviewTab";
 import { usePlay } from "./usePlay";
 
 export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
@@ -43,6 +45,8 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const name = useDocuments((s) => s.characters[id]?.build.name ?? "");
   const { roll, reasons, busy } = usePlay(id);
+  const additions = useRollAdditions((s) => s.by[id]);
+  const test = useRoller(id, sheet);
   if (!sheet.attacks.length) return null;
   return (
     <Section title={t("sheet.attacks")}>
@@ -93,7 +97,13 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       icon="d20"
                       title={t("sheet.rollAttackHint")}
                       disabled={busy}
-                      onClick={() => void roll({ type: "attack", attack: a.name })}
+                      onClick={() =>
+                        void roll({
+                          type: "attack",
+                          attack: a.name,
+                          ...attackDm(additions),
+                        } as RollWhat)
+                      }
                     >
                       {t("sheet.rollByHand")}
                     </Button>
@@ -102,7 +112,7 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       icon="d20"
                       iconOnly
                       label={`${a.name}: ${t("dice.attack")}`}
-                      onClick={() => void rollTest(id, { attack: a.name })}
+                      onClick={() => test({ attack: a.name })}
                     />
                     <Button
                       size="sm"
@@ -125,6 +135,20 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
           </tbody>
         </table>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-ink-muted">{t("sheet.unarmedOptions")}</span>
+        {(["grapple", "shove"] as const).map((option) => (
+          <Button
+            key={option}
+            size="sm"
+            icon="d20"
+            disabled={busy}
+            onClick={() => void roll({ type: "unarmed", option })}
+          >
+            {t(option === "grapple" ? "sheet.grapple" : "sheet.shove")}
+          </Button>
+        ))}
+      </div>
     </Section>
   );
 }
@@ -132,6 +156,9 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
 function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, roll, reasons, busy } = usePlay(id);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  // A spell slot paying for a feature (`slot_payment`): its level, or "" for its use.
+  const [slots, setSlots] = useState<Record<string, string>>({});
+  const levels = sheet.play.spell_slots.filter((s) => s.total > 0);
   const byHandFirst = useSettings((s) => s.settings.character_play === "manual");
   if (!sheet.actions.length) return null;
   const uses = new Map(sheet.play.uses.map((u) => [u.key, u]));
@@ -143,8 +170,17 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
           const use = a.uses ? uses.get(a.uses) : undefined;
           const amount = Number.parseInt(amounts[a.key] ?? "", 10);
           const amountSet = a.pool && Number.isInteger(amount) && amount > 0 ? { amount } : {};
+          const picked =
+            slots[a.key] ??
+            (a.slot_payment === "required"
+              ? String(levels.find((l) => l.spent < l.total)?.level ?? "")
+              : "");
+          const payment = picked
+            ? { payment: { type: "slot" as const, level: Number(picked) } }
+            : {};
+          const paid = { ...amountSet, ...payment };
           // Dice to roll by hand: its healing, or the damage and DC of the save it forces.
-          const rollable = a.heal !== null || a.save !== null;
+          const rollable = a.heal !== null || a.save !== null || Boolean(a.roll_die);
           return (
             <li
               key={a.key}
@@ -157,6 +193,25 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                   {use && ` · ${t("common.left", { left: use.max - use.spent, total: use.max })}`}
                 </span>
               </span>
+              {a.slot_payment && (
+                <select
+                  className="field w-auto py-1 text-sm"
+                  aria-label={t("sheet.payWithSlot", { feature: a.name })}
+                  value={picked}
+                  onChange={(e) => setSlots({ ...slots, [a.key]: e.target.value })}
+                >
+                  {a.slot_payment === "instead" && (
+                    <option value="">{t("sheet.payWithUse")}</option>
+                  )}
+                  {levels.map((l) => (
+                    <option key={l.level} value={String(l.level)} disabled={l.spent >= l.total}>
+                      {t("sheet.slotLevel", { level: l.level })} ·{" "}
+                      {t("common.left", { left: l.total - l.spent, total: l.total })}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {a.roll_die && <span className="text-[13px] text-ink-muted">{a.roll_die}</span>}
               {a.pool && (
                 <input
                   className="field w-20"
@@ -180,8 +235,8 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     disabled={busy}
                     onClick={() =>
                       void (manual
-                        ? roll({ type: "feature", feature: a.key, ...amountSet })
-                        : act({ type: "use_feature", key: a.key, ...amountSet }))
+                        ? roll({ type: "feature", feature: a.key, ...paid })
+                        : act({ type: "use_feature", key: a.key, ...paid }))
                     }
                   >
                     {manual ? t("table.wayManual") : t("sheet.useFeature")}

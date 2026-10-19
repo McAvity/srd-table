@@ -10,11 +10,30 @@ import { abilities, abilityName, skillName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useNames } from "@/queries";
-import { rollTest } from "@/store/dice";
+import { useDocuments } from "@/store/documents";
+import { testOptions, useRollAdditions } from "@/store/rolls";
 
-/** The engine rolls the check, save or attack for this character (`rollCheck`). */
-function useRoller(id: string) {
-  return (request: D20TestRequest) => void rollTest(id, request);
+/**
+ * The engine rolls the check, save or attack for this character (`rollCheck`), with the GM's
+ * additions set on the sheet; a declared luck-style use is spent with it, then cleared.
+ */
+export function useRoller(id: string, sheet: PlaySheet) {
+  const rollTest = useDocuments((s) => s.rollTest);
+  return (request: D20TestRequest) => {
+    const { by, set } = useRollAdditions.getState();
+    const additions = by[id];
+    const use = additions?.lucky
+      ? sheet.play.uses.find((u) => u.key === additions.lucky)
+      : undefined;
+    void rollTest(
+      id,
+      request,
+      testOptions(additions),
+      use ? { use: use.key, label: use.name } : undefined,
+    ).then((r) => {
+      if (r.ok && use && additions) set(id, { ...additions, lucky: undefined });
+    });
+  };
 }
 
 function RollButton({
@@ -42,12 +61,21 @@ function RollButton({
 }
 
 export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const roll = useRoller(id);
+  const roll = useRoller(id, sheet);
   const toolName = useNames("tools", { character: id });
   const languageName = useNames("languages", { character: id });
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Section title={t("sheet.abilities")}>
+        <p className="mb-1 flex items-center gap-2">
+          <span className="font-semibold">{t("summary.initiative")}</span>
+          <RollButton
+            label={t("summary.initiative")}
+            bonus={sheet.initiative.total}
+            request={{ initiative: true }}
+            onRoll={roll}
+          />
+        </p>
         <table className="w-full text-left">
           <thead>
             <tr className="text-[13px] font-bold text-ink-muted">
