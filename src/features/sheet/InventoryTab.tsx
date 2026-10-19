@@ -1,8 +1,9 @@
 /**
- * Inventory: equip, attune, use (potions, charges), remove, add catalog items (a magic weapon or
- * armor made from a base, an item of a kind), coins; and the notice for starting equipment not
- * taken yet (shown above the sheet's tabs). Every change is a play action; the engine checks
- * attunement limits, charges and bases.
+ * Inventory: equip, attune, use (potions, charges), put away and take back (stored: still owned,
+ * not carried), remove, add catalog items (a magic weapon or armor made from a base, an item of a
+ * kind), coins; and the notice for starting equipment not taken yet (shown above the sheet's
+ * tabs). Every change is a play action; the engine checks attunement limits, charges, bases and
+ * what a stored item can't do (its weight, attacks and magic are the engine's too).
  */
 
 import { useMemo, useState } from "react";
@@ -52,7 +53,9 @@ export function InventoryTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
           <ul className="space-y-1.5">
             {play.inventory.map((item) => {
               const def = magicById.get(item.item);
-              const usable = item.charges !== null || def?.consumable === true;
+              const stored = item.location === "stored";
+              // A stored item can only be taken back, sold or removed (the engine refuses the rest).
+              const usable = !stored && (item.charges !== null || def?.consumable === true);
               return (
                 <li
                   key={item.id}
@@ -75,28 +78,45 @@ export function InventoryTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       {item.attuned && (
                         <span className="text-[13px] text-purple">{t("sheet.attuned")}</span>
                       )}
+                      {stored && (
+                        <span className="text-[13px] font-bold text-ink-muted">
+                          {t("sheet.stored")}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[13px] text-ink-muted">
                       {titleCase(item.category)}
                       {def?.rarity && ` · ${titleCase(def.rarity)}`}
-                      {item.weight !== null && ` · ${formatNumber(item.weight * item.qty)} lb`}
+                      {item.weight !== null &&
+                        ` · ${formatNumber(item.weight * item.qty)} lb${stored ? ` (${t("sheet.notCarried")})` : ""}`}
                       {item.charges !== null &&
                         ` · ${t("sheet.charges")} ${item.charges - item.charges_spent}/${item.charges}`}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
+                    {!stored && (
+                      <Button
+                        size="sm"
+                        icon="shield"
+                        on={item.equipped}
+                        disabled={busy}
+                        onClick={() =>
+                          void act({ type: "equip", id: item.id, equipped: !item.equipped })
+                        }
+                      >
+                        {item.equipped ? t("sheet.unequip") : t("sheet.equip")}
+                      </Button>
+                    )}
                     <Button
                       size="sm"
-                      icon="shield"
-                      on={item.equipped}
+                      icon="bag"
+                      on={stored}
                       disabled={busy}
-                      onClick={() =>
-                        void act({ type: "equip", id: item.id, equipped: !item.equipped })
-                      }
+                      onClick={() => void act({ type: "store", id: item.id, stored: !stored })}
                     >
-                      {item.equipped ? t("sheet.unequip") : t("sheet.equip")}
+                      {stored ? t("sheet.takeBack") : t("sheet.putAway")}
                     </Button>
-                    {item.requires_attunement && (
+                    {item.requires_attunement && !stored && (
                       <Button
                         size="sm"
                         icon="sparkle"

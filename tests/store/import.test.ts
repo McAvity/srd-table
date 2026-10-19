@@ -164,7 +164,11 @@ describe("importing a character", () => {
       inventory: [item, ...located.inventory.slice(1)],
     });
     expect(withLocation.ok).toBe(false);
-    if (!withLocation.ok) expect(withLocation.reasons[0]).toMatch(/inventory\.0\.location/);
+    // Only "stored" is a location (kenli F-005 DEC-01): another one is refused, not dropped.
+    if (!withLocation.ok)
+      expect(withLocation.reasons.join("\n")).toMatch(
+        /expected "stored"[\s\S]*inventory\[0\]\.location/,
+      );
     expect(Object.keys(docs().characters)).toHaveLength(0);
   });
 

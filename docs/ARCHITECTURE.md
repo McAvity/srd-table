@@ -294,6 +294,13 @@ content (`record.content`).
   is refused for the old one. Nothing is confirmed while a step is pending.
 - Grapple and Shove are on the sheet (`rollByHand` `unarmed`); the engine's notes (what the save
   decides, a ritual's extra time, a feature's effect left to the table) are shown as toasts.
+- **Stored items** (kenli F-005 DEC-01): the Inventory tab's Put away / Take back is the engine's
+  `store` action (one commit, Undo like any other). The engine keeps a stored item off the weight,
+  the attack lines and the magic, refuses putting away a worn item and equipping, attuning or using
+  a stored one; the tab only hides the buttons a stored item can't use. A state with a stored item
+  is the engine's document version 2: the app stores, exports (F-008 envelopes, unchanged) and
+  imports it as it is, never dropping `location`; an older app refuses it with the engine's
+  "saved by a newer srd-rules-engine" instead of reading the item as carried.
 
 ## Manual play
 

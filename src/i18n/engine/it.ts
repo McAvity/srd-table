@@ -864,6 +864,11 @@ export const ENGINE_IT = {
   "unarmed.shove":
     "Spinta, CD {dc}: il bersaglio fa un tiro salvezza su Forza o Destrezza (a sua scelta) o lo spingi di 1,5 metri o lo fai cadere Prono. Solo una creatura al massimo di una taglia più grande di te.",
   "roll.initiative": "Iniziativa",
+  "play.item_stored": "{item} messo da parte (riposto: non trasportato).",
+  "play.item_retrieved": "{item} ripreso (trasportato).",
+  "refusal.item_stored": "{item} è riposto: riprendilo prima",
+  "refusal.unequip_first": "Togli {item} prima di metterlo da parte",
+  "state.stored_equipped": "{item} è riposto ma segnato come indossato",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */
