@@ -294,6 +294,12 @@ content (`record.content`).
   is refused for the old one. Nothing is confirmed while a step is pending.
 - Grapple and Shove are on the sheet (`rollByHand` `unarmed`); the engine's notes (what the save
   decides, a ritual's extra time, a feature's effect left to the table) are shown as toasts.
+- **Dice as they count** (kenli F-005 roll display): the tray shows a d20 the engine changed as
+  rolled, then what it counts as and why, `1 → 10 (Silver Tongue) +7 = 17`, from the engine's own
+  list of raised dice (`D20TestResult.floors`, `{label, from, to}`; `src/lib/dice.ts` only maps them
+  onto the dice in order); a result without that list still shows its kept die's `natural → d20`.
+  The kept die is the engine's `kept` index (with Advantage or Disadvantage the other one is struck
+  through), unchanged dice read as rolled. Nothing about a rule is known in the UI.
 - **Stored items** (kenli F-005 DEC-01): the Inventory tab's Put away / Take back is the engine's
   `store` action (one commit, Undo like any other). The engine keeps a stored item off the weight,
   the attack lines and the magic, refuses putting away a worn item and equipping, attuning or using

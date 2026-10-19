@@ -217,6 +217,7 @@ export const en = {
   "dice.attack": "attack",
   "dice.damageTotal": "Total damage {total}",
   "dice.rollButton": "Roll",
+  "dice.dieChanged": "rolled {raw}, counts as {effective}",
 
   "characters.title": "Characters",
   "characters.sub": "Your heroes: build them, play them, take them to the table.",

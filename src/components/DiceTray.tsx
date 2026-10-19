@@ -6,6 +6,7 @@
 
 import { type ReactNode, useEffect } from "react";
 import type {
+  AppliedFloor,
   AttackResult,
   CheckResult,
   D20Roll,
@@ -18,6 +19,7 @@ import type {
 import { abilityName } from "@/engine/constants";
 import type { RolledResult } from "@/engine/facade";
 import { signed, t } from "@/i18n";
+import { type DieFace, d20Faces } from "@/lib/dice";
 import { type DiceShown, useUi } from "@/store/ui";
 import { Icon } from "./Icon";
 import { Button, cx } from "./ui";
@@ -93,6 +95,7 @@ function Test({ test }: { test: D20TestResult }) {
       <D20
         label={test.label}
         roll={test.roll}
+        floors={test.floors}
         bonus={test.bonus}
         total={test.total}
         {...(outcome ? { outcome } : {})}
@@ -151,39 +154,61 @@ function FreeRoll({ roll }: { roll: RollResult }) {
   );
 }
 
-/** One roll: `Attack  [17, 4]  +5  = 22`. */
+/**
+ * One roll: `Attack  [17, 4]  +5  = 22`. A die the engine changed reads as rolled, then what it
+ * counts as and why: `Persuasion  [1 → 10 (Silver Tongue)]  +7  = 17`; with Advantage or
+ * Disadvantage the die not kept is struck through.
+ */
 function Line({
   label,
   dice,
-  kept,
+  faces,
   modifier,
   total,
   outcome,
   tone,
 }: {
   label: ReactNode;
-  dice: readonly number[];
-  kept?: number;
+  dice?: readonly number[];
+  /** A d20 roll's dice (`d20Faces`): kept and changed dice. */
+  faces?: readonly DieFace[];
   modifier?: number;
   total: number;
   outcome?: string;
   tone?: "good" | "bad" | null;
 }) {
+  const shown: readonly DieFace[] =
+    faces ?? (dice ?? []).map((d) => ({ raw: d, effective: d, label: null, kept: true }));
   return (
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm">
       <span className="min-w-0 flex-1 text-ink-muted">{label}</span>
-      <span className="flex gap-1">
-        {dice.map((d, i) => (
+      <span className="flex flex-wrap gap-1">
+        {shown.map((f, i) => (
           <span
             key={i}
+            data-testid="die"
             className={cx(
-              "inline-flex h-6 min-w-6 items-center justify-center rounded border px-1 tabular-nums",
-              kept !== undefined && dice.length > 1 && d !== kept
+              "inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded border px-1 tabular-nums",
+              !f.kept && shown.length > 1
                 ? "border-edge text-ink-faint line-through"
                 : "border-ink bg-card text-ink",
             )}
           >
-            {d}
+            {f.effective === f.raw ? (
+              f.raw
+            ) : (
+              <>
+                <span className="text-ink-muted">{f.raw}</span>
+                <span aria-hidden="true">→</span>
+                <span className="font-bold">{f.effective}</span>
+                {f.label && (
+                  <span className="text-[12px] font-normal text-ink-muted">({f.label})</span>
+                )}
+                <span className="sr-only">
+                  {t("dice.dieChanged", { raw: f.raw, effective: f.effective })}
+                </span>
+              </>
+            )}
           </span>
         ))}
       </span>
@@ -208,9 +233,16 @@ function Line({
   );
 }
 
+/** The raised dice a result carries (a test; an attack's dice once changed by a reroll), if any. */
+function floorsOf(result: object): { floors?: readonly AppliedFloor[] } {
+  const floors = (result as { floors?: readonly AppliedFloor[] }).floors;
+  return floors ? { floors } : {};
+}
+
 function D20({
   label,
   roll,
+  floors,
   bonus,
   total,
   outcome,
@@ -218,6 +250,8 @@ function D20({
 }: {
   label: ReactNode;
   roll: D20Roll;
+  /** The engine's raised dice for this roll (`D20TestResult.floors`), when the result has them. */
+  floors?: readonly AppliedFloor[];
   bonus: number;
   total: number;
   outcome?: string;
@@ -235,8 +269,7 @@ function D20({
           {mode}
         </>
       }
-      dice={roll.rolls}
-      kept={roll.d20}
+      faces={d20Faces(roll, floors)}
       modifier={bonus}
       total={total}
       {...(outcome ? { outcome } : {})}
@@ -364,6 +397,7 @@ function Declared({ result }: { result: DeclaredResult }) {
           <D20
             label={a.attack}
             roll={a.roll}
+            {...floorsOf(a)}
             bonus={a.bonus}
             total={a.total}
             {...(a.critical_hit

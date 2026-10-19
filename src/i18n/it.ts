@@ -232,6 +232,7 @@ export const it: Messages = {
   "dice.attack": "attacco",
   "dice.damageTotal": "Danni totali {total}",
   "dice.rollButton": "Tira",
+  "dice.dieChanged": "tirato {raw}, conta come {effective}",
 
   "characters.title": "Personaggi",
   "characters.sub": "I tuoi eroi: creali, giocali, portali al tavolo.",
