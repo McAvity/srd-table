@@ -479,6 +479,11 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     if (r)
       useRolls.getState().remember(id, { ...roll, rev: r.rev ?? 0, gen: r.gen ?? 0 } as LastRoll);
   };
+  /** The record is still the version `read` (nothing committed, nothing replaced since). */
+  const unchanged = (read: CharacterRecord) => {
+    const now = get().characters[read.id];
+    return !!now && (now.rev ?? 0) === (read.rev ?? 0) && (now.gen ?? 0) === (read.gen ?? 0);
+  };
   /** The last roll if it can still be changed, else the refusal `reroll_window_closed`. */
   const windowOf = (id: string): { ok: true; roll: LastRoll } | Refusal => {
     const roll = openRoll(useRolls.getState().last[id], get().characters[id]);
@@ -816,15 +821,30 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    async rollDamage(id, parts, critical, label) {
-      const record = get().characters[id];
-      if (!record) return null;
-      const damage = await engine().rollDamage(parts, critical);
-      const who = `${record.build.name ?? ""} · ${label}`;
-      useUi.getState().showDice([{ kind: "damage", who, damage }]);
-      // A later result of the character: the previous one can't be changed any more.
-      remember(id, { kind: "damage", label: who, damage });
-      return damage;
+    rollDamage(id, parts, critical, label) {
+      // In the record's queue, so it keeps its place among the character's rolls; a result for a
+      // record changed meanwhile (an import replacing it) is dropped, never pinned to the new one.
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return null;
+          const damage = await engine().rollDamage(parts, critical);
+          if (!unchanged(record)) {
+            replaced();
+            return null;
+          }
+          const who = `${record.build.name ?? ""} · ${label}`;
+          useUi.getState().showDice([{ kind: "damage", who, damage }]);
+          // A later result of the character: the previous one can't be changed any more.
+          remember(id, { kind: "damage", label: who, damage });
+          return damage;
+        },
+        () => {
+          replaced();
+          return null;
+        },
+      );
     },
 
     rollTest(id, request, options, lucky) {
@@ -853,7 +873,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             );
             if (!paid.ok) return paid;
             if (!commitCharacter(record, record.build, paid.state)) return replaced();
-          }
+          } else if (!unchanged(record)) return replaced();
           showTest(record.build.name ?? "", test);
           remember(id, { kind: "test", test });
           return { ok: true as const, test };

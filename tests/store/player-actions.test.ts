@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { t } from "../../src/i18n";
 import { useDocuments } from "../../src/store/documents";
 import { useRollAdditions, useRolls } from "../../src/store/rolls";
@@ -425,5 +425,139 @@ describe("rolls by hand and the last roll (review 04)", () => {
       (await docs().playAction(id, { type: "short_rest", hit_dice: [{ die: 10, roll: 5 }] }, now))
         .ok,
     ).toBe(true);
+  });
+});
+
+// Independent coordinator reproduction (review 04, R04-04), assertions as written.
+it("manager: delayed free damage must not open a reroll on a replacement", async () => {
+  const build = await fighter(engine, 3);
+  const id = await storeCharacter(engine, build);
+  await docs().playAction(id, { type: "set_inspiration", value: true });
+  const sheet = (await engine.playSheet(build, record(id)!.state)).sheet;
+  const line = sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice))!;
+  const original = engine.rollDamage.bind(engine);
+  let release!: () => void;
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  const spy = vi.spyOn(engine, "rollDamage").mockImplementation(async (...args) => {
+    await gate;
+    return original(...args);
+  });
+  const pending = docs().rollDamage(id, line.damage_parts, false, line.name);
+  const current = record(id)!;
+  useDocuments.setState((s) => ({
+    characters: { ...s.characters, [id]: { ...current, gen: 1, rev: 99 } },
+  }));
+  release();
+  await pending;
+  spy.mockRestore();
+  const result = await docs().heroicReroll(id, { kind: "damage", part: 0, die: 0 });
+  expect(result.ok).toBe(false);
+  expect(record(id)!.state.heroic_inspiration).toBe(true);
+});
+
+// Review 04 R04-04: a free roll keeps its place in the character's queue and is dropped for a record changed meanwhile.
+describe("free rolls in the record's queue (R04-04)", () => {
+  function gate<K extends "rollDamage" | "rollCheck">(name: K) {
+    const original = engine[name].bind(engine) as (...args: unknown[]) => Promise<unknown>;
+    let release!: () => void;
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    const spy = vi
+      .spyOn(engine, name)
+      .mockImplementation(((...args: unknown[]) => held.then(() => original(...args))) as never);
+    return {
+      open() {
+        release();
+      },
+      restore() {
+        spy.mockRestore();
+      },
+    };
+  }
+  async function inspiredFighter() {
+    const build = await fighter(engine, 3);
+    const id = await storeCharacter(engine, build);
+    await docs().playAction(id, { type: "set_inspiration", value: true });
+    const sheet = (await engine.playSheet(build, record(id)?.state as never)).sheet;
+    const line = sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice));
+    if (!line) throw new Error("no attack with dice");
+    // How many dice its damage rolls (each part's count), so the dice given are the ones expected.
+    const count = line.damage_parts.reduce(
+      (n, p) => n + (p.dice ? Number.parseInt(p.dice, 10) : 0),
+      0,
+    );
+    return { id, line, count };
+  }
+  const replace = (id: string) => {
+    const current = record(id);
+    if (!current) throw new Error("no record");
+    useDocuments.setState((s) => ({
+      characters: { ...s.characters, [id]: { ...current, gen: 1, rev: 99 } },
+    }));
+  };
+
+  it("a delayed free damage for a replaced record: refused, not the last roll, Heroic spends nothing", async () => {
+    const { id, line } = await inspiredFighter();
+    dice.push(9);
+    await docs().rollTest(id, { skill: "athletics" });
+    const held = gate("rollDamage");
+    const pending = docs().rollDamage(id, line.damage_parts, false, line.name);
+    replace(id);
+    held.open();
+    expect(await pending).toBeNull();
+    held.restore();
+    expect(useRolls.getState().last[id]?.kind).toBe("test");
+    const r = await docs().heroicReroll(id, { kind: "damage", part: 0, die: 0 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reasons).toEqual([t("errors.rerollWindowClosed")]);
+    expect(record(id)?.state.heroic_inspiration).toBe(true);
+    expect(record(id)?.rev).toBe(99);
+  });
+
+  it("a free damage then a test asked at once: the damage first, the test the last roll (the order asked)", async () => {
+    const { id, line, count } = await inspiredFighter();
+    const held = gate("rollDamage");
+    dice.push(...Array(count).fill(3), 14);
+    const damage = docs().rollDamage(id, line.damage_parts, false, line.name);
+    const test = docs().rollTest(id, { skill: "athletics" });
+    held.open();
+    const [d, r] = await Promise.all([damage, test]);
+    held.restore();
+    expect(d?.parts[0]?.rolls[0]).toBe(3);
+    expect(r.ok && r.test.roll.natural).toBe(14);
+    expect(useRolls.getState().last[id]?.kind).toBe("test");
+    expect((await docs().heroicReroll(id, { kind: "damage", part: 0, die: 0 })).ok).toBe(false);
+    expect(record(id)?.state.heroic_inspiration).toBe(true);
+  });
+
+  it("a test then a free damage asked at once: the free damage is the last roll", async () => {
+    const { id, line, count } = await inspiredFighter();
+    const held = gate("rollCheck");
+    dice.push(14, ...Array(count).fill(3));
+    const test = docs().rollTest(id, { skill: "athletics" });
+    const damage = docs().rollDamage(id, line.damage_parts, false, line.name);
+    held.open();
+    const [r, d] = await Promise.all([test, damage]);
+    held.restore();
+    expect(r.ok && r.test.roll.natural).toBe(14);
+    expect(d?.parts[0]?.rolls[0]).toBe(3);
+    expect(useRolls.getState().last[id]?.kind).toBe("damage");
+  });
+
+  it("a delayed test (no cost) for a replaced record: refused, not the last roll", async () => {
+    const { id } = await inspiredFighter();
+    const held = gate("rollCheck");
+    const pending = docs().rollTest(id, { skill: "athletics" });
+    replace(id);
+    held.open();
+    const r = await pending;
+    held.restore();
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reasons).toEqual([t("errors.documentReplaced")]);
+    expect(useRolls.getState().last[id]).toBeUndefined();
+    expect(record(id)?.state.heroic_inspiration).toBe(true);
   });
 });

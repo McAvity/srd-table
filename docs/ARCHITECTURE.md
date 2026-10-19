@@ -277,7 +277,9 @@ content (`record.content`).
   after its cost was paid; any later change (or an import replacing the record) closes it
   (`errors.rerollWindowClosed`), and a reload too (memory only); so does any later result of the
   character: a free Damage or Critical roll (itself the last roll then) or a Hit Die in the rest
-  dialog. Heroic Inspiration rerolls one die
+  dialog. Free rolls and tests without a cost run in the record's queue like changes (in the order
+  asked); one answered for a record changed meanwhile (an import replacing it) is dropped
+  (`errors.documentReplaced`), never pinned to the new version. Heroic Inspiration rerolls one die
   (`heroicReroll`: d20, bonus die, damage die, a feature's die), late Advantage spends a use
   (`lateAdvantage`), the table sets a Critical Hit (`setCritical`, nothing spent): never through
   `rollByHand` again, so a roll's slot or use is paid once. A death save is the engine's d20 then
