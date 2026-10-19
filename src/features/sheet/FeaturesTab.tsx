@@ -8,9 +8,9 @@ import { useNames } from "@/queries";
 import { RestChoices } from "./RestChoices";
 
 export function FeaturesTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
-  const featName = useNames("feats");
-  const featureName = useNames("features");
-  const masteryName = useNames("weapons");
+  const featName = useNames("feats", { character: id });
+  const featureName = useNames("features", { character: id });
+  const masteryName = useNames("weapons", { character: id });
   return (
     <div className="space-y-4">
       <RestChoices id={id} />

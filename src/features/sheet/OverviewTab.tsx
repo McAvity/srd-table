@@ -43,8 +43,8 @@ function RollButton({
 
 export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const roll = useRoller(id);
-  const toolName = useNames("tools");
-  const languageName = useNames("languages");
+  const toolName = useNames("tools", { character: id });
+  const languageName = useNames("languages", { character: id });
   return (
     <div className="grid gap-4 xl:grid-cols-2">
       <Section title={t("sheet.abilities")}>

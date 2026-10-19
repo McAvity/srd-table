@@ -221,6 +221,9 @@ function InstalledPacks() {
               <span className="flex-1">
                 {p.ref.id} {p.ref.version ?? ""}{" "}
                 <span className="text-ink-muted">({p.ref.sha256.slice(0, 12)})</span>
+                {p.bundled ? (
+                  <span className="text-ink-muted"> · {t("settings.packBundled")}</span>
+                ) : null}
               </span>
               <Button size="sm" icon="download" onClick={() => void onExport(p.key)}>
                 {t("common.export")}

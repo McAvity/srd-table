@@ -12,6 +12,7 @@ import { Button, Empty, Spinner } from "@/components/ui";
 import type { CombatantView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { useCombatantOptions, useEncounterView, usePlayView } from "@/queries";
+import { CombatantScope, ContentScope } from "@/queries/scope";
 import { canRedo, canUndo, type EncounterRecord, useDocuments } from "@/store/documents";
 import { type PlayWay, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
@@ -41,7 +42,12 @@ export function EncounterPage({ id }: { id: string }) {
       </Empty>
     );
   }
-  return <Table record={record} />;
+  // The encounter's world (its own packs, else the campaign's): monsters, conditions, pickers.
+  return (
+    <ContentScope content={record.content}>
+      <Table record={record} />
+    </ContentScope>
+  );
 }
 
 function Table({ record }: { record: EncounterRecord }) {
@@ -196,16 +202,18 @@ function Table({ record }: { record: EncounterRecord }) {
           />
         )}
         {!pending && actor && options.data && composing && (
-          <ActionComposer
-            key={composing.entry.label}
-            encounterId={record.id}
-            view={view}
-            options={options.data}
-            entry={composing.entry}
-            way={composing.way}
-            gm={gm}
-            onClose={() => setComposing(null)}
-          />
+          <CombatantScope character={actor.character}>
+            <ActionComposer
+              key={composing.entry.label}
+              encounterId={record.id}
+              view={view}
+              options={options.data}
+              entry={composing.entry}
+              way={composing.way}
+              gm={gm}
+              onClose={() => setComposing(null)}
+            />
+          </CombatantScope>
         )}
         {view.round === 0 && (
           <ExplorationPanel

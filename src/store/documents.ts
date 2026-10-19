@@ -12,6 +12,10 @@
  * Every change of a record goes through its queue, deletions, renames and undo included; an import
  * holds the queues of the records it replaces from the flush to the publication, so an action
  * made meanwhile runs after it and, aimed at the replaced version, is refused (never lost).
+ * A change's set of records is taken again when its turn comes (an encounter's party may have
+ * grown meanwhile), and the change waits for the ones it didn't hold yet. An undo step is the
+ * whole record as it was (documents, content, origin): undoing an import restores the old
+ * version, as a new revision and generation.
  */
 
 import type {
@@ -38,6 +42,7 @@ import type {
   SheetRoll,
 } from "@/engine/facade";
 import { t } from "@/i18n";
+import { canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
 import type { RecordMeta } from "@/persistence/db";
 import { rollDice } from "./dice";
@@ -83,16 +88,24 @@ export interface EncounterRecord extends RecordMeta {
   readonly updated: number;
 }
 
-type CharacterSnapshot = {
+/** What a record plays with and where it came from: restored with its documents. */
+type Identity = Pick<RecordMeta, "content" | "origin">;
+type CharacterSnapshot = Identity & {
   readonly kind: "character";
   readonly build: CharacterBuild;
   readonly state: CharacterState;
 };
-type EncounterSnapshot = {
+type EncounterSnapshot = Identity & {
   readonly kind: "encounter";
   readonly encounter: Encounter;
-  /** Party states as they were, restored with the encounter. */
+  /**
+   * Party states as they were, restored with the encounter; each with its record's generation
+   * then (a character an import replaced since keeps its own state).
+   */
   readonly states: Readonly<Record<string, CharacterState>>;
+  readonly gens?: Readonly<Record<string, number>>;
+  /** The rest of the record, for a step an import made (its name, log and modes were replaced). */
+  readonly record?: Pick<EncounterRecord, "name" | "log" | "modes">;
 };
 type Snapshot = CharacterSnapshot | EncounterSnapshot;
 
@@ -287,6 +300,27 @@ function touch<R extends RecordMeta & { updated: number }>(record: R, patch: Par
   return { ...record, ...patch, rev: (record.rev ?? 0) + 1, updated: Date.now() };
 }
 
+const identityOf = (record: RecordMeta): Identity => ({
+  ...(record.content ? { content: record.content } : {}),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
+
+/**
+ * A record with this identity (content, origin): a different one is a new generation, so changes
+ * asked for the version it replaces are refused, as after an import.
+ */
+function withIdentity<R extends RecordMeta>(record: R, identity: Identity): R {
+  const same =
+    canonicalJson(identityOf(record) as Record<string, unknown>) ===
+    canonicalJson(identityOf(identity) as Record<string, unknown>);
+  const { content: _content, origin: _origin, ...rest } = record;
+  return {
+    ...(rest as R),
+    ...identityOf(identity),
+    ...(same ? {} : { gen: (record.gen ?? 0) + 1 }),
+  };
+}
+
 function pushPast(history: Readonly<Record<string, History>>, id: string, snapshot: Snapshot) {
   const h = history[id] ?? { past: [], future: [] };
   return { ...history, [id]: { past: [...h.past, snapshot].slice(-HISTORY_LIMIT), future: [] } };
@@ -309,10 +343,21 @@ function replaced(): Refusal {
 
 export const useDocuments = create<DocumentsState>()((set, get) => {
   /** Commit a character's new documents (from the engine), keeping the old ones for undo. */
-  function commitCharacter(id: string, build: CharacterBuild, state: CharacterState) {
+  function commitCharacter(
+    read: CharacterRecord,
+    build: CharacterBuild,
+    state: CharacterState,
+  ): boolean {
+    const id = read.id;
+    let stale = false;
     set((s) => {
       const record = s.characters[id];
       if (!record) return s;
+      // The queue makes this impossible; checked anyway, so a stale result is never written.
+      if ((record.rev ?? 0) !== (read.rev ?? 0) || (record.gen ?? 0) !== (read.gen ?? 0)) {
+        stale = true;
+        return s;
+      }
       return {
         characters: { ...s.characters, [id]: touch(record, { build, state }) },
         revs: bump(s.revs, id),
@@ -320,21 +365,46 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           kind: "character",
           build: record.build,
           state: record.state,
+          ...identityOf(record),
         }),
       };
     });
+    return !stale;
   }
 
   const genOf = (id: string) => get().characters[id]?.gen ?? get().encounters[id]?.gen ?? 0;
   /**
    * A change of these records, in their queues; refused (`document_replaced`) when an import
-   * replaced one of them after the change was asked for.
+   * replaced one of them after the change was asked for. `ids` is asked again when the change's
+   * turn comes: records it didn't hold yet (a character who joined the encounter meanwhile, the
+   * party of the undo step now on top) are queued for too, the held ones let go first (taken
+   * again in order with the rest, so no two changes wait on each other).
    */
-  function guarded<T>(ids: readonly string[], fn: () => T | Promise<T>, onReplaced: () => T) {
-    const gens = ids.map(genOf);
-    return serialMany(ids, () =>
-      ids.some((id, i) => genOf(id) !== gens[i]) ? onReplaced() : fn(),
-    );
+  function guarded<T>(
+    ids: readonly string[] | (() => readonly string[]),
+    fn: () => T | Promise<T>,
+    onReplaced: () => T,
+  ): Promise<T> {
+    const idsOf = typeof ids === "function" ? ids : () => ids;
+    const s = get();
+    const gens = new Map<string, number>();
+    for (const r of [...Object.values(s.characters), ...Object.values(s.encounters)])
+      gens.set(r.id, r.gen ?? 0);
+    const attempt = (held: readonly string[]): Promise<T> => {
+      let wider: string[] | null = null;
+      const run = serialMany(held, () => {
+        const need = idsOf();
+        const all = [...new Set([...held, ...need])];
+        if (all.length > held.length) {
+          wider = all;
+          return undefined as T;
+        }
+        const replacedSince = need.some((id) => gens.has(id) && genOf(id) !== gens.get(id));
+        return replacedSince ? onReplaced() : fn();
+      });
+      return run.then((value) => (wider ? attempt(wider) : value));
+    };
+    return attempt([...idsOf()]);
   }
   const quietly = () => {
     replaced();
@@ -479,7 +549,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           if (!result.ok) return result;
           // The state follows the build: reconcile and show what it changed.
           const fitted = await engine().reconcileState(result.build, record.state, record.content);
-          commitCharacter(id, result.build, fitted.state);
+          if (!commitCharacter(record, result.build, fitted.state)) return replaced();
           toastNotes([...result.notes, ...fitted.notes]);
           return result;
         },
@@ -539,7 +609,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          commitCharacter(id, record.build, result.state);
+          if (!commitCharacter(record, record.build, result.state)) return replaced();
           toastNotes(result.notes);
           return result;
         },
@@ -561,7 +631,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          commitCharacter(id, record.build, result.state);
+          if (!commitCharacter(record, record.build, result.state)) return replaced();
           const { roll } = result;
           // The tray shows the dice as the encounter's by-hand card does; its notes say the same.
           useUi.getState().showDice([
@@ -652,9 +722,8 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
 
     encounterAction(id, action) {
-      const ids = encounterIds(id, action);
       return guarded(
-        ids,
+        () => encounterIds(id, action),
         () =>
           applyToEncounter(id, action, (encounter, party, world) =>
             engine().applyEncounterAction(encounter, party, action, world),
@@ -665,7 +734,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
 
     rollAndPay(id, roll, force = false) {
       return guarded(
-        encounterIds(id, roll),
+        () => encounterIds(id, roll),
         () =>
           applyToEncounter(id, roll, async (encounter, party, world) => {
             const rolled = await engine().applyEncounterAction(encounter, party, roll, world);
@@ -733,14 +802,14 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
 
     undo(id) {
       return guarded(
-        [id, ...historyParty(get(), id, "back")],
+        () => [id, ...historyParty(get(), id, "back")],
         () => set((s) => travel(s, id, "back")),
         quietly,
       );
     },
     redo(id) {
       return guarded(
-        [id, ...historyParty(get(), id, "forward")],
+        () => [id, ...historyParty(get(), id, "forward")],
         () => set((s) => travel(s, id, "forward")),
         quietly,
       );
@@ -759,6 +828,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               kind: "character",
               build: before.build,
               state: before.state,
+              ...identityOf(before),
             });
           }
           nextCharacters[c.id] = c;
@@ -771,6 +841,8 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               kind: "encounter",
               encounter: before.encounter,
               states: {},
+              ...identityOf(before),
+              record: recordOf(before),
             });
           }
           nextEncounters[e.id] = e;
@@ -803,8 +875,16 @@ function historyParty(s: DocumentsState, id: string, direction: "back" | "forwar
   const h = s.history[id];
   const from = direction === "back" ? h?.past : h?.future;
   const target = from?.[from.length - 1];
-  return target?.kind === "encounter" ? Object.keys(target.states) : [];
+  return target?.kind === "encounter"
+    ? Object.keys(target.states).filter((k) => s.characters[k])
+    : [];
 }
+
+const recordOf = (record: EncounterRecord): Pick<EncounterRecord, "name" | "log" | "modes"> => ({
+  name: record.name,
+  log: record.log,
+  ...(record.modes ? { modes: record.modes } : {}),
+});
 
 function missing(): Refusal {
   return { ok: false, reasons: [t("errors.documentGone")] };
@@ -825,11 +905,16 @@ function travel(
   if (target.kind === "character") {
     const record = s.characters[id];
     if (!record) return {};
-    const current: Snapshot = { kind: "character", build: record.build, state: record.state };
+    const current: Snapshot = {
+      kind: "character",
+      build: record.build,
+      state: record.state,
+      ...identityOf(record),
+    };
     return {
       characters: {
         ...s.characters,
-        [id]: touch(record, { build: target.build, state: target.state }),
+        [id]: touch(withIdentity(record, target), { build: target.build, state: target.state }),
       },
       revs: bump(s.revs, id),
       history: { ...s.history, [id]: swap(h, direction, rest, current) },
@@ -838,25 +923,34 @@ function travel(
   const record = s.encounters[id];
   if (!record) return {};
   const states: Record<string, CharacterState> = {};
+  const gens: Record<string, number> = {};
   const characters = { ...s.characters };
   for (const [key, state] of Object.entries(target.states)) {
     const c = characters[key];
-    if (!c) continue;
+    // Replaced by an import since the step: the new version keeps its own state.
+    if (!c || (target.gens && (c.gen ?? 0) !== target.gens[key])) continue;
     states[key] = c.state;
+    gens[key] = c.gen ?? 0;
     characters[key] = touch(c, { state });
   }
   const current: Snapshot = {
     kind: "encounter",
     encounter: record.encounter,
     states,
+    gens,
+    ...identityOf(record),
+    ...(target.record ? { record: recordOf(record) } : {}),
   };
   return {
     encounters: {
       ...s.encounters,
-      [id]: touch(record, { encounter: target.encounter }),
+      [id]: touch(withIdentity(record, target), {
+        encounter: target.encounter,
+        ...(target.record ?? {}),
+      }),
     },
     characters,
-    revs: bump(s.revs, id, ...Object.keys(target.states)),
+    revs: bump(s.revs, id, ...Object.keys(states)),
     history: { ...s.history, [id]: swap(h, direction, rest, current) },
   };
 }
@@ -900,10 +994,29 @@ async function applyToEncounter(
   const result = await run(record.encounter, party, record.content);
   if (!result.ok) return result;
   const before: Record<string, CharacterState> = {};
-  for (const [key, docs] of Object.entries(party)) before[key] = docs.state;
+  const gens: Record<string, number> = {};
+  for (const [key, docs] of Object.entries(party)) {
+    before[key] = docs.state;
+    gens[key] = characters[key]?.gen ?? 0;
+  }
+  let stale = false;
   set((s) => {
     const current = s.encounters[id];
     if (!current) return s;
+    // The queues make this impossible; checked anyway, so a result computed on documents that
+    // changed meanwhile (another version of a party member) is never written.
+    const changed =
+      current.rev !== record.rev ||
+      current.gen !== record.gen ||
+      Object.keys(party).some(
+        (key) =>
+          s.characters[key]?.rev !== characters[key]?.rev ||
+          s.characters[key]?.gen !== characters[key]?.gen,
+      );
+    if (changed) {
+      stale = true;
+      return s;
+    }
     // The question the action stopped for is logged once, as its own (decision) entry.
     const question = result.pending?.question;
     const keep = result.notes.map((line) => line !== question);
@@ -945,9 +1058,12 @@ async function applyToEncounter(
         kind: "encounter",
         encounter: record.encounter,
         states: before,
+        gens,
+        ...identityOf(record),
       }),
     };
   });
+  if (stale) return replaced();
   const who = (aid: string | undefined) =>
     result.encounter.combatants.find((c) => c.id === aid)?.name ?? "";
   const actions = Array.isArray(action) ? action : [action];

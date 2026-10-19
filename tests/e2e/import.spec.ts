@@ -2,7 +2,9 @@
  * kenli F-008 in a real browser (the production build: worker, IndexedDB): an encounter and its
  * party imported from a library URL (the HTTPS origin is routed to the synthetic fixtures, with
  * CORS), still there after a reload, each character on its own pack version; then the library
- * and the app's content cut off, and a character's sheet and a never-opened table still load.
+ * and the app's content cut off, and a character's sheet (its own spell's details) and a
+ * never-opened table still load; reloaded without the content, the SRD the app kept in IndexedDB
+ * (`bundled`) serves the new worker.
  */
 
 import { readFileSync } from "node:fs";
@@ -37,10 +39,21 @@ const packsInDb = (page: Page) =>
       new Promise<string[]>((resolve, reject) => {
         const req = indexedDB.open("srd-table");
         req.onsuccess = () => {
-          const tx = req.result.transaction("packs", "readonly");
-          const all = tx.objectStore("packs").getAll();
-          all.onsuccess = () => resolve((all.result as { key: string }[]).map((p) => p.key).sort());
-          all.onerror = () => reject(all.error);
+          const database = req.result;
+          try {
+            const all = database.transaction("packs", "readonly").objectStore("packs").getAllKeys();
+            all.onsuccess = () => {
+              database.close();
+              resolve((all.result as string[]).sort());
+            };
+            all.onerror = () => {
+              database.close();
+              reject(all.error);
+            };
+          } catch (error) {
+            database.close();
+            reject(error);
+          }
         };
         req.onerror = () => reject(req.error);
       }),
@@ -51,6 +64,11 @@ test("import an encounter with its party by URL, reload, then play on with the h
 }) => {
   await serveLibrary(page);
   await page.goto("/#/encounters");
+  await expect(page.getByRole("button", { name: "Import…" })).toBeVisible();
+  // The served SRD is kept in storage after the start (kenli F-008 §9.5).
+  await expect
+    .poll(async () => (await packsInDb(page)).map((k) => k.split("#")[0]))
+    .toEqual(["srd-5.2.1@5.2.1"]);
   await page.getByRole("button", { name: "Import…" }).click();
   await page.getByRole("textbox", { name: "URL" }).fill(`${LIB}d/encounter/mixed-duel.json`);
   await page.getByRole("button", { name: "Fetch", exact: true }).click();
@@ -61,6 +79,7 @@ test("import an encounter with its party by URL, reload, then play on with the h
   await expect(page).toHaveURL(/#\/encounters\/e-/);
   await expect(page.getByText("Synthetic Dummy").first()).toBeVisible();
   expect((await packsInDb(page)).map((k) => k.split("#")[0])).toEqual([
+    "srd-5.2.1@5.2.1",
     "synthetic-a@1.0.0",
     "synthetic-a@2.0.0",
   ]);
@@ -77,8 +96,21 @@ test("import an encounter with its party by URL, reload, then play on with the h
   await page.locator("article", { hasText: "Sable" }).getByRole("link", { name: "Sheet" }).click();
   await page.getByRole("tab", { name: "Spells" }).click();
   await expect(page.getByText("Synthetic Spark").first()).toBeVisible();
+  await page.getByRole("button", { name: "Details: Synthetic Spark" }).click();
+  await expect(page.getByText(/test spell, version 2/)).toBeVisible();
   // Back to the table without the network: the world's monster and both characters still load.
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Table" }).click();
   await expect(page.getByRole("button", { name: /Synthetic Dummy 30\/30/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Sable 8\/8/ })).toBeVisible();
+
+  // A reload (a new worker) with the content still gone: the SRD comes from IndexedDB.
+  const url = page.url();
+  await page.reload();
+  await expect(page).toHaveURL(url);
+  await expect(page.getByRole("button", { name: /Synthetic Dummy 30\/30/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Wren 5\/8/ })).toBeVisible();
+  await page.goto("/#/settings");
+  await expect(page.locator("li", { hasText: /^srd-5\.2\.1 5\.2\.1/ })).toContainText(
+    "served with the app",
+  );
 });

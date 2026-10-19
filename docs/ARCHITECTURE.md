@@ -60,7 +60,9 @@ Packs after the SRD are served from `content/<id>/` in the same split format (th
 
 **A served pack is read whole once per session** (`SessionPacks`: the manifest and every table it
 lists), so a table never opened before, or a catalog rebuilt later, needs no network: the app keeps
-playing when the host goes away (not a restart offline: nothing is precached).
+playing when the host goes away (not a restart offline: nothing is precached). The SRD read this way
+is also kept in IndexedDB (`packs`, `origin: bundled`, see Persistence); a worker started while the
+host can't serve it uses that copy (for pinned documents and the campaign's catalog alike).
 
 **Content per document (kenli F-008).** A record can be pinned to exact packs (`content`: a
 `ContentContext`, each pack by id, version and SHA-256 of its split files). `ContentRegistry` keeps
@@ -75,6 +77,13 @@ and the engine judges each combatant with its catalog (`CharacterRef.catalog`, e
 a character without `content` plays on the campaign's packs. The facade carries the whole reference
 between the actions of a list (`{ ...ref, state }`).
 
+On screen, every catalog lookup (`useTable`, `useEntry`, `useNames`, `useMagicItemBases`) is made in
+its document's content: a sheet's and a builder's in their character's (`CharacterScope`, and the
+sheet's tabs name their character explicitly), an encounter's in its world (`ContentScope`), the
+action composer and the effects form in the acting combatant's character, else the world
+(`CombatantScope`). Only the Compendium and Settings stay on the campaign's. Query keys carry the
+context, so two versions of one spell id never share a cached entry.
+
 ## Documents and the store (`src/store/documents.ts`)
 
 - A character record is `{ id, build, state, created, updated }`; an encounter record is
@@ -86,13 +95,23 @@ between the actions of a list (`{ ...ref, state }`).
   included; an encounter action takes the queues of the encounter and its party. Fast clicks never
   apply an action to a stale copy. An action asked for while an import holds a record's queue runs
   after it; aimed at a replaced version (another `gen`), it's refused with a message, never lost.
+  A change's set of records is asked again when its turn comes (a character who joined the
+  encounter meanwhile, the party of the undo step now on top): it lets go and queues again for the
+  whole set, in order, so no two changes wait on each other; the generations it checks are those
+  of every record when it was asked for. The write itself checks once more that what it read is
+  what the store still has (never true with the queues; a stale result is never written).
 - After a build changes, the store runs `reconcileState` and stores both, showing the setter's and
   the reconcile's notes as toasts.
 - An encounter action is sent with its **party**: the characters its combatants refer to, plus
   those an `add_character` brings in. Character states it changed come back in `states` and are
   written to their records.
 - **Undo/redo**: a stack of previous documents per document id. An encounter's snapshot also
-  keeps its party's states, so undoing an attack restores the target's HP.
+  keeps its party's states, so undoing an attack restores the target's HP. A step is the whole
+  record as it was: documents, `content` and `origin` (for an imported encounter also its name,
+  log and modes), so undoing an import brings the old version back whole, a legacy record without
+  a pin included. Every step is a new revision; one that changes `content` or `origin` is a new
+  generation too (changes asked for the version it leaves are refused). A party member an import
+  replaced after an encounter step keeps its own state when that step is undone.
 - **Revisions**: a counter per document id, bumped on every commit; query keys use it (plus the
   revisions of an encounter's characters, and the content settings).
 - **The combat log** (notes per action, decisions asked) is kept with the encounter record: it's
@@ -118,6 +137,11 @@ IndexedDB through `idb`, one database with five stores: `characters`, `encounter
   without `content` plays on the campaign's packs as before. Another tab holding version 1 open
   blocks the upgrade (a toast asks to close it); an old tab asked to let go closes its connection.
   An installation id (`settings` key `installation`) names this Table in its exports.
+- **The served SRD** is kept in `packs` as `origin: bundled` (`persistBundled`, after the start):
+  the files the worker read and hashed, added once and never overwritten, its own transaction
+  (never an import's). A full storage shows a toast and the app goes on with the copy in memory.
+  `loadAll` registers it with the worker as the fallback for the served pack. Settings lists it
+  among the packs on this device ("served with the app").
 
 ## Import by URL or files (`src/import/`, kenli F-008)
 
@@ -147,8 +171,10 @@ exact content identities; `srd-table.library-pointer/1` for a library's stable U
    files only after choosing their content, and every encounter key mapped by hand.
 5. **Commit** (`commit.ts`): the queues of the records it replaces or uses are held from the
    autosave flush to the publication; one transaction checks their revisions in the database and
-   in the store, adds the packs, writes the records; only then are they shown and the autosave
-   baseline moved. Quota, an abort or a changed record writes nothing.
+   in the store, adds the packs (refused whole, `pack_identity_conflict`, when that id and version
+   is already stored with other bytes, whichever preview or tab put them there; the same bytes are
+   reused), writes the records; only then are they shown and the autosave baseline moved. Quota, an
+   abort or a changed record writes nothing.
 
 **Export** (`export.ts`): a character, an encounter (with each party member as its own file) as
 transfers with this installation's identity and the exact refs of their content (the campaign's

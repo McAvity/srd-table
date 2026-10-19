@@ -2,7 +2,8 @@
  * The import commit (kenli F-008 contract §7.3): the records an import replaces or uses are locked
  * (their document queues) from the autosave flush to the publication; one IndexedDB transaction
  * checks their revisions (compare-and-set, in the database and in the store), adds the packs
- * (never overwriting one) and writes every record; only after it's done is anything shown.
+ * (never overwriting one, never a second set of bytes for one pack version) and writes every
+ * record; only after it's done is anything shown.
  * Any failure — quota, an abort, a record changed since the preview — writes nothing.
  */
 
@@ -186,9 +187,19 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
             if (!current || (current.rev ?? 0) !== rev || !inStore || (inStore.rev ?? 0) !== rev)
               throw new ImportError("target_changed", id);
           }
+          // One version of a pack is one set of bytes (§9.5), checked here, in the transaction
+          // that writes it: another import may have installed other bytes since the preview.
+          const packStore = tx.objectStore("packs");
           for (const p of packs) {
-            if (!(await tx.objectStore("packs").getKey(p.key)))
-              await tx.objectStore("packs").add(p);
+            const prefix = `${p.ref.id}@${p.ref.version ?? ""}#`;
+            const keys = await packStore.getAllKeys(IDBKeyRange.bound(prefix, `${prefix}\uffff`));
+            const others = [
+              ...keys,
+              ...packs.map((q) => q.key).filter((k) => k.startsWith(prefix)),
+            ];
+            if (others.some((k) => k !== p.key))
+              throw new ImportError("pack_identity_conflict", `${p.ref.id}@${p.ref.version ?? ""}`);
+            if (!keys.includes(p.key)) await packStore.add(p);
           }
           for (const c of characters) await tx.objectStore("characters").put(c);
           for (const e of encounters) await tx.objectStore("encounters").put(e);

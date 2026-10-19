@@ -77,6 +77,9 @@ export const it: Messages = {
   "persistence.closeOtherTabs":
     "Chiudi le altre schede dell'app: i dati salvati devono essere aggiornati.",
   "persistence.reload": "L'app è stata aggiornata in un'altra scheda: ricarica questa.",
+  "persistence.bundledFailed": "Non è stato possibile conservare l'SRD su questo dispositivo",
+  "persistence.bundledQuota":
+    "La memoria del dispositivo è piena. L'SRD funziona per ora, ma dopo un ricaricamento serve il server.",
   "import.open": "Importa…",
   "import.title": "Importa",
   "import.hint":
@@ -738,10 +741,11 @@ export const it: Messages = {
   "settings.seedHint":
     "Ripete gli stessi dadi dopo un ricaricamento, per riprodurre un bug. Vuoto: casuale.",
   "settings.loadedPacks": "Pacchetti caricati",
-  "settings.installedPacks": "Pacchetti importati",
+  "settings.installedPacks": "Pacchetti su questo dispositivo",
   "settings.installedPacksHint":
-    "Pacchetti arrivati con i documenti importati: ogni versione tenuta a parte, usata solo dai documenti che la indicano. Aggiornarne uno non cambia mai un documento.",
+    "Pacchetti arrivati con i documenti importati, ogni versione tenuta a parte e usata solo dai documenti che la indicano, e l'SRD fornito con l'app. Aggiornarne uno non cambia mai un documento.",
   "settings.noInstalledPacks": "Nessuno per ora.",
+  "settings.packBundled": "fornito con l'app",
   "settings.packAmbiguous":
     "Diverse versioni installate di {id}: esporta invece il documento che usa questo pacchetto.",
   "settings.data": "I tuoi dati",

@@ -21,7 +21,7 @@ import {
 } from "@/store/documents";
 import { PLAY_WAYS, type PlayWay, readSettings, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
-import { db, newInstallationId, onDbBlocked } from "./db";
+import { db, newInstallationId, onDbBlocked, packKey } from "./db";
 
 const SETTINGS_KEY = "campaign";
 const INSTALLATION_KEY = "installation";
@@ -54,9 +54,19 @@ export async function loadAll(): Promise<void> {
     installation = newInstallationId();
     await database.put("settings", installation, INSTALLATION_KEY);
   }
-  // Imported packs, for the documents pinned to them (their hashes are checked in the worker).
+  // Imported packs, for the documents pinned to them (their hashes are checked in the worker),
+  // and the stored copies of the served SRD (also for the campaign's catalog when the host is gone).
   const packs = await database.getAll("packs");
-  if (packs.length) await engine().registerPacks(packs.map((p) => p.files));
+  const imported = packs.filter((p) => p.origin.kind !== "bundled");
+  const bundled = packs
+    .filter((p) => p.origin.kind === "bundled")
+    .sort((a, b) => a.installed_at - b.installed_at);
+  if (imported.length) await engine().registerPacks(imported.map((p) => p.files));
+  if (bundled.length)
+    await engine().registerPacks(
+      bundled.map((p) => p.files),
+      true,
+    );
 
   const problems: string[] = [];
   const characters: CharacterRecord[] = [];
@@ -113,6 +123,62 @@ export async function loadAll(): Promise<void> {
     });
   }
   if (problems.length) useUi.getState().toast(problems, "error", t("persistence.someSkipped"));
+}
+
+/** The packs served with the app that are kept in storage (kenli F-008 §9.5). */
+export const BUNDLED_PACKS = ["srd-5.2.1"] as const;
+
+/**
+ * Keep the served SRD in `packs` (kenli F-008 §9.5): the whole pack as the worker read and hashed
+ * it, `origin: bundled`, added once and never overwritten (a version stored with other bytes stays,
+ * as for an import). Documents pinned to it then open from storage with the host gone. It's its own
+ * transaction, never part of an import's; a full storage is said and the app goes on (the session
+ * still has its copy in memory).
+ */
+export async function persistBundled(): Promise<"added" | "present" | "unavailable" | "failed"> {
+  let outcome: "added" | "present" | "unavailable" | "failed" = "present";
+  for (const id of BUNDLED_PACKS) {
+    let served: Awaited<ReturnType<ReturnType<typeof engine>["servedPackFiles"]>>;
+    try {
+      served = await engine().servedPackFiles(id);
+    } catch {
+      outcome = "unavailable"; // not served now (the host is gone): nothing new to keep
+      continue;
+    }
+    const { ref, files } = served;
+    try {
+      const added = await writeQueue(async () => {
+        const database = await db();
+        const tx = database.transaction("packs", "readwrite");
+        const store = tx.objectStore("packs");
+        const prefix = `${ref.id}@${ref.version ?? ""}#`;
+        const keys = await store.getAllKeys(IDBKeyRange.bound(prefix, `${prefix}\uffff`));
+        const fresh = keys.length === 0;
+        if (fresh)
+          await store.add({
+            key: packKey(ref),
+            ref,
+            files,
+            installed_at: Date.now(),
+            origin: { kind: "bundled" },
+          });
+        await tx.done;
+        return fresh;
+      });
+      if (added) outcome = "added";
+    } catch (error) {
+      outcome = "failed";
+      const quota = (error as { name?: string } | null)?.name === "QuotaExceededError";
+      useUi
+        .getState()
+        .toast(
+          [quota ? t("persistence.bundledQuota") : String(error)],
+          "error",
+          t("persistence.bundledFailed"),
+        );
+    }
+  }
+  return outcome;
 }
 
 function readLog(raw: unknown): LogEntry[] {
@@ -193,6 +259,8 @@ export function startAutosave(): () => void {
   };
 
   async function save() {
+    // A save now replaces the one waiting (its timer would otherwise fire later, even after stop).
+    if (timer) clearTimeout(timer);
     timer = null;
     const { characters, encounters } = useDocuments.getState();
     const settings = useSettings.getState().settings;

@@ -382,9 +382,11 @@ export interface EngineFacade {
    * Imported packs (kenli F-008), by their split files: kept for the session under their hash,
    * for documents whose `content` names them. Returns their exact refs.
    */
-  registerPacks(packs: readonly PackFiles[]): Promise<PackRef[]>;
+  registerPacks(packs: readonly PackFiles[], bundled?: boolean): Promise<PackRef[]>;
   /** The exact ref of a pack served with the app (`srd-5.2.1`), read whole for the session. */
   servedPack(id: string): Promise<PackRef>;
+  /** A pack served with the app, whole, with its exact ref (kept in storage as `bundled`). */
+  servedPackFiles(id: string): Promise<{ ref: PackRef; files: PackFiles }>;
   /** Whether a content context builds a valid catalog (every pack here, layered in order). */
   checkContent(content: ContentContext): Promise<Outcome<{ packs: readonly PackManifest[] }>>;
   /** The language engine texts are rendered in (`ENGINE_LANGUAGES`; English otherwise). */
@@ -395,8 +397,9 @@ export interface EngineFacade {
   setSeed(seed: number | null): Promise<void>;
 
   // content
-  entries(table: TableName): Promise<readonly unknown[]>;
-  entry(table: TableName, id: string): Promise<unknown>;
+  /** A catalog table (`content`: a document's packs; else the campaign's). */
+  entries(table: TableName, content?: ContentContext): Promise<readonly unknown[]>;
+  entry(table: TableName, id: string, content?: ContentContext): Promise<unknown>;
   packs(): Promise<readonly PackManifest[]>;
   creation(): Promise<CreationRules>;
   /** Ability modifiers for scores (`abilityModifier`): a stat block shows them. */
@@ -624,8 +627,9 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     async configure(settings) {
       content.configure(settings);
     },
-    registerPacks: (packs) => content.register(packs),
+    registerPacks: (packs, bundled) => content.register(packs, bundled),
     servedPack: (id) => content.servedRef(id),
+    servedPackFiles: (id) => content.servedFiles(id),
     checkContent: async (ctx) => {
       try {
         const catalog = await content.catalog(ctx, TABLE_NAMES);
@@ -642,12 +646,12 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       rng = seededRng(seed ?? randomSeed());
     },
 
-    entries: async (table) => {
-      const catalog = await content.catalog(undefined, [table]);
+    entries: async (table, ctx) => {
+      const catalog = await content.catalog(ctx, [table]);
       return Object.values(catalog[table] as Record<string, unknown>);
     },
-    entry: async (table, id) => {
-      const catalog = await content.catalog(undefined, [table]);
+    entry: async (table, id, ctx) => {
+      const catalog = await content.catalog(ctx, [table]);
       return lookup(catalog[table] as Record<string, unknown>, id) ?? null;
     },
     packs: () => content.run(undefined, "builder", (catalog) => catalog.packs),

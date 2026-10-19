@@ -14,6 +14,7 @@ import { PortraitPicker } from "@/components/Portrait";
 import { Button, Empty, Spinner, StatBox, Tabs } from "@/components/ui";
 import { signed, t } from "@/i18n";
 import { usePlayView } from "@/queries";
+import { CharacterScope } from "@/queries/scope";
 import { type CharacterRecord, canRedo, canUndo, useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 import { CombatTab } from "./CombatTab";
@@ -22,7 +23,6 @@ import { HitPointsPanel, RestButtons } from "./HitPoints";
 import { InventoryTab, StartingEquipment } from "./InventoryTab";
 import { OverviewTab } from "./OverviewTab";
 import { SpellsTab } from "./SpellsTab";
-
 import type { SheetTab } from "./tabs";
 
 export function SheetPage({ id, tab }: { id: string; tab: SheetTab }) {
@@ -48,12 +48,14 @@ export function SheetPage({ id, tab }: { id: string; tab: SheetTab }) {
     );
   }
   return (
-    <Sheet
-      record={record}
-      sheet={data.sheet}
-      issues={data.issues.map((i) => i.message)}
-      tab={tab}
-    />
+    <CharacterScope id={id}>
+      <Sheet
+        record={record}
+        sheet={data.sheet}
+        issues={data.issues.map((i) => i.message)}
+        tab={tab}
+      />
+    </CharacterScope>
   );
 }
 

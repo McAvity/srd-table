@@ -22,7 +22,7 @@ const COINS: readonly Currency[] = ["pp", "gp", "ep", "sp", "cp"];
 
 export function InventoryTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons, busy } = usePlay(id);
-  const { data: magic } = useTable<MagicItemDef>("magic_items");
+  const { data: magic } = useTable<MagicItemDef>("magic_items", { character: id });
   const magicById = new Map((magic ?? []).map((m) => [m.id, m]));
   const [adding, setAdding] = useState(false);
   const { play } = sheet;
@@ -231,11 +231,11 @@ const ITEM_TABLES = ["weapons", "armor", "gear", "tools", "magic_items"] as cons
 
 function AddItemDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const { act, reasons, busy } = usePlay(id);
-  const weapons = useTable<Pickable>("weapons");
-  const armor = useTable<Pickable>("armor");
-  const gear = useTable<Pickable>("gear");
-  const tools = useTable<Pickable>("tools");
-  const magic = useTable<MagicItemDef>("magic_items");
+  const weapons = useTable<Pickable>("weapons", { character: id });
+  const armor = useTable<Pickable>("armor", { character: id });
+  const gear = useTable<Pickable>("gear", { character: id });
+  const tools = useTable<Pickable>("tools", { character: id });
+  const magic = useTable<MagicItemDef>("magic_items", { character: id });
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Pickable | null>(null);
   const [base, setBase] = useState("");
@@ -261,7 +261,7 @@ function AddItemDialog({ id, onClose }: { id: string; onClose: () => void }) {
   const magicDef =
     picked?.table === "magic_items" ? magic.data?.find((m) => m.id === picked.id) : undefined;
   // A magic item made from a mundane one: the items the engine says it can be made from.
-  const baseIds = useMagicItemBases(magicDef?.base ? magicDef.id : null).data;
+  const baseIds = useMagicItemBases(magicDef?.base ? magicDef.id : null, id).data;
   const bases = useMemo(() => {
     if (!baseIds?.length) return null;
     const ids = new Set(baseIds);

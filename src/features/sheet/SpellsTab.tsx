@@ -18,7 +18,7 @@ import { usePlay } from "./usePlay";
 
 export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, roll, reasons, busy } = usePlay(id);
-  const { data: spells } = useTable<SpellDef>("spells");
+  const { data: spells } = useTable<SpellDef>("spells", { character: id });
   const byId = new Map((spells ?? []).map((s) => [s.id, s]));
   const levels = [...new Set(sheet.spells.map((s) => s.level))].sort((a, b) => a - b);
   const { play } = sheet;

@@ -168,7 +168,7 @@ function ExplainMax({ sheet }: { sheet: PlaySheet }) {
 
 function ConditionsPanel({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons, busy } = usePlay(id);
-  const { data: conditions } = useTable<ConditionDef>("conditions");
+  const { data: conditions } = useTable<ConditionDef>("conditions", { character: id });
   const { play } = sheet;
   const active = new Set(play.conditions.map((c) => c.id));
   return (

@@ -68,6 +68,9 @@ export const en = {
     "{id} was changed in another tab or window: it's no longer saved here. Reload the page.",
   "persistence.closeOtherTabs": "Close the app's other tabs: the saved data must be updated.",
   "persistence.reload": "The app was updated in another tab: reload this one.",
+  "persistence.bundledFailed": "The SRD couldn't be kept on this device",
+  "persistence.bundledQuota":
+    "The device's storage is full. The SRD works for now, but it needs the server after a reload.",
   "import.open": "Import…",
   "import.title": "Import",
   "import.hint":
@@ -717,10 +720,11 @@ export const en = {
   "settings.seed": "Fixed dice seed",
   "settings.seedHint": "Replays the same dice after a reload, to reproduce a bug. Empty: random.",
   "settings.loadedPacks": "Loaded packs",
-  "settings.installedPacks": "Imported packs",
+  "settings.installedPacks": "Packs on this device",
   "settings.installedPacksHint":
-    "Packs that came with imported documents: each version kept apart, used only by the documents that name it. Updating one never changes a document.",
+    "Packs that came with imported documents, each version kept apart and used only by the documents that name it, and the SRD served with the app. Updating one never changes a document.",
   "settings.noInstalledPacks": "None yet.",
+  "settings.packBundled": "served with the app",
   "settings.packAmbiguous":
     "Several installed versions of {id}: export the document that uses this pack instead.",
   "settings.data": "Your data",

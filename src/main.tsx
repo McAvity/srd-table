@@ -5,7 +5,7 @@ import { App } from "./App";
 import { engine } from "./engine/client";
 import { loadConstants } from "./engine/constants";
 import { t } from "./i18n";
-import { loadAll, startAutosave } from "./persistence/sync";
+import { loadAll, persistBundled, startAutosave } from "./persistence/sync";
 import { createQueryClient } from "./queries";
 import { createAppRouter } from "./routes/router";
 import { applyLocale, startLocaleSync } from "./store/locale";
@@ -32,6 +32,8 @@ async function start() {
   await applyLocale(useSettings.getState().settings.locale);
   startLocaleSync();
   startAutosave();
+  // The served SRD into storage (kenli F-008 §9.5), after the start: never in the way of the app.
+  void persistBundled();
   const router = createAppRouter();
   const queryClient = createQueryClient();
   root.render(

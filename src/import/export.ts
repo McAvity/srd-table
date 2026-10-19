@@ -158,7 +158,14 @@ export async function exportInstalledPack(
     const installed = all.filter((p) => p.ref.id === id).map((p) => p.ref);
     if (installed.length === 1 && installed[0]) deps.push(installed[0]);
     else if (installed.length === 0) deps.push(await engine().servedPack(id));
-    else return { ambiguous: id };
+    else {
+      // Several here (the SRD kept from an earlier version of the app): the one served now, if any.
+      const served = await engine()
+        .servedPack(id)
+        .catch(() => null);
+      if (!served || !installed.some((p) => p.sha256 === served.sha256)) return { ambiguous: id };
+      deps.push(served);
+    }
   }
   return exportPack(pack, deps, installation);
 }

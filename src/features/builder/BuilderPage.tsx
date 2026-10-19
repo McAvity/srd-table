@@ -13,6 +13,7 @@ import { Button, cx, Empty, Spinner } from "@/components/ui";
 import type { BuildEdit, BuildView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { useBuildView } from "@/queries";
+import { CharacterScope } from "@/queries/scope";
 import type { BuilderSearch } from "@/routes/router";
 import { canRedo, canUndo, useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
@@ -45,7 +46,11 @@ export function BuilderPage({ id, search }: { id: string; search: BuilderSearch 
         <Spinner />
       </div>
     );
-  return <Builder id={id} view={view} search={search} />;
+  return (
+    <CharacterScope id={id}>
+      <Builder id={id} view={view} search={search} />
+    </CharacterScope>
+  );
 }
 
 function Builder({ id, view, search }: { id: string; view: BuildView; search: BuilderSearch }) {

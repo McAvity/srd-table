@@ -129,33 +129,48 @@ export class ContentLoader {
 
 /**
  * Served packs read whole, once per session: the manifest and every table it lists. A later
- * catalog (another table, another context, after the cache let one go) needs no network.
+ * catalog (another table, another context, after the cache let one go) needs no network. With the
+ * host gone, a copy kept in storage (`bundled`) serves instead.
  */
 export class SessionPacks {
   private readonly packs = new Map<string, Promise<PackFiles>>();
+  /** Copies kept in storage (`bundled`, kenli F-008 §9.5), used when the host can't serve the pack. */
+  private readonly stored = new Map<string, PackFiles>();
 
   constructor(private readonly fetchFile: FetchPackFile) {}
+
+  /** A stored copy of a served pack (verified by the caller), for when the host is gone. */
+  remember(pack: string, files: PackFiles): void {
+    this.stored.set(pack, files);
+  }
 
   files(pack: string): Promise<PackFiles> {
     let promise = this.packs.get(pack);
     if (!promise) {
-      promise = (async () => {
-        const manifest = (await this.fetchFile(pack, "manifest.json")) as {
-          tables?: Record<string, { file: string }>;
-        };
-        const entries = await Promise.all(
-          Object.values(manifest.tables ?? {}).map(
-            async ({ file }) => [file, await this.fetchFile(pack, file)] as const,
-          ),
-        );
-        return { "manifest.json": manifest, ...Object.fromEntries(entries) } as PackFiles;
-      })().catch((error: unknown) => {
-        this.packs.delete(pack);
+      const fetching = this.fetchWhole(pack).catch((error: unknown) => {
+        const stored = this.stored.get(pack);
+        if (stored) return stored;
         throw error;
       });
-      this.packs.set(pack, promise);
+      fetching.catch(() => {
+        if (this.packs.get(pack) === fetching) this.packs.delete(pack);
+      });
+      this.packs.set(pack, fetching);
+      promise = fetching;
     }
     return promise;
+  }
+
+  private async fetchWhole(pack: string): Promise<PackFiles> {
+    const manifest = (await this.fetchFile(pack, "manifest.json")) as {
+      tables?: Record<string, { file: string }>;
+    };
+    const entries = await Promise.all(
+      Object.values(manifest.tables ?? {}).map(
+        async ({ file }) => [file, await this.fetchFile(pack, file)] as const,
+      ),
+    );
+    return { "manifest.json": manifest, ...Object.fromEntries(entries) } as PackFiles;
   }
 
   /** A file of a pack, from the session's copy. */
@@ -198,15 +213,25 @@ export class ContentRegistry {
     this.legacy.configure(settings);
   }
 
-  /** Register imported packs (immutable, by hash); returns their refs. */
-  async register(packs: readonly PackFiles[]): Promise<PackRef[]> {
+  /**
+   * Register imported packs (immutable, by hash); returns their refs. `bundled`: stored copies of
+   * packs served with the app, also used for the served pack when the host is gone.
+   */
+  async register(packs: readonly PackFiles[], bundled = false): Promise<PackRef[]> {
     const refs: PackRef[] = [];
     for (const files of packs) {
       const ref = await packRefOf(files);
       this.registered.set(ref.sha256, files);
+      if (bundled) this.session.remember(ref.id, files);
       refs.push(ref);
     }
     return refs;
+  }
+
+  /** A served pack whole, with its exact ref (to keep it in storage). */
+  async servedFiles(pack: string): Promise<{ ref: PackRef; files: PackFiles }> {
+    const ref = await this.servedRef(pack);
+    return { ref, files: await this.session.files(pack) };
   }
 
   /** The exact ref of a pack served with the app (the SRD), read whole and hashed once. */

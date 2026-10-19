@@ -17,6 +17,7 @@ import type { CombatantView } from "@/engine/facade";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
+import { CombatantScope } from "@/queries/scope";
 import { useDocuments } from "@/store/documents";
 import type { PlayWay } from "@/store/settings";
 import { ConditionMedal } from "../sheet/HitPoints";
@@ -141,7 +142,9 @@ export function SelectionPanel({
       {canAct && <CheckForm id={c.id} act={act} />}
       {canAct && (
         <div className="mb-2 border-t border-edge pt-2 text-sm">
-          <EffectsForm c={c} act={act} />
+          <CombatantScope character={c.character}>
+            <EffectsForm c={c} act={act} />
+          </CombatantScope>
         </div>
       )}
       {gm && (
@@ -315,7 +318,10 @@ function GmControls({
  * and HP limits).
  */
 function EffectsForm({ c, act }: { c: CombatantView; act: Act }) {
-  const { data: conditions } = useTable<ConditionDef>("conditions");
+  const { data: conditions } = useTable<ConditionDef>(
+    "conditions",
+    c.character ? { character: c.character } : undefined,
+  );
   const [amount, setAmount] = useState("");
   const [damageType, setDamageType] = useState("");
   const [condition, setCondition] = useState("");

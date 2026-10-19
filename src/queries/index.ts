@@ -12,6 +12,7 @@ import { db } from "@/persistence/db";
 import { characterKeysOf, partyOf, useDocuments } from "@/store/documents";
 import { useLocale } from "@/store/locale";
 import { useSettings } from "@/store/settings";
+import { useScopeContent } from "./scope";
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -96,9 +97,11 @@ export function useRenderedMessages(key: string, lists: readonly (readonly Messa
   });
 }
 
-/** The items a magic item can be made from (`magicItemBases`), in a character's content. */
+/** The items a magic item can be made from (`magicItemBases`), in a character's or the scope's content. */
 export function useMagicItemBases(magicItemId: string | null, characterId?: string) {
-  const own = useCharacterContent(characterId);
+  const ofCharacter = useCharacterContent(characterId);
+  const inScope = useScopeContent();
+  const own = characterId ? ofCharacter : inScope;
   const content = useDocumentContentKey(own);
   return useQuery({
     queryKey: ["magic-bases", magicItemId, content],
@@ -224,27 +227,44 @@ export function useActionCheck(encounterId: string, action: EncounterAction | nu
   });
 }
 
-/** Every entity of a catalog table (Compendium, pickers). */
-export function useTable<T = unknown>(table: TableName) {
-  const content = useContentKey();
+/** Whose content a lookup uses: a character's (by record id), else the scope's. */
+export interface Owner {
+  readonly character?: string | null;
+}
+function useOwnerContent(owner: Owner | undefined): ContentContext | undefined {
+  const scoped = useScopeContent();
+  const record = useDocuments((s) =>
+    owner?.character ? s.characters[owner.character] : undefined,
+  );
+  return owner?.character ? record?.content : scoped;
+}
+
+/**
+ * Every entity of a catalog table, from the content in scope (a sheet's or builder's character,
+ * the encounter's world, a combatant's own; the campaign's elsewhere: Compendium, Settings).
+ */
+export function useTable<T = unknown>(table: TableName, owner?: Owner) {
+  const own = useOwnerContent(owner);
+  const content = useDocumentContentKey(own);
   return useQuery({
     queryKey: ["table", table, content],
-    queryFn: async () => (await engine().entries(table)) as readonly T[],
+    queryFn: async () => (await engine().entries(table, own)) as readonly T[],
   });
 }
 
-export function useEntry<T = unknown>(table: TableName, id: string | null) {
-  const content = useContentKey();
+export function useEntry<T = unknown>(table: TableName, id: string | null, owner?: Owner) {
+  const own = useOwnerContent(owner);
+  const content = useDocumentContentKey(own);
   return useQuery({
     queryKey: ["entry", table, id, content],
-    queryFn: async () => (await engine().entry(table, id as string)) as T | null,
+    queryFn: async () => (await engine().entry(table, id as string, own)) as T | null,
     enabled: id !== null,
   });
 }
 
 /** Catalog names by id for one table (`common` → `Common`). */
-export function useNames(table: TableName): (id: string) => string {
-  const { data } = useTable<{ id: string; name: string }>(table);
+export function useNames(table: TableName, owner?: Owner): (id: string) => string {
+  const { data } = useTable<{ id: string; name: string }>(table, owner);
   const names = new Map((data ?? []).map((e) => [e.id, e.name]));
   return (id) => names.get(id) ?? id;
 }
@@ -354,6 +374,7 @@ export function useInstalledPacks() {
         key: p.key,
         ref: p.ref,
         installed_at: p.installed_at,
+        bundled: p.origin.kind === "bundled",
       })),
   });
 }
