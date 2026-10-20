@@ -7,10 +7,15 @@
  * Version 2 (kenli F-008) adds the `packs` store: imported packs, immutable, keyed by id, version
  * and hash. The upgrade only creates it: no record is rewritten, none gets a content pin it didn't
  * have (a record without `content` plays on the campaign's packs, as before).
+ *
+ * Version 3 (kenli F-006) adds each character's journal: `history` (entries, unique by record and
+ * seq) and `history_meta` (its head: days, next seq, version). The upgrade only creates them, empty:
+ * no record is rewritten and no past action is made up; a head is created when first needed.
  */
 
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
 import type { ContentContext, PackFiles, PackRef } from "@/lib/canonical";
+import type { HistoryEntry, HistoryMeta } from "@/store/history";
 
 /** Where a record came from, when it was imported (or duplicated from an imported one). */
 export type RecordOrigin =
@@ -82,10 +87,21 @@ interface Schema extends DBSchema {
   /** A character's portrait, uploaded by the player (the SRD has no art): app-only data. */
   portraits: { key: string; value: Blob };
   packs: { key: string; value: StoredPack };
+  history: {
+    key: string;
+    value: HistoryEntry;
+    indexes: {
+      by_record_seq: [string, number];
+      by_record_day: [string, string, number];
+      by_record_rest: [string, string, number];
+      by_operation: string;
+    };
+  };
+  history_meta: { key: string; value: HistoryMeta };
 }
 
 export const DB_NAME = "srd-table";
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const packKey = (ref: PackRef) => `${ref.id}@${ref.version ?? ""}#${ref.sha256}`;
 
@@ -108,6 +124,15 @@ export function db(): Promise<IDBPDatabase<Schema>> {
         database.createObjectStore("portraits");
       }
       if (oldVersion < 2) database.createObjectStore("packs", { keyPath: "key" });
+      if (oldVersion < 3) {
+        const h = database.createObjectStore("history", { keyPath: "id" });
+        h.createIndex("by_record_seq", ["record_id", "seq"], { unique: true });
+        h.createIndex("by_record_day", ["record_id", "day_id", "seq"]);
+        // Only rests have `rest_kind`: a sparse index, read for the Long Rest counters.
+        h.createIndex("by_record_rest", ["record_id", "rest_kind", "seq"]);
+        h.createIndex("by_operation", "operation_id");
+        database.createObjectStore("history_meta", { keyPath: "record_id" });
+      }
     },
     blocked() {
       for (const l of blockedListeners) l("blocked");

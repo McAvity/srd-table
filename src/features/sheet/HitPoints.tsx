@@ -12,8 +12,10 @@ import { engine } from "@/engine/client";
 import { damageTypes } from "@/engine/constants";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
+import { longRests } from "@/persistence/history";
 import { useTable } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
+import { useHistory } from "@/store/history";
 import { type RecordVersion, useRolls, versionOf } from "@/store/rolls";
 import { useUi } from "@/store/ui";
 import { usePlay, usePlayResult } from "./usePlay";
@@ -320,6 +322,8 @@ export function ConditionMedal({ label }: { label?: string }) {
 interface RestDie {
   readonly die: number;
   readonly roll: RollResult;
+  /** The die as first rolled, when Heroic Inspiration rerolled it (kept in the journal, F-006). */
+  readonly from?: RollResult;
 }
 interface RestDraft {
   readonly kind: "short" | "long";
@@ -351,6 +355,12 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const record = useDocuments((s) => s.characters[id]);
   const [draft, setDraft] = useState<RestDraft | null>(null);
   const [pending, setPending] = useState(0);
+  // kenli F-006 §6.3: Long Rests already taken on this character's current day, and the DM's exception.
+  const [restsToday, setRestsToday] = useState(0);
+  const [exception, setException] = useState<{ on: boolean; note: string }>({
+    on: false,
+    note: "",
+  });
   // The draft as the steps see it, the opening the dialog is in (each opening and closing a new
   // one), the steps of this opening one after another, and a Confirm under way.
   const current = useRef<RestDraft | null>(null);
@@ -382,6 +392,15 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
     if (!now) return put(null);
     const at = versionOf(now);
     put({ kind, at, rolled: [], heroic: false, preview: null, problem: null, restarted });
+    if (kind === "long") {
+      setException({ on: false, note: "" });
+      setRestsToday(0);
+      const mine = session.current;
+      const day = useHistory.getState().ensureMeta(id).current_day_id;
+      void longRests(id).then((r) => {
+        if (session.current === mine) setRestsToday(r.by_day[day] ?? 0);
+      });
+    }
     // The rest with no die yet: what it gives back as it is.
     if (kind === "short") step(async () => ({ rolled: [], heroic: false }));
   };
@@ -452,7 +471,10 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
       if (!r.ok) return { problem: r.reasons };
       const again = r.roll as RollResult;
       return {
-        rolled: [...d.rolled.slice(0, -1), { die: last.die, roll: again }],
+        rolled: [
+          ...d.rolled.slice(0, -1),
+          { die: last.die, roll: again, from: last.from ?? last.roll },
+        ],
         heroic: true,
         shown: again,
       };
@@ -489,7 +511,12 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
             <Button
               variant="primary"
               icon={open === "long" ? "moon" : "hourglass"}
-              disabled={busy || waiting || (open === "short" && draft?.problem != null)}
+              disabled={
+                busy ||
+                waiting ||
+                (open === "short" && draft?.problem != null) ||
+                (open === "long" && restsToday > 0 && !exception.on)
+              }
               onClick={async () => {
                 const d = current.current;
                 if (!d || confirming.current) return;
@@ -497,6 +524,17 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 const ok = await act(
                   d.kind === "long" ? { type: "long_rest" } : restActions(d.rolled, d.heroic),
                   d.at,
+                  d.kind === "long"
+                    ? exception.on
+                      ? { rest_override: { note: exception.note } }
+                      : undefined
+                    : {
+                        rest_dice: d.rolled.map((r) => ({
+                          die: r.die,
+                          roll: r.roll,
+                          rerolled_from: r.from ?? null,
+                        })),
+                      },
                 );
                 if (ok) return close();
                 confirming.current = false;
@@ -514,6 +552,31 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
           <p className="mb-2 text-sm text-ink-muted" role="status">
             {t("sheet.restRestarted")}
           </p>
+        )}
+        {open === "long" && restsToday > 0 && (
+          <div className="space-y-2" data-testid="second-long-rest">
+            <p className="text-sm text-orange" role="status">
+              {t("sheet.secondLongRest", { count: restsToday })}
+            </p>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={exception.on}
+                onChange={(e) => setException((x) => ({ ...x, on: e.target.checked }))}
+              />
+              {t("sheet.dmException")}
+            </label>
+            {exception.on && (
+              <input
+                className="w-full rounded border border-edge bg-card px-2 py-1 text-sm"
+                aria-label={t("sheet.dmExceptionNote")}
+                placeholder={t("sheet.dmExceptionNote")}
+                maxLength={200}
+                value={exception.note}
+                onChange={(e) => setException((x) => ({ ...x, note: e.target.value }))}
+              />
+            )}
+          </div>
         )}
         {open === "short" && (
           <div className="space-y-2">

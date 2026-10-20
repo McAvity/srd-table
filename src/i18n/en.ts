@@ -747,6 +747,21 @@ export const en = {
   "errors.rerollWindowClosed":
     "That roll can't be changed any more: the character changed since (reroll_window_closed).",
   "errors.rollNotApplicable": "That doesn't apply to this roll.",
+  "history.undoOverwritesEncounter":
+    "Undoing this also takes back what a later encounter action did to this character (its history entry stays).",
+  "history.restOverrideRequired":
+    "A Long Rest was already taken on this day: confirm it as the DM's exception.",
+  "history.dayLabelInvalid": "A day's label is one line of at most 40 characters.",
+  "history.dayUnknown": "That day isn't in this character's history.",
+  "history.local": "History stays on this device: it isn't exported or imported.",
+  "sheet.secondLongRest": "A Long Rest was already taken on this day ({count}).",
+  "sheet.dmException": "The DM allows it (an exception)",
+  "sheet.dmExceptionNote": "Note (optional)",
+  "characters.deleteHistory": "Its history on this device ({count} entries) is deleted too.",
+  "persistence.historyChangedElsewhere":
+    "The history or days of {name} changed in another tab: {count} change(s) from this tab weren't saved. Reload to see the saved version.",
+  "import.problem.history_changed":
+    "A character's history changed in another tab since the preview: reload and preview again.",
   "errors.recordChangedSince":
     "Not applied: the character changed since this was prepared (another action or an import). Look at it again.",
   "rollopts.title": "GM additions to the next rolls",

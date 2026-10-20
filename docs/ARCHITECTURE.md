@@ -308,6 +308,42 @@ content (`record.content`).
   imports it as it is, never dropping `location`; an older app refuses it with the engine's
   "saved by a newer srd-rules-engine" instead of reading the item as carried.
 
+## Session history (kenli F-006)
+
+Each character has a journal of what was played (contract `kenli.history/1` in the dnd5 repo,
+`docs/features/F-006-session-history/contracts/history.md`). It is a record, not event sourcing:
+the documents stay the only game state, nothing is replayed from the journal, Redo never rolls.
+
+- `src/store/history.ts`: entries and heads. An entry is captured by the store method that accepted
+  the operation, in the same synchronous block as its commit (`commitCharacter`, `applyToEncounter`),
+  never for a refusal, a stale result or a cancelled dialog. Rolls that change nothing (a check, free
+  damage, a Critical Hit) are captured too, with `commit: false`. The engine's result is kept
+  verbatim; `outcome` copies its fields (raw `roll.natural`, effective `roll.d20`, totals); `costs` is
+  only what that operation paid. A change of a roll (late Advantage, Heroic Inspiration, a Critical
+  Hit) names the `component` of its root's result it replaces (`rolls.attacks[i]`, or the whole
+  result), and `projection(entries, group)` puts the done changes on the root: the current result.
+- Undo steps carry the operation id (`Snapshot.op`); Undo/Redo set the status of that operation's
+  entries on the records the step restored (a later no-commit change of the same component goes
+  with it). The stack stays in memory; statuses persist. `undoWarning` says when a sheet Undo would
+  also take back a later encounter effect (the existing whole-state Undo is unchanged).
+- Encounter operations write one entry per character they changed, one for the acting character
+  when it rolled or changed a state, and one for the character who must decide when it stopped;
+  `decide` continues that operation. Each character's entry is in its own journal and day.
+- Days are per character in its head (`HistoryMeta`): labels by hand, stable ids, no Undo, no
+  change of the record's `rev` (the reroll window stays open). Long Rest counters come from done
+  `long_rest` entries; a second one the same day needs the DM's exception (`playAction`'s
+  `capture.rest_override`), else the store refuses it.
+- IndexedDB v3 adds `history` (unique `[record_id, seq]`, by day, by rest, by operation) and
+  `history_meta`; the upgrade creates them empty and a head is made when first needed. Heads are
+  read at start, entries on demand (`src/persistence/history.ts`: pages, counters, counts).
+- The autosave writes a character as one unit: its document row (CAS on `rev`) and its journal
+  (CAS on the head's own `rev`, +1 on every journal write). Either mismatch writes nothing of that
+  character and marks it conflicted (`document` or `history`) until a reload; a failed transaction
+  is aborted whole and the next save writes the same rows. The import compares replaced characters'
+  heads in its transaction (`history_changed`) and writes one `import_boundary` entry each, under the
+  operation its undo step carries. Copies and new characters start empty; a deletion removes the
+  journal in the same transaction. Transfers carry no history.
+
 ## Manual play
 
 Redesigned 2026-10-10 by the app's owner (the first design, with an outcome step and dice

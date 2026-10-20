@@ -13,7 +13,7 @@ import { Icon } from "@/components/Icon";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { signed, t } from "@/i18n";
 import { useDocuments } from "@/store/documents";
-import { attackDm, declaredLucky, useRollAdditions } from "@/store/rolls";
+import { attackDm, declaredLucky, openRoll, useRollAdditions, useRolls } from "@/store/rolls";
 import { useSettings } from "@/store/settings";
 import { useRoller } from "./OverviewTab";
 import { usePlay } from "./usePlay";
@@ -43,6 +43,17 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 
 function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const rollDamage = useDocuments((s) => s.rollDamage);
+  /** The open roll of this attack line, whose follow-up this damage is (kenli F-006 C04). */
+  const follows = (name: string) => {
+    const last = openRoll(useRolls.getState().last[id], useDocuments.getState().characters[id]);
+    const same =
+      last?.kind === "test"
+        ? last.test.attack === name
+        : last?.kind === "sheet"
+          ? last.roll.name === name
+          : false;
+    return same ? last?.op : undefined;
+  };
   const { roll, reasons, busy } = usePlay(id);
   const additions = useRollAdditions((s) => s.by[id]);
   const test = useRoller(id, sheet);
@@ -117,14 +128,18 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       icon="flame"
                       iconOnly
                       label={`${a.name}: ${t("sheet.damageCol")}`}
-                      onClick={() => void rollDamage(id, a.damage_parts, false, a.name)}
+                      onClick={() =>
+                        void rollDamage(id, a.damage_parts, false, a.name, follows(a.name))
+                      }
                     />
                     <Button
                       size="sm"
                       icon="bolt"
                       iconOnly
                       label={`${a.name}: ${t("dice.critical")}`}
-                      onClick={() => void rollDamage(id, a.damage_parts, true, a.name)}
+                      onClick={() =>
+                        void rollDamage(id, a.damage_parts, true, a.name, follows(a.name))
+                      }
                     />
                   </div>
                 </td>

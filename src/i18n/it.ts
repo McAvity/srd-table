@@ -768,6 +768,22 @@ export const it: Messages = {
   "errors.rerollWindowClosed":
     "Quel tiro non si può più cambiare: il personaggio è cambiato nel frattempo (reroll_window_closed).",
   "errors.rollNotApplicable": "Non si applica a questo tiro.",
+  "history.undoOverwritesEncounter":
+    "Annullare questo toglie anche ciò che un'azione successiva dello scontro ha fatto a questo personaggio (la voce di cronologia resta).",
+  "history.restOverrideRequired":
+    "In questo giorno c'è già stato un Riposo Lungo: confermalo come eccezione del DM.",
+  "history.dayLabelInvalid": "L'etichetta di un giorno è una riga di al massimo 40 caratteri.",
+  "history.dayUnknown": "Quel giorno non è nella cronologia di questo personaggio.",
+  "history.local": "La cronologia resta su questo dispositivo: non viene esportata né importata.",
+  "sheet.secondLongRest": "In questo giorno c'è già stato un Riposo Lungo ({count}).",
+  "sheet.dmException": "Il DM lo concede (un'eccezione)",
+  "sheet.dmExceptionNote": "Nota (facoltativa)",
+  "characters.deleteHistory":
+    "Viene eliminata anche la sua cronologia su questo dispositivo ({count} voci).",
+  "persistence.historyChangedElsewhere":
+    "La cronologia o i giorni di {name} sono cambiati in un'altra scheda: {count} modifiche di questa scheda non sono state salvate. Ricarica per vedere la versione salvata.",
+  "import.problem.history_changed":
+    "La cronologia di un personaggio è cambiata in un'altra scheda dopo l'anteprima: ricarica e ripeti l'anteprima.",
   "errors.recordChangedSince":
     "Non applicato: il personaggio è cambiato da quando era stato preparato (un'altra azione o un'importazione). Guardalo di nuovo.",
   "rollopts.title": "Aggiunte del GM ai prossimi tiri",

@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import type { PlayAction, RollWhat } from "srd-rules-engine";
-import { useDocuments } from "@/store/documents";
+import { type PlayCapture, useDocuments } from "@/store/documents";
 import { type DeclaredLucky, luckySpent, type RecordVersion } from "@/store/rolls";
 
 export function usePlay(id: string) {
@@ -23,9 +23,15 @@ export function usePlay(id: string) {
       setBusy(false);
     }
   }
-  /** With `at`, only on the record as it was then (a dialog's preview), else refused. */
-  const act = (action: PlayAction | readonly PlayAction[], at?: RecordVersion) =>
-    run(() => playAction(id, action, at));
+  /**
+   * With `at`, only on the record as it was then (a dialog's preview), else refused; `capture`: what
+   * its journal entry keeps besides the action (a rest's dice, the DM's exception).
+   */
+  const act = (
+    action: PlayAction | readonly PlayAction[],
+    at?: RecordVersion,
+    capture?: PlayCapture,
+  ) => run(() => playAction(id, action, at, capture));
   /** With `lucky`, the declared luck-style use is spent with the roll, then cleared. */
   const roll = (what: RollWhat, lucky?: DeclaredLucky) =>
     run(async () => {

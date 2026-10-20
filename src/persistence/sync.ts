@@ -8,6 +8,13 @@
  * (compare-and-set): a change made in another tab is never overwritten, the record is marked and
  * no longer saved here until the page is reloaded. The saved baseline moves only once a
  * transaction is done, so a failed save is tried again.
+ *
+ * kenli F-006 (contract history.md §5.3): a character is one unit with its journal. Its document
+ * row is compared on `rev`, its journal head (`history_meta.rev`) on the version this tab last read
+ * or wrote — independently: a day or a roll that changes nothing never touches the document's
+ * `rev`. Both match or nothing of that character is written; a mismatch marks it conflicted
+ * (document or history), said once, and not tried again until a reload. Every journal write puts
+ * the head with `rev + 1`; entries keep their ids, so a retried save writes the same rows.
  */
 
 import { engine } from "@/engine/client";
@@ -19,6 +26,12 @@ import {
   type LogEntry,
   useDocuments,
 } from "@/store/documents";
+import {
+  type ConflictKind,
+  type HistoryEntry,
+  type HistoryMeta,
+  useHistory,
+} from "@/store/history";
 import { PLAY_WAYS, type PlayWay, readSettings, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
 import { db, newInstallationId, onDbBlocked, packKey } from "./db";
@@ -111,6 +124,8 @@ export async function loadAll(): Promise<void> {
       migrated.push({ store: "encounters", record, rev: raw.rev ?? 0 });
   }
   useDocuments.getState().hydrate({ characters, encounters });
+  // Every character's journal head (small); the entries stay in the database until read.
+  useHistory.getState().hydrate(await database.getAll("history_meta"));
   // Persist what the parse migrated, only where the database still has what was read.
   if (migrated.length) {
     await writeQueue(async () => {
@@ -210,6 +225,9 @@ interface Baseline {
   characters: Readonly<Record<string, CharacterRecord>>;
   encounters: Readonly<Record<string, EncounterRecord>>;
   settings: unknown;
+  /** Journal versions this tab saved (entries by id, heads by record id). */
+  entries: Readonly<Record<string, HistoryEntry>>;
+  meta: Readonly<Record<string, HistoryMeta>>;
 }
 
 /** The running autosave (one per app), so an import can flush it and move its baseline. */
@@ -219,15 +237,32 @@ let active: {
   conflicted: Set<string>;
 } | null = null;
 
+/**
+ * The journal head version of a character this tab last read or wrote (`null`: none saved), and
+ * whether it is still saved here (not conflicted): the import compares it in its transaction.
+ */
+export function savedHead(recordId: string): { rev: number | null; conflicted: boolean } {
+  if (!active) {
+    const m = useHistory.getState().meta[recordId];
+    return { rev: m && m.rev > 0 ? m.rev : null, conflicted: false };
+  }
+  return {
+    rev: active.baseline.meta[recordId]?.rev ?? null,
+    conflicted: active.conflicted.has(recordId),
+  };
+}
+
 /** Save now what's waiting (an import flushes before its transaction). */
 export function flushNow(): Promise<void> {
   return active ? active.flush() : Promise.resolve();
 }
 
-/** An import wrote these records: they are this tab's last written version now. */
+/** An import wrote these records (and journal rows): they are this tab's last written version now. */
 export function markCommitted(records: {
   characters: readonly CharacterRecord[];
   encounters: readonly EncounterRecord[];
+  entries?: readonly HistoryEntry[];
+  meta?: readonly HistoryMeta[];
 }): void {
   if (!active) return;
   const b = active.baseline;
@@ -241,6 +276,8 @@ export function markCommitted(records: {
       ...b.encounters,
       ...Object.fromEntries(records.encounters.map((e) => [e.id, e])),
     },
+    entries: { ...b.entries, ...Object.fromEntries((records.entries ?? []).map((e) => [e.id, e])) },
+    meta: { ...b.meta, ...Object.fromEntries((records.meta ?? []).map((m) => [m.record_id, m])) },
   };
 }
 
@@ -248,14 +285,23 @@ export function markCommitted(records: {
 export function startAutosave(): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const conflicted = new Set<string>();
+  const kinds = new Map<string, ConflictKind>();
   const state: NonNullable<typeof active> = {
     baseline: {
       characters: useDocuments.getState().characters,
       encounters: useDocuments.getState().encounters,
       settings: useSettings.getState().settings,
+      entries: useHistory.getState().entries,
+      meta: useHistory.getState().meta,
     },
     conflicted,
-    flush: () => writeQueue(save),
+    flush: () =>
+      writeQueue(() =>
+        save().catch((error: unknown) => {
+          useHistory.getState().setSaveState({ status: "failed", reason: String(error) });
+          throw error;
+        }),
+      ),
   };
 
   async function save() {
@@ -264,14 +310,27 @@ export function startAutosave(): () => void {
     timer = null;
     const { characters, encounters } = useDocuments.getState();
     const settings = useSettings.getState().settings;
+    const journal = useHistory.getState();
     const saved = state.baseline;
     const database = await db();
-    const tx = database.transaction(["characters", "encounters", "settings"], "readwrite");
+    const tx = database.transaction(
+      ["characters", "encounters", "settings", "history", "history_meta"],
+      "readwrite",
+    );
+
     const written = {
       characters: new Map<string, CharacterRecord | null>(),
       encounters: new Map<string, EncounterRecord | null>(),
     };
-    const newly: string[] = [];
+    const writtenEntries: HistoryEntry[] = [];
+    const writtenMeta: { read: HistoryMeta; written: HistoryMeta }[] = [];
+    const dropped: string[] = [];
+    const newly: { id: string; kind: ConflictKind; pending: number }[] = [];
+    const conflict = (id: string, kind: ConflictKind, pending = 0) => {
+      conflicted.add(id);
+      kinds.set(id, kind);
+      newly.push({ id, kind, pending });
+    };
     // Compare-and-set: the database must still hold the revision this tab saved (or read).
     const write = async <R extends CharacterRecord | EncounterRecord>(
       store: "characters" | "encounters",
@@ -284,32 +343,100 @@ export function startAutosave(): () => void {
       const expected = before ? (before.rev ?? 0) : null;
       const actual = current ? (current.rev ?? 0) : null;
       if (actual !== expected) {
-        conflicted.add(id);
-        newly.push(id);
+        conflict(id, "document");
         return;
       }
       if (record) await tx.objectStore(store).put(record as never);
       else await tx.objectStore(store).delete(id);
       (written[store] as Map<string, R | null>).set(id, record);
     };
-    for (const [id, record] of Object.entries(characters))
-      if (saved.characters[id] !== record)
-        await write("characters", id, record, saved.characters[id]);
-    for (const id of Object.keys(saved.characters))
-      if (!characters[id]) await write("characters", id, null, saved.characters[id]);
-    for (const [id, record] of Object.entries(encounters))
-      if (saved.encounters[id] !== record)
-        await write("encounters", id, record, saved.encounters[id]);
-    for (const id of Object.keys(saved.encounters))
-      if (!encounters[id]) await write("encounters", id, null, saved.encounters[id]);
+
     const settingsChanged = settings !== saved.settings;
-    if (settingsChanged) await tx.objectStore("settings").put(settings, SETTINGS_KEY);
-    await tx.done;
+    try {
+      // Characters: each one with its journal, as one unit (kenli F-006 §5.3).
+      const pendingOf = new Map<string, HistoryEntry[]>();
+      for (const e of Object.values(journal.entries))
+        if (saved.entries[e.id] !== e)
+          pendingOf.set(e.record_id, [...(pendingOf.get(e.record_id) ?? []), e]);
+      const ids = new Set([
+        ...Object.keys(characters),
+        ...Object.keys(saved.characters),
+        ...Object.keys(journal.meta),
+        ...pendingOf.keys(),
+      ]);
+      for (const id of [...ids].sort()) {
+        if (conflicted.has(id)) continue;
+        const record = characters[id] ?? null;
+        const before = saved.characters[id];
+        if (!record && !before) {
+          // Created and deleted before it was ever saved: its journal goes with it, nothing to write.
+          if (journal.meta[id] || pendingOf.has(id)) dropped.push(id);
+          continue;
+        }
+        const docDirty = record !== (before ?? null);
+        const entries = record ? (pendingOf.get(id) ?? []) : [];
+        const meta = journal.meta[id];
+        const metaDirty = record ? !!meta && saved.meta[id] !== meta : true;
+        const journalDirty = entries.length > 0 || metaDirty;
+        if (!docDirty && !journalDirty) continue;
+        const row = await tx.objectStore("characters").get(id);
+        if ((row ? (row.rev ?? 0) : null) !== (before ? (before.rev ?? 0) : null)) {
+          conflict(id, "document", entries.length);
+          continue;
+        }
+        if (journalDirty) {
+          const head = await tx.objectStore("history_meta").get(id);
+          if ((head?.rev ?? null) !== (saved.meta[id]?.rev ?? null)) {
+            conflict(id, "history", entries.length);
+            continue;
+          }
+        }
+        if (docDirty) {
+          if (record) await tx.objectStore("characters").put(record as never);
+          else await tx.objectStore("characters").delete(id);
+          written.characters.set(id, record);
+        }
+        if (!journalDirty) continue;
+        if (!record) {
+          // Deleted: its journal and head go in the same transaction.
+          const index = tx.objectStore("history").index("by_record_seq");
+          const range = IDBKeyRange.bound([id, 0], [id, Number.MAX_SAFE_INTEGER]);
+          for (let c = await index.openCursor(range); c; c = await c.continue()) await c.delete();
+          await tx.objectStore("history_meta").delete(id);
+          dropped.push(id);
+          continue;
+        }
+        for (const e of entries) await tx.objectStore("history").put(e);
+        const head = meta ?? useHistory.getState().ensureMeta(id);
+        const next: HistoryMeta = { ...head, rev: (saved.meta[id]?.rev ?? 0) + 1 };
+        await tx.objectStore("history_meta").put(next);
+        writtenEntries.push(...entries);
+        writtenMeta.push({ read: head, written: next });
+      }
+      for (const [id, record] of Object.entries(encounters))
+        if (saved.encounters[id] !== record)
+          await write("encounters", id, record, saved.encounters[id]);
+      for (const id of Object.keys(saved.encounters))
+        if (!encounters[id]) await write("encounters", id, null, saved.encounters[id]);
+      if (settingsChanged) await tx.objectStore("settings").put(settings, SETTINGS_KEY);
+      await tx.done;
+    } catch (error) {
+      // Nothing of a failed save is kept (quota, a unique index): the baseline doesn't move.
+      try {
+        tx.abort();
+      } catch {
+        // already finished
+      }
+      await tx.done.catch(() => undefined);
+      throw error;
+    }
     // Only now is it saved: move the baseline for what was written.
     const next = {
       ...state.baseline,
       characters: { ...state.baseline.characters },
       encounters: { ...state.baseline.encounters },
+      entries: { ...state.baseline.entries },
+      meta: { ...state.baseline.meta },
     };
     for (const [id, r] of written.characters) {
       if (r) next.characters[id] = r;
@@ -319,11 +446,28 @@ export function startAutosave(): () => void {
       if (r) next.encounters[id] = r;
       else delete next.encounters[id];
     }
+    for (const e of writtenEntries) next.entries[e.id] = e;
+    for (const m of writtenMeta) next.meta[m.written.record_id] = m.written;
+    for (const id of dropped) {
+      delete next.meta[id];
+      for (const [eid, e] of Object.entries(next.entries))
+        if (e.record_id === id) delete next.entries[eid];
+    }
     if (settingsChanged) next.settings = settings;
     state.baseline = next;
+    useHistory.getState().saved({ entries: writtenEntries, meta: writtenMeta, dropped });
+    if (conflicted.size) {
+      useHistory.getState().setConflicts(Object.fromEntries(kinds));
+      useHistory.getState().setSaveState({ status: "conflict", records: [...conflicted] });
+    } else useHistory.getState().setSaveState({ status: "saved" });
     if (newly.length) {
+      const name = (id: string) => characters[id]?.build.name || id;
       useUi.getState().toast(
-        newly.map((id) => t("persistence.changedElsewhere", { id })),
+        newly.map(({ id, kind, pending }) =>
+          kind === "history"
+            ? t("persistence.historyChangedElsewhere", { name: name(id), count: pending })
+            : t("persistence.changedElsewhere", { id }),
+        ),
         "error",
         t("persistence.saveFailed"),
       );
@@ -334,15 +478,18 @@ export function startAutosave(): () => void {
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      state
-        .flush()
-        .catch((error: unknown) =>
-          useUi.getState().toast([String(error)], "error", t("persistence.saveFailed")),
-        );
+      state.flush().catch((error: unknown) => {
+        useHistory.getState().setSaveState({ status: "failed", reason: String(error) });
+        useUi.getState().toast([String(error)], "error", t("persistence.saveFailed"));
+      });
     }, SAVE_DELAY_MS);
   };
   const unsubscribeDocs = useDocuments.subscribe(schedule);
   const unsubscribeSettings = useSettings.subscribe(schedule);
+  // A roll that changes no document, a day: the journal alone is saved too (kenli F-006 §5.3.1).
+  const unsubscribeHistory = useHistory.subscribe((s, prev) => {
+    if (s.entries !== prev.entries || s.meta !== prev.meta) schedule();
+  });
   const unsubscribeBlocked = onDbBlocked((why) =>
     useUi
       .getState()
@@ -360,6 +507,7 @@ export function startAutosave(): () => void {
   return () => {
     unsubscribeDocs();
     unsubscribeSettings();
+    unsubscribeHistory();
     unsubscribeBlocked();
     removeEventListener("pagehide", onHide);
     onHide();

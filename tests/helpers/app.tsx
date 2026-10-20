@@ -15,6 +15,7 @@ import { closeDb, DB_NAME } from "../../src/persistence/db";
 import { createQueryClient } from "../../src/queries";
 import { createAppRouter } from "../../src/routes/router";
 import { useDocuments } from "../../src/store/documents";
+import { useHistory } from "../../src/store/history";
 import { applyLocale, startLocaleSync, useLocale } from "../../src/store/locale";
 import { DEFAULT_SETTINGS, useSettings } from "../../src/store/settings";
 import { useUi } from "../../src/store/ui";
@@ -35,6 +36,7 @@ export async function resetStores(): Promise<void> {
     request.onblocked = () => resolve();
   });
   useDocuments.setState({ hydrated: true, characters: {}, encounters: {}, revs: {}, history: {} });
+  useHistory.getState().hydrate([]);
   useSettings.setState({ settings: DEFAULT_SETTINGS });
   useUi.setState({
     toasts: [],

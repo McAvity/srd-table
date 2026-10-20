@@ -16,6 +16,10 @@
  * grown meanwhile), and the change waits for the ones it didn't hold yet. An undo step is the
  * whole record as it was (documents, content, origin): undoing an import restores the old
  * version, as a new revision and generation.
+ *
+ * kenli F-006: every accepted operation gets an id, written on its undo step (`op`), and its journal
+ * entries are captured in the same synchronous block as its commit (`store/history.ts`); a refusal,
+ * a stale result or a cancelled dialog records nothing. Undo/Redo change the entries' status.
  */
 
 import type {
@@ -29,6 +33,7 @@ import type {
   EncounterAction,
   Message,
   PlayAction,
+  RollCost,
   RolledDamage,
   RollWhat,
 } from "srd-rules-engine";
@@ -51,10 +56,30 @@ import { t } from "@/i18n";
 import { canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
 import type { RecordMeta } from "@/persistence/db";
+import { longRests } from "@/persistence/history";
 import { rollDice } from "./dice";
+import {
+  componentOf,
+  type EntryDraft,
+  newOperationId,
+  type OperationId,
+  overwritesEncounter,
+  type RestDie,
+  stateDelta,
+  useHistory,
+} from "./history";
 import { type DeclaredLucky, type LastRoll, openRoll, type RecordVersion, useRolls } from "./rolls";
 import { type PlayWay, useSettings } from "./settings";
 import { useUi } from "./ui";
+
+/**
+ * What a play action's journal entry needs beyond the action (kenli F-006): the Short Rest dialog's
+ * dice as rolled (and rerolled), the DM's exception for a second Long Rest the same day.
+ */
+export interface PlayCapture {
+  readonly rest_dice?: readonly RestDie[];
+  readonly rest_override?: { readonly note?: string | null };
+}
 
 /** Refused because a cost of a roll by hand can't be paid (the roll can still be forced). */
 export interface UnpaidRefusal extends Refusal {
@@ -115,23 +140,27 @@ export interface EncounterRecord extends RecordMeta {
 
 /** What a record plays with and where it came from: restored with its documents. */
 type Identity = Pick<RecordMeta, "content" | "origin">;
-type CharacterSnapshot = Identity & {
-  readonly kind: "character";
-  readonly build: CharacterBuild;
-  readonly state: CharacterState;
-};
-type EncounterSnapshot = Identity & {
-  readonly kind: "encounter";
-  readonly encounter: Encounter;
-  /**
-   * Party states as they were, restored with the encounter; each with its record's generation
-   * then (a character an import replaced since keeps its own state).
-   */
-  readonly states: Readonly<Record<string, CharacterState>>;
-  readonly gens?: Readonly<Record<string, number>>;
-  /** The rest of the record, for a step an import made (its name, log and modes were replaced). */
-  readonly record?: Pick<EncounterRecord, "name" | "log" | "modes">;
-};
+/** The operation a step undoes (kenli F-006): its journal entries change status with it. */
+type Step = { readonly op?: OperationId | null };
+type CharacterSnapshot = Identity &
+  Step & {
+    readonly kind: "character";
+    readonly build: CharacterBuild;
+    readonly state: CharacterState;
+  };
+type EncounterSnapshot = Identity &
+  Step & {
+    readonly kind: "encounter";
+    readonly encounter: Encounter;
+    /**
+     * Party states as they were, restored with the encounter; each with its record's generation
+     * then (a character an import replaced since keeps its own state).
+     */
+    readonly states: Readonly<Record<string, CharacterState>>;
+    readonly gens?: Readonly<Record<string, number>>;
+    /** The rest of the record, for a step an import made (its name, log and modes were replaced). */
+    readonly record?: Pick<EncounterRecord, "name" | "log" | "modes">;
+  };
 type Snapshot = CharacterSnapshot | EncounterSnapshot;
 
 interface History {
@@ -177,6 +206,7 @@ export interface DocumentsState {
     id: string,
     action: PlayAction | readonly PlayAction[],
     at?: RecordVersion,
+    capture?: PlayCapture,
   ): Promise<Outcome<PlayChange>>;
   /**
    * Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. With
@@ -185,12 +215,16 @@ export interface DocumentsState {
    * one commit; refused (no use left, nothing to roll it on), nothing changes.
    */
   rollByHand(id: string, what: RollWhat, lucky?: DeclaredLucky): Promise<Outcome<SheetRoll>>;
-  /** An attack line's damage rolled freely (nothing spent): the character's last roll. */
+  /**
+   * An attack line's damage rolled freely (nothing spent): the character's last roll. `follows`: the
+   * operation of the attack roll it follows (kept only while that roll is the open last roll).
+   */
   rollDamage(
     id: string,
     parts: readonly DamagePart[],
     critical: boolean,
     label: string,
+    follows?: OperationId,
   ): Promise<RolledDamage | null>;
   /**
    * A D20 Test from the sheet (`rollCheck`) with the GM's additions; with `lucky`, a luck-style
@@ -236,12 +270,17 @@ export interface DocumentsState {
 
   undo(id: string): Promise<void>;
   redo(id: string): Promise<void>;
+  /**
+   * kenli F-006 (F-T01-01): the warning to show before `undo(id)` when that sheet step would also
+   * take back the effect of a later encounter action on this character (Undo itself unchanged).
+   */
+  undoWarning(id: string): string | null;
 
   /**
    * Publish what an import committed (records written, the transaction done): replaced records
    * get the import's version, their previous documents go on their undo stack.
    */
-  publishImport(publication: ImportPublication): void;
+  publishImport(publication: ImportPublication, op?: OperationId): void;
 }
 
 export function newId(prefix: string): string {
@@ -411,6 +450,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     read: CharacterRecord,
     build: CharacterBuild,
     state: CharacterState,
+    op: OperationId | null = null,
   ): boolean {
     const id = read.id;
     let stale = false;
@@ -427,6 +467,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         revs: bump(s.revs, id),
         history: pushPast(s.history, id, {
           kind: "character",
+          op,
           build: record.build,
           state: record.state,
           ...identityOf(record),
@@ -434,6 +475,28 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       };
     });
     return !stale;
+  }
+
+  /**
+   * Capture one character's entry (kenli F-006): right after its accepted commit (or for a roll that
+   * changed nothing), with the record as it is now.
+   */
+  function capture(
+    id: string,
+    draft: Omit<EntryDraft, "record_id" | "name" | "gen" | "delta"> & { before?: CharacterState },
+  ) {
+    const r = get().characters[id];
+    if (!r) return;
+    const { before, ...rest } = draft;
+    useHistory.getState().capture([
+      {
+        ...rest,
+        record_id: id,
+        name: r.build.name ?? "",
+        gen: r.gen ?? 0,
+        ...(before ? { delta: stateDelta(before, r.state) } : {}),
+      },
+    ]);
   }
 
   const genOf = (id: string) => get().characters[id]?.gen ?? get().encounters[id]?.gen ?? 0;
@@ -474,10 +537,20 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     replaced();
   };
   /** Remember a character's last roll with its window: the record as it is now. */
-  const remember = (id: string, roll: DistributiveOmit<LastRoll, "rev" | "gen">) => {
+  const remember = (
+    id: string,
+    roll: DistributiveOmit<LastRoll, "rev" | "gen" | "op" | "group">,
+    op?: OperationId,
+    group?: OperationId,
+  ) => {
     const r = get().characters[id];
     if (r)
-      useRolls.getState().remember(id, { ...roll, rev: r.rev ?? 0, gen: r.gen ?? 0 } as LastRoll);
+      useRolls.getState().remember(id, {
+        ...roll,
+        rev: r.rev ?? 0,
+        gen: r.gen ?? 0,
+        ...(op ? { op, group: group ?? op } : {}),
+      } as LastRoll);
   };
   /** The record is still the version `read` (nothing committed, nothing replaced since). */
   const unchanged = (read: CharacterRecord) => {
@@ -499,8 +572,9 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     last: LastRoll,
     change: { attack?: number; damage?: boolean; die?: boolean; roll: unknown },
     spent = true,
+    op?: OperationId,
   ) => {
-    let next: DistributiveOmit<LastRoll, "rev" | "gen">;
+    let next: DistributiveOmit<LastRoll, "rev" | "gen" | "op" | "group">;
     if (last.kind === "test") {
       next = { kind: "test", test: change.roll as D20TestResult };
       showTest(who, next.test);
@@ -537,12 +611,32 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       next = { kind: "damage", label: last.label, damage: change.roll as RolledDamage };
       useUi.getState().showDice([{ kind: "damage", who: last.label, damage: next.damage }]);
     } else return;
-    if (spent) remember(id, next);
+    const group = last.group ?? last.op;
+    if (spent) remember(id, next, op, group);
     else {
       const r = useRolls.getState().last[id];
-      if (r) useRolls.getState().remember(id, { ...next, rev: r.rev, gen: r.gen } as LastRoll);
+      if (r)
+        useRolls.getState().remember(id, {
+          ...next,
+          rev: r.rev,
+          gen: r.gen,
+          ...(op ? { op, group: group ?? op } : {}),
+        } as LastRoll);
     }
   };
+
+  /** Undo/Redo one step, then the journal: its operation's entries on the restored records. */
+  function step(id: string, direction: "back" | "forward") {
+    let moved: Moved | null = null;
+    set((s) => {
+      const r = travel(s, id, direction);
+      moved = r.moved;
+      return r.patch;
+    });
+    const m = moved as Moved | null;
+    if (m)
+      useHistory.getState().setStatus(m.op, m.restored, direction === "back" ? "undone" : "done");
+  }
 
   return {
     hydrated: false,
@@ -730,7 +824,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       return get().editBuild(id, { type: "level_hp", level, hp: roll });
     },
 
-    playAction(id, action, at) {
+    playAction(id, action, at, extra) {
       return guarded(
         [id],
         async () => {
@@ -738,6 +832,17 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           if (!record) return missing();
           if (at && ((record.rev ?? 0) !== at.rev || (record.gen ?? 0) !== at.gen))
             return changedSince();
+          const actions = Array.isArray(action) ? action : [action as PlayAction];
+          const rest = actions.some((a) => a.type === "long_rest")
+            ? "long"
+            : actions.some((a) => a.type === "short_rest")
+              ? "short"
+              : null;
+          // kenli F-006 §6.3: a second Long Rest the same day only as the DM's explicit exception.
+          if (rest === "long" && !extra?.rest_override) {
+            const day = useHistory.getState().ensureMeta(id).current_day_id;
+            if (((await longRests(id)).by_day[day] ?? 0) >= 1) return restOverrideRequired();
+          }
           const result = await engine().applyPlayAction(
             record.build,
             record.state,
@@ -745,7 +850,31 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+          const heroic = actions.some((a) => a.type === "spend_inspiration");
+          capture(id, {
+            operation_id: op,
+            kind: rest === "long" ? "long_rest" : rest === "short" ? "short_rest" : "play",
+            source: rest ? "rest_dialog" : "sheet",
+            request: actions,
+            messages: [],
+            costs: rest && heroic ? [{ type: "play", action: { type: "spend_inspiration" } }] : [],
+            commit: true,
+            before: record.state,
+            ...(rest
+              ? {
+                  rest_kind: rest,
+                  rest: {
+                    dice: extra?.rest_dice ?? [],
+                    override: extra?.rest_override
+                      ? { by: "dm" as const, note: extra.rest_override.note?.trim() || null }
+                      : null,
+                  },
+                }
+              : {}),
+          });
+          if (rest) useRolls.getState().forget(id);
           toastNotes(result.notes);
           return result;
         },
@@ -795,8 +924,19 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             if (!paid.ok) return paid;
             state = paid.state;
           }
-          if (!commitCharacter(record, record.build, state)) return replaced();
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, state, op)) return replaced();
           const { roll } = result;
+          capture(id, {
+            operation_id: op,
+            kind: "sheet_roll",
+            request: { what: asked, ...(lucky ? { lucky: lucky.use } : {}) },
+            result: roll,
+            messages: result.messages,
+            costs: [...roll.costs, ...(lucky ? [costOfUse(lucky.use)] : [])],
+            commit: true,
+            before: record.state,
+          });
           // The tray shows the dice as the encounter's by-hand card does; its notes say the same.
           useUi.getState().showDice([
             {
@@ -813,7 +953,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               },
             },
           ]);
-          remember(id, { kind: "sheet", what: asked, roll });
+          remember(id, { kind: "sheet", what: asked, roll }, op);
           toastNotes(result.notes);
           return { ...result, state };
         },
@@ -821,7 +961,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    rollDamage(id, parts, critical, label) {
+    rollDamage(id, parts, critical, label, follows) {
       // In the record's queue, so it keeps its place among the character's rolls; a result for a
       // record changed meanwhile (an import replacing it) is dropped, never pinned to the new one.
       return guarded(
@@ -835,9 +975,21 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             return null;
           }
           const who = `${record.build.name ?? ""} · ${label}`;
+          // The attack roll it follows, if that is still the open last roll (its own group).
+          const open = openRoll(useRolls.getState().last[id], record);
+          const op = newOperationId();
+          capture(id, {
+            operation_id: op,
+            kind: "damage",
+            request: { parts, critical, label },
+            result: damage,
+            label,
+            commit: false,
+            follows: follows && open?.op === follows ? follows : null,
+          });
           useUi.getState().showDice([{ kind: "damage", who, damage }]);
           // A later result of the character: the previous one can't be changed any more.
-          remember(id, { kind: "damage", label: who, damage });
+          remember(id, { kind: "damage", label: who, damage }, op);
           return damage;
         },
         () => {
@@ -864,6 +1016,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               ...(modes.length ? { modes: [...(options?.modes ?? []), ...modes] } : {}),
             },
           );
+          const op = newOperationId();
           if (lucky) {
             const paid = await engine().applyPlayAction(
               record.build,
@@ -872,10 +1025,25 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               record.content,
             );
             if (!paid.ok) return paid;
-            if (!commitCharacter(record, record.build, paid.state)) return replaced();
+            if (!commitCharacter(record, record.build, paid.state, op)) return replaced();
           } else if (!unchanged(record)) return replaced();
+          // A roll that changes nothing is kept too (saved by the autosave all the same).
+          capture(id, {
+            operation_id: op,
+            kind: "test",
+            request: {
+              request,
+              ...(options ? { options } : {}),
+              ...(lucky ? { lucky: lucky.use } : {}),
+            },
+            result: test,
+            messages: test.reason_messages,
+            costs: lucky ? [costOfUse(lucky.use)] : [],
+            commit: !!lucky,
+            before: record.state,
+          });
           showTest(record.build.name ?? "", test);
-          remember(id, { kind: "test", test });
+          remember(id, { kind: "test", test }, op);
           return { ok: true as const, test };
         },
         replaced,
@@ -897,12 +1065,21 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          if (!commitCharacter(record, record.build, result.state)) return replaced();
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+          capture(id, {
+            operation_id: op,
+            kind: "death_save",
+            request: { type: "death_save", roll: die.roll.total },
+            result: die.roll,
+            commit: true,
+            before: record.state,
+          });
           useUi
             .getState()
             .showDice([{ kind: "roll", who: record.build.name ?? "", roll: die.roll }]);
           toastNotes(result.notes);
-          remember(id, { kind: "death_save", die: die.roll, before: record.state });
+          remember(id, { kind: "death_save", die: die.roll, before: record.state }, op);
           return result;
         },
         replaced,
@@ -932,8 +1109,20 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          if (!commitCharacter(record, record.build, result.state)) return replaced();
-          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll });
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+          capture(id, {
+            operation_id: op,
+            kind: "late_advantage",
+            ...link(last.roll),
+            component: componentOf(rootOf(last.roll), { kind: "d20", attack }),
+            request: { use, ...(last.roll.kind === "sheet" ? { attack } : {}) },
+            result: result.roll,
+            costs: [costOfUse(use)],
+            commit: true,
+            before: record.state,
+          });
+          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll }, true, op);
           return { ok: true as const, state: result.state, notes: [] };
         },
         replaced,
@@ -968,10 +1157,29 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               record.content,
             );
             if (!result.ok) return result;
-            if (!commitCharacter(record, record.build, result.state)) return replaced();
+            const op = newOperationId();
+            if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+            // The first save's effect is replaced, not added: the delta is from before it (§3.4).
+            capture(id, {
+              operation_id: op,
+              kind: "reroll",
+              ...link(last.roll),
+              request: target,
+              result: again,
+              costs: [INSPIRATION],
+              commit: true,
+              effect_mode: "replace",
+              replaces_op: last.roll.op ?? null,
+              before: last.roll.before,
+            });
             useUi.getState().showDice([{ kind: "roll", who, roll: again }]);
             toastNotes(result.notes);
-            remember(id, { kind: "death_save", die: again, before: last.roll.before });
+            remember(
+              id,
+              { kind: "death_save", die: again, before: last.roll.before },
+              op,
+              last.roll.group ?? last.roll.op,
+            );
             return result;
           }
           const resolved = rerollTarget(last.roll, target);
@@ -983,8 +1191,20 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             record.content,
           );
           if (!result.ok) return result;
-          if (!commitCharacter(record, record.build, result.state)) return replaced();
-          changed(id, who, last.roll, { ...resolved.at, roll: result.roll });
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+          capture(id, {
+            operation_id: op,
+            kind: "reroll",
+            ...link(last.roll),
+            component: componentOf(rootOf(last.roll), target),
+            request: target,
+            result: result.roll,
+            costs: [INSPIRATION],
+            commit: true,
+            before: record.state,
+          });
+          changed(id, who, last.roll, { ...resolved.at, roll: result.roll }, true, op);
           return { ok: true as const, state: result.state, notes: [] };
         },
         replaced,
@@ -1004,8 +1224,18 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           if (!roll) return notApplicable();
           const result = await engine().setCritical(roll, critical);
           if (!result.ok) return result;
-          // Nothing spent: the record (and so the window) doesn't change.
-          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll }, false);
+          // Nothing spent: the record (and so the window) doesn't change; no undo step of its own.
+          const op = newOperationId();
+          capture(id, {
+            operation_id: op,
+            kind: "set_critical",
+            ...link(last.roll),
+            component: componentOf("sheet", { kind: "d20", attack }),
+            request: { attack, critical },
+            result: result.roll,
+            commit: false,
+          });
+          changed(id, record.build.name ?? "", last.roll, { attack, roll: result.roll }, false, op);
           return { ok: true as const };
         },
         replaced,
@@ -1090,39 +1320,46 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
 
     rollAndPay(id, roll, force = false) {
+      let paidCosts: { costs: readonly RollCost[]; forced: boolean } | null = null;
       return guarded(
         () => encounterIds(id, roll),
         () =>
-          applyToEncounter(id, roll, async (encounter, party, world) => {
-            const rolled = await engine().applyEncounterAction(encounter, party, roll, world);
-            if (!rolled.ok) return rolled;
-            const costs = rolled.results.flatMap((r) => ("costs" in r ? r.costs : []));
-            if (costs.length === 0) return rolled;
-            const unpaid = costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
-            if (unpaid.length > 0 && !force) {
+          applyToEncounter(
+            id,
+            roll,
+            async (encounter, party, world) => {
+              const rolled = await engine().applyEncounterAction(encounter, party, roll, world);
+              if (!rolled.ok) return rolled;
+              const costs = rolled.results.flatMap((r) => ("costs" in r ? r.costs : []));
+              if (costs.length === 0) return rolled;
+              const unpaid = costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
+              if (unpaid.length > 0 && !force) {
+                return {
+                  ok: false as const,
+                  reasons: unpaid.map((r) => r.text),
+                  reason_messages: unpaid.map((r) => r.message),
+                  unpaid: true as const,
+                };
+              }
+              const paid = await engine().applyEncounterAction(
+                rolled.encounter,
+                withStates(party, rolled.states),
+                { type: "spend", id: roll.id, costs, ...(force ? { force } : {}) },
+                world,
+              );
+              if (!paid.ok) return paid;
+              paidCosts = { costs, forced: force && unpaid.length > 0 };
               return {
-                ok: false as const,
-                reasons: unpaid.map((r) => r.text),
-                reason_messages: unpaid.map((r) => r.message),
-                unpaid: true as const,
+                ...paid,
+                states: { ...rolled.states, ...paid.states },
+                notes: [...rolled.notes, ...paid.notes],
+                messages: [...rolled.messages, ...paid.messages],
+                applied: 2,
+                results: rolled.results,
               };
-            }
-            const paid = await engine().applyEncounterAction(
-              rolled.encounter,
-              withStates(party, rolled.states),
-              { type: "spend", id: roll.id, costs, ...(force ? { force } : {}) },
-              world,
-            );
-            if (!paid.ok) return paid;
-            return {
-              ...paid,
-              states: { ...rolled.states, ...paid.states },
-              notes: [...rolled.notes, ...paid.notes],
-              messages: [...rolled.messages, ...paid.messages],
-              applied: 2,
-              results: rolled.results,
-            };
-          }),
+            },
+            () => paidCosts,
+          ),
         replaced,
       );
     },
@@ -1160,19 +1397,25 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     undo(id) {
       return guarded(
         () => [id, ...historyParty(get(), id, "back")],
-        () => set((s) => travel(s, id, "back")),
+        () => step(id, "back"),
         quietly,
       );
     },
     redo(id) {
       return guarded(
         () => [id, ...historyParty(get(), id, "forward")],
-        () => set((s) => travel(s, id, "forward")),
+        () => step(id, "forward"),
         quietly,
       );
     },
+    undoWarning(id) {
+      const top = get().history[id]?.past.at(-1);
+      return top?.kind === "character" && overwritesEncounter(id, top.op)
+        ? t("history.undoOverwritesEncounter")
+        : null;
+    },
 
-    publishImport({ characters, encounters }) {
+    publishImport({ characters, encounters }, op) {
       set((s) => {
         const nextCharacters = { ...s.characters };
         const nextEncounters = { ...s.encounters };
@@ -1183,6 +1426,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           if (before) {
             history = pushPast(history, c.id, {
               kind: "character",
+              op: op ?? null,
               build: before.build,
               state: before.state,
               ...identityOf(before),
@@ -1196,6 +1440,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           if (before) {
             history = pushPast(history, e.id, {
               kind: "encounter",
+              op: op ?? null,
               encounter: before.encounter,
               states: {},
               ...identityOf(before),
@@ -1247,6 +1492,24 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 
 function showTest(who: string, test: D20TestResult) {
   useUi.getState().showDice([{ kind: "test", who, test }]);
+}
+
+const INSPIRATION: RollCost = { type: "play", action: { type: "spend_inspiration" } };
+const costOfUse = (key: string): RollCost => ({ type: "play", action: { type: "use", key } });
+
+/** A change of the last roll: its parent (the roll as it is now) and its group (kenli F-006). */
+function link(last: LastRoll): { parent_op: OperationId | null; group_id?: OperationId } {
+  const group = last.group ?? last.op;
+  return { parent_op: last.op ?? null, ...(group ? { group_id: group } : {}) };
+}
+
+function rootOf(last: LastRoll): "test" | "sheet" | "damage" | "death_save" {
+  return last.kind;
+}
+
+/** Refused: a second Long Rest the same day needs the DM's exception (kenli F-006 §6.3). */
+function restOverrideRequired(): Refusal {
+  return { ok: false, reasons: [t("history.restOverrideRequired")] };
 }
 
 function notApplicable(): Refusal {
@@ -1320,37 +1583,49 @@ function missing(): Refusal {
 }
 
 /** Step a document back or forward through its history (restoring party states with it). */
+/** What a step moved: its operation and the characters whose state it restored (kenli F-006). */
+interface Moved {
+  readonly op: OperationId | null;
+  readonly restored: readonly string[];
+}
+
 function travel(
   s: DocumentsState,
   id: string,
   direction: "back" | "forward",
-): Partial<DocumentsState> {
+): { patch: Partial<DocumentsState>; moved: Moved | null } {
+  const none = { patch: {}, moved: null };
   const h = s.history[id];
-  if (!h) return {};
+  if (!h) return none;
   const from = direction === "back" ? h.past : h.future;
   const target = from[from.length - 1];
-  if (!target) return {};
+  if (!target) return none;
   const rest = from.slice(0, -1);
+  const op = target.op ?? null;
   if (target.kind === "character") {
     const record = s.characters[id];
-    if (!record) return {};
+    if (!record) return none;
     const current: Snapshot = {
       kind: "character",
+      op,
       build: record.build,
       state: record.state,
       ...identityOf(record),
     };
     return {
-      characters: {
-        ...s.characters,
-        [id]: touch(withIdentity(record, target), { build: target.build, state: target.state }),
+      patch: {
+        characters: {
+          ...s.characters,
+          [id]: touch(withIdentity(record, target), { build: target.build, state: target.state }),
+        },
+        revs: bump(s.revs, id),
+        history: { ...s.history, [id]: swap(h, direction, rest, current) },
       },
-      revs: bump(s.revs, id),
-      history: { ...s.history, [id]: swap(h, direction, rest, current) },
+      moved: { op, restored: [id] },
     };
   }
   const record = s.encounters[id];
-  if (!record) return {};
+  if (!record) return none;
   const states: Record<string, CharacterState> = {};
   const gens: Record<string, number> = {};
   const characters = { ...s.characters };
@@ -1364,6 +1639,7 @@ function travel(
   }
   const current: Snapshot = {
     kind: "encounter",
+    op,
     encounter: record.encounter,
     states,
     gens,
@@ -1371,16 +1647,19 @@ function travel(
     ...(target.record ? { record: recordOf(record) } : {}),
   };
   return {
-    encounters: {
-      ...s.encounters,
-      [id]: touch(withIdentity(record, target), {
-        encounter: target.encounter,
-        ...(target.record ?? {}),
-      }),
+    patch: {
+      encounters: {
+        ...s.encounters,
+        [id]: touch(withIdentity(record, target), {
+          encounter: target.encounter,
+          ...(target.record ?? {}),
+        }),
+      },
+      characters,
+      revs: bump(s.revs, id, ...Object.keys(states)),
+      history: { ...s.history, [id]: swap(h, direction, rest, current) },
     },
-    characters,
-    revs: bump(s.revs, id, ...Object.keys(states)),
-    history: { ...s.history, [id]: swap(h, direction, rest, current) },
+    moved: { op, restored: Object.keys(states) },
   };
 }
 
@@ -1414,6 +1693,7 @@ async function applyToEncounter(
     party: Party,
     world: EncounterRecord["content"],
   ) => Promise<RollOutcome>,
+  paidOf: () => { costs: readonly RollCost[]; forced: boolean } | null = () => null,
 ): Promise<RollOutcome> {
   const { getState: get, setState: set } = useDocuments;
   const record = get().encounters[id];
@@ -1429,6 +1709,7 @@ async function applyToEncounter(
     gens[key] = characters[key]?.gen ?? 0;
   }
   let stale = false;
+  const op = newOperationId();
   set((s) => {
     const current = s.encounters[id];
     if (!current) return s;
@@ -1485,6 +1766,7 @@ async function applyToEncounter(
       revs: bump(s.revs, id, ...Object.keys(result.states)),
       history: pushPast(s.history, id, {
         kind: "encounter",
+        op,
         encounter: record.encounter,
         states: before,
         gens,
@@ -1493,6 +1775,7 @@ async function applyToEncounter(
     };
   });
   if (stale) return replaced();
+  captureEncounter(id, op, record, action, result, before, paidOf());
   const who = (aid: string | undefined) =>
     result.encounter.combatants.find((c) => c.id === aid)?.name ?? "";
   const actions = Array.isArray(action) ? action : [action];
@@ -1503,6 +1786,83 @@ async function applyToEncounter(
     }),
   );
   return result;
+}
+
+/**
+ * kenli F-006 C15/C16: one operation's entries, one per character of the party it changed, one for
+ * the character who acted when the action rolled or changed a state (bookkeeping such as Initiative
+ * or a move that changes no character records nothing), and, when it stopped for a decision, one for
+ * the character who decides (`decide` continues that operation). Each in its own journal and day.
+ */
+function captureEncounter(
+  id: string,
+  op: OperationId,
+  record: EncounterRecord,
+  action: EncounterAction | readonly EncounterAction[],
+  result: Extract<RollOutcome, { ok: true }>,
+  before: Readonly<Record<string, CharacterState>>,
+  paid: { costs: readonly RollCost[]; forced: boolean } | null,
+) {
+  const characters = useDocuments.getState().characters;
+  const actions = Array.isArray(action) ? action : [action];
+  const first = actions[0] as EncounterAction | undefined;
+  const decide = actions.some((a) => a.type === "decide");
+  // Who acted: the action's combatant; for `decide`, the stopped action's.
+  const actorId =
+    first && "id" in first && typeof first.id === "string"
+      ? first.id
+      : decide
+        ? (record.encounter.pending?.action as { id?: string } | undefined)?.id
+        : undefined;
+  const actorKey = record.encounter.combatants.find((c) => c.id === actorId)?.character ?? null;
+  const changed = Object.keys(result.states).filter((k) => characters[k]);
+  const acted =
+    actorKey && characters[actorKey] && (result.results.length > 0 || changed.length > 0);
+  // Stopped for a decision: the character who decides has it in its journal too (decide continues it).
+  const deciderKey = result.pending
+    ? (result.encounter.combatants.find((c) => c.id === result.pending?.combatant)?.character ??
+      null)
+    : null;
+  const decider = deciderKey && characters[deciderKey] ? [deciderKey] : [];
+  const who = [...new Set([...(acted && actorKey ? [actorKey] : []), ...changed, ...decider])];
+  const history = useHistory.getState();
+  const continues = decide ? (history.pending[id] ?? null) : null;
+  history.setPending(id, result.pending ? op : null);
+  if (!who.length) return;
+  const participants = who.map((k) => ({ record_id: k, name: characters[k]?.build.name ?? "" }));
+  // What the actor paid: a roll by hand's paid costs, else the engine's caster actions (a cast).
+  const casterCosts = result.results.flatMap((r) =>
+    "caster_actions" in r && Array.isArray(r.caster_actions)
+      ? (r.caster_actions as PlayAction[]).map((a) => ({ type: "play" as const, action: a }))
+      : [],
+  );
+  history.capture(
+    who.map((k) => {
+      const c = characters[k] as CharacterRecord;
+      const isActor = k === actorKey;
+      return {
+        record_id: k,
+        name: c.build.name ?? "",
+        gen: c.gen ?? 0,
+        operation_id: op,
+        kind: "encounter" as const,
+        role: isActor ? ("actor" as const) : ("affected" as const),
+        source: "encounter" as const,
+        encounter_id: id,
+        round: result.encounter.round,
+        participants,
+        request: actions,
+        result: result.results,
+        messages: result.messages,
+        costs: isActor ? (paid ? paid.costs : casterCosts) : [],
+        delta: stateDelta(before[k] ?? c.state, c.state),
+        commit: true,
+        pending_decision: !!result.pending,
+        continues,
+        ...(isActor && paid?.forced ? { forced: true } : {}),
+      };
+    }),
+  );
 }
 
 function appendLog(

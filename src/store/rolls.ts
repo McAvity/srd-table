@@ -31,7 +31,11 @@ export function versionOf(record: { readonly rev?: number; readonly gen?: number
   return { rev: record.rev ?? 0, gen: record.gen ?? 0 };
 }
 
-type Window = RecordVersion;
+/**
+ * The window, and (kenli F-006) the journal operation of the roll as it is now and the group of the
+ * roll it changes (`op`, `group`: a later change's parent and group).
+ */
+type Window = RecordVersion & { readonly op?: string; readonly group?: string };
 
 /** What was rolled last for a character, with the window it can be changed in. */
 export type LastRoll = Window &

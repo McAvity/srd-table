@@ -14,6 +14,7 @@ import { exportCharacter } from "@/import/export";
 import { contentLabel } from "@/import/plan";
 import { downloadJson } from "@/lib/files";
 import { fileSlug } from "@/lib/format";
+import { entryCount } from "@/persistence/history";
 import { installationId } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
@@ -69,6 +70,8 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
   const duplicate = useDocuments((s) => s.duplicateCharacter);
   const remove = useDocuments((s) => s.deleteCharacter);
   const [confirm, setConfirm] = useState(false);
+  // kenli F-006 §7.5: the journal on this device goes with the character; say how much.
+  const [entries, setEntries] = useState<number | null>(null);
   const name = record.build.name || t("common.unnamed");
   const sheet = data?.sheet;
   const classes = sheet?.classes.map((c) => `${c.name} ${c.level}`).join(" / ");
@@ -161,7 +164,11 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
             icon="trash"
             iconOnly
             label={t("common.delete")}
-            onClick={() => setConfirm(true)}
+            onClick={() => {
+              setEntries(null);
+              setConfirm(true);
+              void entryCount(record.id).then(setEntries);
+            }}
           />
         </div>
       </div>
@@ -169,7 +176,11 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
         open={confirm}
         onOpenChange={setConfirm}
         title={t("common.delete")}
-        description={t("common.reallyDelete", { name })}
+        description={
+          entries
+            ? `${t("common.reallyDelete", { name })} ${t("characters.deleteHistory", { count: entries })}`
+            : t("common.reallyDelete", { name })
+        }
         footer={
           <>
             <Button onClick={() => setConfirm(false)}>{t("common.cancel")}</Button>

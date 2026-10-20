@@ -5,13 +5,19 @@
  * (never overwriting one, never a second set of bytes for one pack version) and writes every
  * record; only after it's done is anything shown.
  * Any failure — quota, an abort, a record changed since the preview — writes nothing.
+ *
+ * kenli F-006 §7.2: a replaced character keeps its journal, days and counters. The transaction also
+ * compares each replaced character's journal head (as the autosave does: `history_changed` when
+ * another tab changed it) and writes one `import_boundary` entry per replaced character, under one
+ * operation id that its undo step carries; no imported action is made up. New characters start
+ * with an empty journal.
  */
 
 import type { CharacterState } from "srd-rules-engine";
 import { engine } from "@/engine/client";
 import { type ContentContext, packRefOf } from "@/lib/canonical";
 import { db, packKey, type StoredPack } from "@/persistence/db";
-import { flushNow, markCommitted, writeQueue } from "@/persistence/sync";
+import { flushNow, markCommitted, savedHead, writeQueue } from "@/persistence/sync";
 import {
   type CharacterRecord,
   type EncounterRecord,
@@ -19,6 +25,13 @@ import {
   newId,
   useDocuments,
 } from "@/store/documents";
+import {
+  type HistoryEntry,
+  type HistoryMeta,
+  newMeta,
+  newOperationId,
+  useHistory,
+} from "@/store/history";
 import {
   blockers,
   type Decisions,
@@ -171,13 +184,21 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
     }
   }
 
+  // Replaced characters: their journal gets the import's boundary (one operation for all of them).
+  const op = newOperationId();
+  const replacedCharacters = characters.filter((c) => s.characters[c.id]);
   const locked = [...cas.keys()];
+  const boundaries: HistoryEntry[] = [];
+  const heads: HistoryMeta[] = [];
   try {
     await lockDocuments(locked, async () => {
       await flushNow();
       await writeQueue(async () => {
         const database = await db();
-        const tx = database.transaction(["packs", "characters", "encounters"], "readwrite");
+        const tx = database.transaction(
+          ["packs", "characters", "encounters", "history", "history_meta"],
+          "readwrite",
+        );
         try {
           const store = useDocuments.getState();
           for (const [id, rev] of cas) {
@@ -203,6 +224,21 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
           }
           for (const c of characters) await tx.objectStore("characters").put(c);
           for (const e of encounters) await tx.objectStore("encounters").put(e);
+          const history = tx.objectStore("history");
+          const metaStore = tx.objectStore("history_meta");
+          for (const c of replacedCharacters) {
+            const head = await metaStore.get(c.id);
+            const mine = savedHead(c.id);
+            if (mine.conflicted || (head?.rev ?? null) !== mine.rev)
+              throw new ImportError("history_changed", c.id);
+            const m = head ?? newMeta(c.id, now);
+            const entry = boundary(c, store.characters[c.id], m, op, now);
+            const next: HistoryMeta = { ...m, rev: m.rev + 1, next_seq: m.next_seq + 1 };
+            await history.put(entry);
+            await metaStore.put(next);
+            boundaries.push(entry);
+            heads.push(next);
+          }
           await tx.done;
         } catch (error) {
           try {
@@ -216,8 +252,9 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
       });
       // Done: the packs for the worker (by hash), then the store and the autosave baseline.
       if (packs.length) await engine().registerPacks(packs.map((p) => p.files));
-      useDocuments.getState().publishImport({ characters, encounters });
-      markCommitted({ characters, encounters });
+      useDocuments.getState().publishImport({ characters, encounters }, op);
+      useHistory.getState().published(boundaries, heads);
+      markCommitted({ characters, encounters, entries: boundaries, meta: heads });
     });
   } catch (error) {
     if (error instanceof ImportError) return fail(error.code, error.detail);
@@ -230,6 +267,51 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
     characters: characters.map((c) => c.id),
     encounters: encounters.map((e) => e.id),
     packs: packs.length,
+  };
+}
+
+/** A replaced character's boundary entry: where its imported version begins (no action invented). */
+function boundary(
+  c: CharacterRecord,
+  before: CharacterRecord | undefined,
+  m: HistoryMeta,
+  op: string,
+  now: number,
+): HistoryEntry {
+  return {
+    schema: "kenli.history/1",
+    id: newId("h"),
+    record_id: c.id,
+    seq: m.next_seq,
+    gen: c.gen ?? 0,
+    operation_id: op,
+    group_id: op,
+    parent_op: null,
+    component: "",
+    at: now,
+    day_id: m.current_day_id,
+    kind: "import_boundary",
+    role: "actor",
+    context: { source: "import", encounter_id: null, round: null, combat_id: null, turn_id: null },
+    participants: [{ record_id: c.id, name: c.build.name ?? "" }],
+    name: c.build.name ?? "",
+    request: { mode: "replace" },
+    result: null,
+    messages: [],
+    outcome: [],
+    costs: [],
+    effect: { mode: "none", replaces_op: null, state_delta: [] },
+    commit: true,
+    status: "done",
+    undone_with: null,
+    pending_decision: false,
+    links: { follows: null, continues: null },
+    import: {
+      mode: "replace",
+      gen_before: before?.gen ?? 0,
+      gen_after: c.gen ?? 0,
+      origin: c.origin ?? null,
+    },
   };
 }
 
