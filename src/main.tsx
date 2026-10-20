@@ -5,6 +5,7 @@ import { App } from "./App";
 import { engine } from "./engine/client";
 import { loadConstants } from "./engine/constants";
 import { t } from "./i18n";
+import { onDbBlocked } from "./persistence/db";
 import { loadAll, persistBundled, startAutosave } from "./persistence/sync";
 import { createQueryClient } from "./queries";
 import { createAppRouter } from "./routes/router";
@@ -28,7 +29,24 @@ useSettings.subscribe((s) => {
 
 async function start() {
   await loadConstants(engine());
-  await loadAll();
+  // Another tab holding an older database (kenli F-006: v4) keeps the upgrade waiting: say so on
+  // the loading screen, until it lets go (the start then goes on by itself).
+  const stopBlocked = onDbBlocked((why) => {
+    if (why === "blocked")
+      root.render(
+        <div
+          className="flex h-full items-center justify-center p-6 text-center text-xl"
+          role="alert"
+        >
+          {t("persistence.closeOtherTabs")}
+        </div>,
+      );
+  });
+  try {
+    await loadAll();
+  } finally {
+    stopBlocked();
+  }
   await applyLocale(useSettings.getState().settings.locale);
   startLocaleSync();
   startAutosave();
