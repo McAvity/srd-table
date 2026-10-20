@@ -151,7 +151,10 @@ describe("R03-01: the operation a decision continues", () => {
     const stopped = last(rid);
     await flushNow();
     const source: Source = { url: `${LIB}d/encounter/mixed-duel.json` };
-    const p = await previewImport(source, { signal: new AbortController().signal, fetch: libraryFetch() });
+    const p = await previewImport(source, {
+      signal: new AbortController().signal,
+      fetch: libraryFetch(),
+    });
     if (!p.ok) throw new Error(p.problem.code);
     const plan: Plan = p.plan;
     ok(
@@ -166,9 +169,9 @@ describe("R03-01: the operation a decision continues", () => {
     expect(docs().encounters[eid]?.encounter.pending).toBeNull();
     expect(docs().encounters[eid]?.pending_op).toBeUndefined();
     // The old stop stays in the rogue's journal as it was; nothing new links to it.
-    expect((await journal(rid)).map((e) => [e.operation_id === stopped.operation_id, e.status])).toEqual([
-      [true, "done"],
-    ]);
+    expect(
+      (await journal(rid)).map((e) => [e.operation_id === stopped.operation_id, e.status]),
+    ).toEqual([[true, "done"]]);
   });
 
   it("before a reload, Undo of the replacing import restores the old stop and its link", async () => {
