@@ -16,7 +16,7 @@ import { Icon } from "@/components/Icon";
 import { Button, cx, Empty } from "@/components/ui";
 import { t } from "@/i18n";
 import { byOperations, entryCount, groupFrom, longRests, page } from "@/persistence/history";
-import { flushNow, unsavedCount } from "@/persistence/sync";
+import { flushNow, unsavedState } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { characterKeysOf, useDocuments } from "@/store/documents";
 import {
@@ -163,6 +163,11 @@ interface Loaded {
   readonly limit: number;
   readonly total: number;
   readonly rests: { readonly total: number; readonly by_day: Record<string, number> };
+  /**
+   * The earlier entries a follow-up or an answer refers to (`links.follows/continues`), by operation,
+   * also when off the page or the day shown; `null`: not in this character's history (R04-03).
+   */
+  readonly linked: Readonly<Record<string, HistoryEntry | null>>;
 }
 
 /** A page of a character's journal with every group it touches made whole (roots older than it). */
@@ -186,8 +191,18 @@ function useJournal(id: string, dayId: string | null, limit: number): Loaded | n
         const root = roots.get(g);
         groups.push(root ? await groupFrom(root) : rows.filter((e) => e.group_id === g));
       }
+      const links = [
+        ...new Set(
+          groups
+            .flat()
+            .flatMap((e) => [e.links.follows, e.links.continues].filter((x): x is string => !!x)),
+        ),
+      ];
+      const found = await byOperations(id, links);
+      const linked: Record<string, HistoryEntry | null> = {};
+      for (const op of links) linked[op] = found.find((e) => e.operation_id === op) ?? null;
       const [total, rests] = await Promise.all([entryCount(id), longRests(id)]);
-      if (live) setLoaded({ groups, shown: rows.length, limit, total, rests });
+      if (live) setLoaded({ groups, shown: rows.length, limit, total, rests, linked });
     })();
     return () => {
       live = false;
@@ -248,6 +263,7 @@ function Journal({ id }: { id: string }) {
                   entries={g}
                   nameOfUse={nameOfUse}
                   encounterName={(eid) => encounters[eid]?.name}
+                  linkOf={(op) => loaded.linked[op] ?? null}
                 />
               </li>
             );
@@ -277,10 +293,12 @@ function Group({
   entries,
   nameOfUse,
   encounterName,
+  linkOf,
 }: {
   entries: readonly HistoryEntry[];
   nameOfUse: (key: string) => string | undefined;
   encounterName: (id: string) => string | undefined;
+  linkOf: (op: string) => HistoryEntry | null;
 }) {
   const root = entries[0] as HistoryEntry;
   const isRoll = RESULT_KINDS.has(root.kind) && entries.length > 1;
@@ -312,6 +330,7 @@ function Group({
             child={e !== root}
             nameOfUse={nameOfUse}
             encounterName={encounterName}
+            linkOf={linkOf}
           />
         ))}
       </ul>
@@ -324,12 +343,29 @@ function EntryLine({
   child,
   nameOfUse,
   encounterName,
+  linkOf,
 }: {
   e: HistoryEntry;
   child: boolean;
   nameOfUse: (key: string) => string | undefined;
   encounterName: (id: string) => string | undefined;
+  linkOf: (op: string) => HistoryEntry | null;
 }) {
+  /** The earlier action this one follows or answers: named, with its own result and status. */
+  const context = (op: string, kind: "follows" | "answers") => {
+    const to = linkOf(op);
+    if (!to)
+      return kind === "follows"
+        ? t("history.context.followsMissing")
+        : t("history.context.answersMissing");
+    const text = t(kind === "follows" ? "history.context.follows" : "history.context.answers", {
+      seq: to.seq,
+      title: titleOf(to, encounterName),
+    });
+    const result = to.outcome.map(outcomeText).join(" | ");
+    const status = to.status === "undone" ? ` (${t("history.status.undone")})` : "";
+    return `${text}${result ? ` — ${result}` : ""}${status}`;
+  };
   const badges: string[] = [];
   if (e.status === "undone") badges.push(t("history.status.undone"));
   if (!e.commit && e.kind !== "import_boundary") badges.push(t("history.status.noChange"));
@@ -370,6 +406,16 @@ function EntryLine({
               {b}
             </span>
           ))}
+        </p>
+      )}
+      {e.links.follows && (
+        <p className="text-[13px] text-ink-muted" data-testid="history-context">
+          {context(e.links.follows, "follows")}
+        </p>
+      )}
+      {e.links.continues && (
+        <p className="text-[13px] text-ink-muted" data-testid="history-context">
+          {context(e.links.continues, "answers")}
         </p>
       )}
       {e.outcome.length > 0 && (
@@ -429,7 +475,8 @@ function SaveStatus({ id }: { id: string }) {
   const conflict = useHistory((s) => s.conflicts[id]);
   useHistory((s) => s.entries); // read again on every capture
   useHistory((s) => s.meta[id]); // and on every save (the head's rev)
-  const unsaved = unsavedCount(id);
+  const { entries: unsaved, days } = unsavedState(id);
+  const dirty = unsaved > 0 || days;
   const [retrying, setRetrying] = useState(false);
   if (conflict)
     return (
@@ -443,14 +490,18 @@ function SaveStatus({ id }: { id: string }) {
           : t("history.save.conflictDocument", { count: unsaved })}
       </p>
     );
-  if (save.status === "failed" && unsaved > 0)
+  if (save.status === "failed" && dirty)
     return (
       <div
         role="alert"
         className="rounded border border-red p-2 text-sm"
         data-testid="history-save"
       >
-        <p className="text-red">{t("history.save.failed", { count: unsaved })}</p>
+        <p className="text-red">
+          {unsaved > 0
+            ? t("history.save.failed", { count: unsaved })
+            : t("history.save.failedDays")}
+        </p>
         <p className="text-[13px] text-ink-muted">{save.reason}</p>
         <Button
           size="sm"
@@ -471,10 +522,12 @@ function SaveStatus({ id }: { id: string }) {
         </Button>
       </div>
     );
-  if (unsaved > 0)
+  if (dirty)
     return (
       <p className="text-sm text-ink-muted" role="status" data-testid="history-save">
-        {t("history.save.pending", { count: unsaved })}
+        {unsaved > 0
+          ? t("history.save.pending", { count: unsaved })
+          : t("history.save.pendingDays")}
       </p>
     );
   return (

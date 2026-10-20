@@ -1,6 +1,6 @@
 /**
  * kenli F-006 T02: the journal in IndexedDB through the real autosave and import (fake IndexedDB):
- * the v2 → v3 upgrade with no made-up history and lazy heads, a roll that changes nothing saved and
+ * the v2 → v4 upgrade with no made-up history and lazy heads, a roll that changes nothing saved and
  * read back after a reload, statuses kept without the Undo stack, the journal head compared apart
  * from the document's revision (another tab's day or roll: a conflict, never a lost day or a second
  * seq), document and journal as one unit, a failed save written whole on retry, the unique index,
@@ -99,7 +99,7 @@ function failPuts(store: string): () => void {
 }
 
 describe("storage: upgrade, a roll that changes nothing, reload (AC-04, AC-06)", () => {
-  it("v2 → v3 creates empty journal stores: no head, no entry made up; the first roll creates the head", async () => {
+  it("v2 → v4 creates empty journal stores: no head, no entry made up; the first roll creates the head", async () => {
     stop?.();
     await closeDb();
     await new Promise<void>((r) => {
@@ -143,7 +143,7 @@ describe("storage: upgrade, a roll that changes nothing, reload (AC-04, AC-06)",
     await loadAll();
     stop = startAutosave();
     const database = await db();
-    expect(database.version).toBe(3);
+    expect(database.version).toBe(4);
     expect(await database.getAll("history")).toEqual([]);
     expect(await database.getAll("history_meta")).toEqual([]);
     expect(hist().meta).toEqual({});

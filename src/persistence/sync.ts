@@ -278,12 +278,24 @@ export function flushNow(): Promise<void> {
  * (kenli F-006 T03: the panel's "not saved yet"). Without a running autosave: all of this session's.
  */
 export function unsavedCount(recordId: string): number {
-  const entries = Object.values(useHistory.getState().entries).filter(
-    (e) => e.record_id === recordId,
-  );
-  if (!active) return entries.length;
-  const saved = active.baseline.entries;
-  return entries.filter((e) => saved[e.id] !== e).length;
+  return unsavedState(recordId).entries;
+}
+
+/**
+ * What of a character's journal this tab hasn't saved yet (kenli F-006 R04-01): its entries, and
+ * whether its head changed (a day, a label, a correction, its first head) — a change of days alone
+ * is unsaved too. Without a running autosave nothing is saved.
+ */
+export function unsavedState(recordId: string): { entries: number; days: boolean } {
+  const { entries: all, meta } = useHistory.getState();
+  const entries = Object.values(all).filter((e) => e.record_id === recordId);
+  const head = meta[recordId];
+  if (!active) return { entries: entries.length, days: !!head };
+  const saved = active.baseline;
+  return {
+    entries: entries.filter((e) => saved.entries[e.id] !== e).length,
+    days: !!head && saved.meta[recordId] !== head,
+  };
 }
 
 /** An import wrote these records (and journal rows): they are this tab's last written version now. */

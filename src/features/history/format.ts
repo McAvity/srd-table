@@ -99,7 +99,8 @@ export function outcomeText(o: OutcomeValue): string {
   if (o.raw !== null && o.effective !== null && o.raw !== o.effective)
     parts.push(t("history.rawEffective", { raw: o.raw, effective: o.effective }));
   else if (o.effective !== null) parts.push(t("history.die", { value: o.effective }));
-  if (o.total !== null && o.damage_total === null)
+  // A roll's total; free damage's total is its damage (said once).
+  if (o.total !== null && o.total !== o.damage_total)
     parts.push(t("history.total", { total: o.total }));
   if (o.success !== null) parts.push(o.success ? t("history.success") : t("history.failure"));
   if (o.critical) parts.push(t("history.criticalHit"));

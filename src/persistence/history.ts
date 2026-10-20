@@ -116,25 +116,15 @@ export async function byOperations(
 }
 
 /**
- * A whole group from its root (kenli F-006 T03): changes of a roll can only be made while it is the
- * open last roll, so they follow the root in `seq` with nothing else between; read from the root
- * until the first entry of another group.
+ * A whole group from its root (kenli F-006 R04-02): every entry of the root's record with its
+ * `group_id`, by the `by_group` index (another group's entry may lie between them), with this
+ * session's versions over the saved ones.
  */
 export async function groupFrom(root: HistoryEntry): Promise<HistoryEntry[]> {
-  const database = await db();
-  const tx = database.transaction("history");
-  const range = IDBKeyRange.bound([root.record_id, root.seq], [root.record_id, MAX_SEQ]);
-  const rows: HistoryEntry[] = [];
-  for (let c = await tx.store.index("by_record_seq").openCursor(range); c; c = await c.continue()) {
-    if (c.value.group_id !== root.group_id) break;
-    rows.push(c.value);
-  }
-  await tx.done;
-  const all = merged(rows, root.record_id).filter((e) => e.seq >= root.seq);
-  const out: HistoryEntry[] = [];
-  for (const e of all) {
-    if (e.group_id !== root.group_id) break;
-    out.push(e);
-  }
-  return out;
+  const rows = await (await db()).getAllFromIndex(
+    "history",
+    "by_group",
+    IDBKeyRange.bound([root.record_id, root.group_id, 0], [root.record_id, root.group_id, MAX_SEQ]),
+  );
+  return merged(rows, root.record_id).filter((e) => e.group_id === root.group_id);
 }

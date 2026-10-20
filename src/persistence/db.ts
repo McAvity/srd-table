@@ -11,6 +11,10 @@
  * Version 3 (kenli F-006) adds each character's journal: `history` (entries, unique by record and
  * seq) and `history_meta` (its head: days, next seq, version). The upgrade only creates them, empty:
  * no record is rewritten and no past action is made up; a head is created when first needed.
+ *
+ * Version 4 (kenli F-006 R04-02) adds the `by_group` index to `history`: a roll's changes can be
+ * separated from it by another group's entry (an encounter roll that changes nothing leaves the
+ * sheet roll's window open), so a group is read by its id. Adding an index rewrites no row.
  */
 
 import { type DBSchema, type IDBPDatabase, openDB } from "idb";
@@ -97,13 +101,14 @@ interface Schema extends DBSchema {
       by_record_day: [string, string, number];
       by_record_rest: [string, string, number];
       by_operation: string;
+      by_group: [string, string, number];
     };
   };
   history_meta: { key: string; value: HistoryMeta };
 }
 
 export const DB_NAME = "srd-table";
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export const packKey = (ref: PackRef) => `${ref.id}@${ref.version ?? ""}#${ref.sha256}`;
 
@@ -118,7 +123,7 @@ export function onDbBlocked(listener: (why: "blocked" | "blocking") => void): ()
 
 export function db(): Promise<IDBPDatabase<Schema>> {
   connection ??= openDB<Schema>(DB_NAME, DB_VERSION, {
-    upgrade(database, oldVersion) {
+    upgrade(database, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         database.createObjectStore("characters", { keyPath: "id" });
         database.createObjectStore("encounters", { keyPath: "id" });
@@ -135,6 +140,10 @@ export function db(): Promise<IDBPDatabase<Schema>> {
         h.createIndex("by_operation", "operation_id");
         database.createObjectStore("history_meta", { keyPath: "record_id" });
       }
+      if (oldVersion < 4)
+        transaction
+          .objectStore("history")
+          .createIndex("by_group", ["record_id", "group_id", "seq"]);
     },
     blocked() {
       for (const l of blockedListeners) l("blocked");

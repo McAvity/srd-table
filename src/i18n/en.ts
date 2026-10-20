@@ -837,6 +837,13 @@ export const en = {
     "This character changed in another tab: its changes and {count} entries from this tab weren't saved. Reload to see the saved version.",
   "history.undoWarningTitle": "Undo also takes back a table action",
   "history.undoAnyway": "Undo anyway",
+  "history.context.follows": "Follows #{seq}: {title}",
+  "history.context.answers": "Answers #{seq}: {title}",
+  "history.context.followsMissing":
+    "Follows an earlier action that isn't in this character's history.",
+  "history.context.answersMissing": "Answers a decision that isn't in this character's history.",
+  "history.save.pendingDays": "Not saved yet: changes to days (saving shortly).",
+  "history.save.failedDays": "Saving failed: changes to days aren't saved.",
   "history.local": "History stays on this device: it isn't exported or imported.",
   "sheet.secondLongRest": "A Long Rest was already taken on this day ({count}).",
   "sheet.dmException": "The DM allows it (an exception)",

@@ -271,9 +271,10 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     await flushNow();
     await renderApp(`/characters/${id}/sheet`);
     const panel = await openPanel();
-    expect(await within(panel).findByTestId("history-save")).toHaveTextContent(
-      "Saved on this device.",
-    );
+    // Its first head (made as the panel opened) is a change too: not saved, then saved.
+    expect(await within(panel).findByTestId("history-save")).toHaveTextContent(/Not saved yet/);
+    await act(() => flushNow());
+    expect(within(panel).getByTestId("history-save")).toHaveTextContent("Saved on this device.");
     await act(async () => {
       ok(await docs().rollTest(id, { skill: "athletics" }));
     });

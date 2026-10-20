@@ -336,7 +336,7 @@ the documents stay the only game state, nothing is replayed from the journal, Re
   change of the record's `rev` (the reroll window stays open). Long Rest counters come from done
   `long_rest` entries; a second one the same day needs the DM's exception (`playAction`'s
   `capture.rest_override`), else the store refuses it.
-- IndexedDB v3 adds `history` (unique `[record_id, seq]`, by day, by rest, by operation) and
+- IndexedDB v3 adds `history` (unique `[record_id, seq]`, by day, by rest, by operation; v4 by group) and
   `history_meta`; the upgrade creates them empty and a head is made when first needed. Heads are
   read at start, entries on demand (`src/persistence/history.ts`: pages, counters, counts).
 - The autosave writes a character as one unit: its document row (CAS on `rev`) and its journal
@@ -351,9 +351,13 @@ the documents stay the only game state, nothing is replayed from the journal, Re
   character: the one picked, else the screen's, the player's, a table's first party member, the
   last opened; a table offers its party. Entries come a page of 50 at a time, newest first, with
   "older" until the first (never cut); each group is made whole even when its root is older than
-  the page (a roll's changes follow it in `seq` while its window is open: `groupFrom`). A group
+  the page, read by its id (`groupFrom`, index `by_group`, IndexedDB v4: another group's entry
+  can fall between a roll and its changes). A follow-up or an answer names the earlier action it
+  refers to (`links.follows/continues`, looked up by operation even off the page), or says it
+  isn't in this history; it is never merged into that action's result or counted as a row. A group
   shows each entry with its own cost and status and the current result (`projection`). Above:
-  the save state (saved, not saved yet, failed with a retry, conflict without one), the
+  the save state of that character's entries and days (saved, not saved yet, failed with a
+  retry, conflict without one; a change of days alone counts), the
   character's days (next, rename, correct) and Long Rest counts. Exports and the panel say history
   stays on this device. The sheet's and builder's Undo ask first when `undoWarning` says so.
 

@@ -858,6 +858,14 @@ export const it: Messages = {
     "Questo personaggio è cambiato in un'altra scheda: le sue modifiche e {count} voci di questa scheda non sono state salvate. Ricarica per vedere la versione salvata.",
   "history.undoWarningTitle": "Annullare toglie anche un'azione del tavolo",
   "history.undoAnyway": "Annulla comunque",
+  "history.context.follows": "Segue #{seq}: {title}",
+  "history.context.answers": "Risponde a #{seq}: {title}",
+  "history.context.followsMissing":
+    "Segue un'azione precedente che non è nella cronologia di questo personaggio.",
+  "history.context.answersMissing":
+    "Risponde a una decisione che non è nella cronologia di questo personaggio.",
+  "history.save.pendingDays": "Non ancora salvato: modifiche ai giorni (a breve).",
+  "history.save.failedDays": "Salvataggio non riuscito: le modifiche ai giorni non sono salvate.",
   "history.local": "La cronologia resta su questo dispositivo: non viene esportata né importata.",
   "sheet.secondLongRest": "In questo giorno c'è già stato un Riposo Lungo ({count}).",
   "sheet.dmException": "Il DM lo concede (un'eccezione)",

@@ -449,7 +449,7 @@ describe("the commit: all or nothing, and actions racing it", () => {
 });
 
 describe("storage upgrade and local export", () => {
-  it("v1 → v3 adds the pack store and the (empty) journal stores, and rewrites nothing", async () => {
+  it("v1 → v4 adds the pack store and the (empty) journal stores, and rewrites nothing", async () => {
     stop?.();
     await closeDb();
     await new Promise<void>((r) => {
@@ -483,7 +483,7 @@ describe("storage upgrade and local export", () => {
     });
     await loadAll();
     const database = await db();
-    expect(database.version).toBe(3); // kenli F-006 added the journal stores (v3)
+    expect(database.version).toBe(4); // kenli F-006 added the journal stores (v3) and by_group (v4)
     expect([...database.objectStoreNames]).toContain("packs");
     expect(await database.getAll("history")).toEqual([]);
     expect(await database.getAll("history_meta")).toEqual([]);
