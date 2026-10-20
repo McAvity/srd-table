@@ -383,8 +383,6 @@ interface HistoryState {
   /** Records this tab can't save any more until a reload, and why. */
   conflicts: Readonly<Record<string, ConflictKind>>;
   saveState: SaveState;
-  /** An encounter stopped for a decision: the operation `decide` continues. */
-  pending: Readonly<Record<string, OperationId>>;
 
   hydrate(meta: readonly HistoryMeta[]): void;
   capture(drafts: readonly EntryDraft[]): HistoryEntry[];
@@ -397,7 +395,6 @@ interface HistoryState {
   startNextDay(recordId: string, label?: string | null): DayOutcome;
   setCurrentDay(recordId: string, dayId: string): DayOutcome;
   renameDay(recordId: string, dayId: string, label: string | null): DayOutcome;
-  setPending(encounterId: string, op: OperationId | null): void;
   /** An autosave or import transaction is done: these versions are saved (heads with their new rev). */
   saved(written: {
     readonly entries: readonly HistoryEntry[];
@@ -410,7 +407,7 @@ interface HistoryState {
   setSaveState(state: SaveState): void;
 }
 
-const EMPTY = { entries: {}, meta: {}, conflicts: {}, pending: {} };
+const EMPTY = { entries: {}, meta: {}, conflicts: {} };
 
 export const useHistory = create<HistoryState>()((set, get) => {
   function metaOf(recordId: string, now: number): HistoryMeta {
@@ -566,13 +563,6 @@ export const useHistory = create<HistoryState>()((set, get) => {
         },
       }));
       return { ok: true };
-    },
-
-    setPending(encounterId, op) {
-      set((s) => {
-        const { [encounterId]: _old, ...rest } = s.pending;
-        return { pending: op ? { ...rest, [encounterId]: op } : rest };
-      });
     },
 
     saved({ meta: heads, dropped }) {

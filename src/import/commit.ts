@@ -169,7 +169,8 @@ export async function commitPlan(plan: Plan, decisions: Decisions): Promise<Comm
       const target = s.encounters[choice.target];
       if (!target) return fail("target_missing", choice.target);
       expect(target.id);
-      const { content: _old, ...rest } = target;
+      // A new generation: the old one's pending link (kenli F-006 R03-01) isn't carried over.
+      const { content: _old, pending_op: _pending, ...rest } = target;
       encounters.push({
         ...rest,
         name: e.title,

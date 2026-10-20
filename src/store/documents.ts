@@ -134,6 +134,12 @@ export interface EncounterRecord extends RecordMeta {
   readonly log: readonly LogEntry[];
   /** How each combatant plays its actions, when the GM set it (else the campaign's default). */
   readonly modes?: Readonly<Record<string, PlayWay>>;
+  /**
+   * kenli F-006 R03-01: while the encounter waits for a decision, the journal operation that stopped
+   * it (`decide` continues it). Saved with the record, restored with its undo step, never inherited
+   * by an imported generation.
+   */
+  readonly pending_op?: OperationId;
   readonly created: number;
   readonly updated: number;
 }
@@ -160,6 +166,8 @@ type EncounterSnapshot = Identity &
     readonly gens?: Readonly<Record<string, number>>;
     /** The rest of the record, for a step an import made (its name, log and modes were replaced). */
     readonly record?: Pick<EncounterRecord, "name" | "log" | "modes">;
+    /** The operation its pending decision continued then (kenli F-006 R03-01). */
+    readonly pending_op?: OperationId | null;
   };
 type Snapshot = CharacterSnapshot | EncounterSnapshot;
 
@@ -1445,6 +1453,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               states: {},
               ...identityOf(before),
               record: recordOf(before),
+              pending_op: before.pending_op ?? null,
             });
           }
           nextEncounters[e.id] = e;
@@ -1480,6 +1489,12 @@ function historyParty(s: DocumentsState, id: string, direction: "back" | "forwar
   return target?.kind === "encounter"
     ? Object.keys(target.states).filter((k) => s.characters[k])
     : [];
+}
+
+/** The record with this pending link (kenli F-006 R03-01), or none (`null`, `undefined`). */
+function withPending(record: EncounterRecord, op: OperationId | null | undefined): EncounterRecord {
+  const { pending_op: _old, ...rest } = record;
+  return op ? { ...rest, pending_op: op } : rest;
 }
 
 const recordOf = (record: EncounterRecord): Pick<EncounterRecord, "name" | "log" | "modes"> => ({
@@ -1645,12 +1660,13 @@ function travel(
     gens,
     ...identityOf(record),
     ...(target.record ? { record: recordOf(record) } : {}),
+    pending_op: record.pending_op ?? null,
   };
   return {
     patch: {
       encounters: {
         ...s.encounters,
-        [id]: touch(withIdentity(record, target), {
+        [id]: touch(withPending(withIdentity(record, target), target.pending_op), {
           encounter: target.encounter,
           ...(target.record ?? {}),
         }),
@@ -1760,7 +1776,10 @@ async function applyToEncounter(
     return {
       encounters: {
         ...s.encounters,
-        [id]: touch(current, { encounter: result.encounter, log }),
+        [id]: touch(withPending(current, result.pending ? op : null), {
+          encounter: result.encounter,
+          log,
+        }),
       },
       characters: nextCharacters,
       revs: bump(s.revs, id, ...Object.keys(result.states)),
@@ -1771,6 +1790,7 @@ async function applyToEncounter(
         states: before,
         gens,
         ...identityOf(record),
+        pending_op: record.pending_op ?? null,
       }),
     };
   });
@@ -1826,8 +1846,8 @@ function captureEncounter(
   const decider = deciderKey && characters[deciderKey] ? [deciderKey] : [];
   const who = [...new Set([...(acted && actorKey ? [actorKey] : []), ...changed, ...decider])];
   const history = useHistory.getState();
-  const continues = decide ? (history.pending[id] ?? null) : null;
-  history.setPending(id, result.pending ? op : null);
+  // The stop this answer continues: the record's own link, only while it waited for a decision.
+  const continues = decide && record.encounter.pending ? (record.pending_op ?? null) : null;
   if (!who.length) return;
   const participants = who.map((k) => ({ record_id: k, name: characters[k]?.build.name ?? "" }));
   // What the actor paid: a roll by hand's paid costs, else the engine's caster actions (a cast).

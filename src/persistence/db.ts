@@ -60,6 +60,8 @@ export interface StoredEncounter extends RecordMeta {
   readonly encounter: unknown;
   readonly log: unknown;
   readonly modes?: unknown;
+  /** kenli F-006: the journal operation its pending decision continues (validated on load). */
+  readonly pending_op?: unknown;
   readonly created: number;
   readonly updated: number;
 }

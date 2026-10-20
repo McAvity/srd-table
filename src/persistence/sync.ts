@@ -110,11 +110,13 @@ export async function loadAll(): Promise<void> {
       );
       continue;
     }
+    const { pending_op: _pending, ...stored } = raw;
     const record: EncounterRecord = {
-      ...raw,
+      ...stored,
       encounter: parsed.encounter,
       log: readLog(raw.log),
       modes: readModes(raw.modes),
+      ...pendingOpOf(raw, parsed.encounter),
     };
     encounters.push(record);
     if (
@@ -210,6 +212,20 @@ function readLog(raw: unknown): LogEntry[] {
       const { messages: _, ...rest } = e;
       return rest;
     });
+}
+
+/**
+ * The journal operation an encounter's pending decision continues (kenli F-006 R03-01): kept only
+ * while the encounter still waits for a decision and the value is an operation id; else dropped.
+ */
+function pendingOpOf(
+  raw: { readonly pending_op?: unknown },
+  encounter: EncounterRecord["encounter"],
+): { pending_op?: string } {
+  const op = raw.pending_op;
+  return encounter.pending && typeof op === "string" && op.startsWith("op-")
+    ? { pending_op: op }
+    : {};
 }
 
 function readModes(raw: unknown): Record<string, PlayWay> {
