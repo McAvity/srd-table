@@ -24,9 +24,10 @@ async function storedFighter() {
 describe("rest dialog and the journal", () => {
   it("Short Rest: preview and Cancel record nothing; Confirm one entry with the dice as rolled and rerolled", async () => {
     const id = await storedFighter();
-    await useDocuments
-      .getState()
-      .playAction(id, [{ type: "damage", amount: 20 }, { type: "set_inspiration", value: true }]);
+    await useDocuments.getState().playAction(id, [
+      { type: "damage", amount: 20 },
+      { type: "set_inspiration", value: true },
+    ]);
     await renderApp(`/characters/${id}/sheet`);
     const open = async () => {
       await userEvent.click(
