@@ -11,11 +11,12 @@ import { BackLink } from "@/components/BackLink";
 import { Icon } from "@/components/Icon";
 import { Button, cx, Empty, Spinner } from "@/components/ui";
 import type { BuildEdit, BuildView } from "@/engine/facade";
+import { UndoButton } from "@/features/history/UndoButton";
 import { t } from "@/i18n";
 import { useBuildView } from "@/queries";
 import { CharacterScope } from "@/queries/scope";
 import type { BuilderSearch } from "@/routes/router";
-import { canRedo, canUndo, useDocuments } from "@/store/documents";
+import { canRedo, useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 import { AbilitiesStep } from "./AbilitiesStep";
 import { ChoiceCard } from "./ChoiceCard";
@@ -56,9 +57,7 @@ export function BuilderPage({ id, search }: { id: string; search: BuilderSearch 
 function Builder({ id, view, search }: { id: string; view: BuildView; search: BuilderSearch }) {
   const navigate = useNavigate();
   const { request, dialog } = usePreviewedEdit(id);
-  const undo = useDocuments((s) => s.undo);
   const redo = useDocuments((s) => s.redo);
-  const undoable = useDocuments((s) => canUndo(s, id));
   const redoable = useDocuments((s) => canRedo(s, id));
   const [levelUpOpen, setLevelUpOpen] = useState(false);
 
@@ -85,14 +84,7 @@ function Builder({ id, view, search }: { id: string; view: BuildView; search: Bu
           </span>
         </h1>
         <div className="ml-auto flex flex-wrap gap-1.5">
-          <Button
-            size="sm"
-            icon="undo"
-            iconOnly
-            label={t("common.undo")}
-            disabled={!undoable}
-            onClick={() => undo(id)}
-          />
+          <UndoButton id={id} />
           <Button
             size="sm"
             icon="redo"

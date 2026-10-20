@@ -94,3 +94,47 @@ export async function entryCount(recordId: string): Promise<number> {
   for (const e of sessionEntries(recordId)) ids.add(e.id);
   return ids.size;
 }
+
+/**
+ * Entries of a character by operation id (kenli F-006 T03): a page's roots and parents that are
+ * older than the page (a change is always newer than what it changes). One index read per id.
+ */
+export async function byOperations(
+  recordId: string,
+  ops: readonly string[],
+): Promise<HistoryEntry[]> {
+  if (!ops.length) return [];
+  const database = await db();
+  const tx = database.transaction("history");
+  const index = tx.store.index("by_operation");
+  const found: HistoryEntry[] = [];
+  for (const op of new Set(ops))
+    for (const e of await index.getAll(op)) if (e.record_id === recordId) found.push(e);
+  await tx.done;
+  const mine = sessionEntries(recordId).filter((e) => ops.includes(e.operation_id));
+  return merged([...found, ...mine], recordId).filter((e) => ops.includes(e.operation_id));
+}
+
+/**
+ * A whole group from its root (kenli F-006 T03): changes of a roll can only be made while it is the
+ * open last roll, so they follow the root in `seq` with nothing else between; read from the root
+ * until the first entry of another group.
+ */
+export async function groupFrom(root: HistoryEntry): Promise<HistoryEntry[]> {
+  const database = await db();
+  const tx = database.transaction("history");
+  const range = IDBKeyRange.bound([root.record_id, root.seq], [root.record_id, MAX_SEQ]);
+  const rows: HistoryEntry[] = [];
+  for (let c = await tx.store.index("by_record_seq").openCursor(range); c; c = await c.continue()) {
+    if (c.value.group_id !== root.group_id) break;
+    rows.push(c.value);
+  }
+  await tx.done;
+  const all = merged(rows, root.record_id).filter((e) => e.seq >= root.seq);
+  const out: HistoryEntry[] = [];
+  for (const e of all) {
+    if (e.group_id !== root.group_id) break;
+    out.push(e);
+  }
+  return out;
+}

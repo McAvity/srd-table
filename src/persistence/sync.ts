@@ -273,6 +273,19 @@ export function flushNow(): Promise<void> {
   return active ? active.flush() : Promise.resolve();
 }
 
+/**
+ * How many of a character's journal entries this tab captured or changed and hasn't saved yet
+ * (kenli F-006 T03: the panel's "not saved yet"). Without a running autosave: all of this session's.
+ */
+export function unsavedCount(recordId: string): number {
+  const entries = Object.values(useHistory.getState().entries).filter(
+    (e) => e.record_id === recordId,
+  );
+  if (!active) return entries.length;
+  const saved = active.baseline.entries;
+  return entries.filter((e) => saved[e.id] !== e).length;
+}
+
 /** An import wrote these records (and journal rows): they are this tab's last written version now. */
 export function markCommitted(records: {
   characters: readonly CharacterRecord[];

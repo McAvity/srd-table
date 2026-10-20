@@ -59,6 +59,9 @@ interface UiState {
    * them (a per-viewer convenience, remembered in this browser).
    */
   lastOpened: LastOpened;
+  /** kenli F-006: the History side panel, and the character it shows (`null`: the screen's own). */
+  history: { readonly open: boolean; readonly character: string | null };
+  setHistory(history: { open?: boolean; character?: string | null }): void;
   toast(lines: readonly string[], tone?: ToastTone, title?: string): void;
   dismissToast(id: number): void;
   showDice(items: readonly DiceInput[]): void;
@@ -110,6 +113,10 @@ export const useUi = create<UiState>()((set) => ({
   role: savedRole(),
   focus: null,
   lastOpened: savedLastOpened(),
+  history: { open: false, character: null },
+  setHistory(next) {
+    set((s) => ({ history: { ...s.history, ...next } }));
+  },
   toast(lines, tone = "info", title) {
     if (!lines.length) return;
     const toast: Toast = { id: nextId++, tone, lines, ...(title ? { title } : {}) };

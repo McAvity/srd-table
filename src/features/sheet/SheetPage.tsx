@@ -12,10 +12,11 @@ import { Explain } from "@/components/Explain";
 import { Icon } from "@/components/Icon";
 import { PortraitPicker } from "@/components/Portrait";
 import { Button, Empty, Spinner, StatBox, Tabs } from "@/components/ui";
+import { UndoButton } from "@/features/history/UndoButton";
 import { signed, t } from "@/i18n";
 import { usePlayView } from "@/queries";
 import { CharacterScope } from "@/queries/scope";
-import { type CharacterRecord, canRedo, canUndo, useDocuments } from "@/store/documents";
+import { type CharacterRecord, canRedo, useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 import { CombatTab } from "./CombatTab";
 import { FeaturesTab } from "./FeaturesTab";
@@ -74,9 +75,7 @@ function Sheet({
 }) {
   const id = record.id;
   const navigate = useNavigate();
-  const undo = useDocuments((s) => s.undo);
   const redo = useDocuments((s) => s.redo);
-  const undoable = useDocuments((s) => canUndo(s, id));
   const redoable = useDocuments((s) => canRedo(s, id));
   const name = record.build.name || t("common.unnamed");
   const classes = sheet.classes
@@ -103,14 +102,7 @@ function Sheet({
               <Icon name="edit" size={16} />
               {t("characters.build")}
             </Link>
-            <Button
-              size="sm"
-              icon="undo"
-              iconOnly
-              label={t("common.undo")}
-              disabled={!undoable}
-              onClick={() => undo(id)}
-            />
+            <UndoButton id={id} />
             <Button
               size="sm"
               icon="redo"

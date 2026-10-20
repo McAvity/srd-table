@@ -18,6 +18,7 @@ import { entryCount } from "@/persistence/history";
 import { installationId } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
+import { useUi } from "@/store/ui";
 
 export function CharactersPage() {
   const characters = useDocuments((s) => s.characters);
@@ -64,6 +65,9 @@ export function CharactersPage() {
     </div>
   );
 }
+
+/** kenli F-006: an export carries no history, days or counters; say so (it stays on this device). */
+const localOnly = () => useUi.getState().toast([t("history.local")], "info", t("history.title"));
 
 function CharacterCard({ record }: { record: CharacterRecord }) {
   const { data } = usePlayView(record.id);
@@ -131,14 +135,20 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
             icon="download"
             iconOnly
             label={t("characters.exportBuild")}
-            onClick={() => downloadJson(`${slug}.json`, record.build)}
+            onClick={() => {
+              downloadJson(`${slug}.json`, record.build);
+              localOnly();
+            }}
           />
           <Button
             size="sm"
             icon="scroll"
             iconOnly
             label={t("characters.exportState")}
-            onClick={() => downloadJson(`${slug}.state.json`, record.state)}
+            onClick={() => {
+              downloadJson(`${slug}.state.json`, record.state);
+              localOnly();
+            }}
           />
           <Button
             size="sm"
@@ -146,9 +156,10 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
             iconOnly
             label={t("characters.exportTransfer")}
             onClick={() =>
-              void exportCharacter(record, installationId()).then((env) =>
-                downloadJson(`${slug}.transfer.json`, env),
-              )
+              void exportCharacter(record, installationId()).then((env) => {
+                downloadJson(`${slug}.transfer.json`, env);
+                localOnly();
+              })
             }
           />
           <Button

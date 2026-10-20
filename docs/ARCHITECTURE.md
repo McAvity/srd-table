@@ -328,7 +328,10 @@ the documents stay the only game state, nothing is replayed from the journal, Re
   also take back a later encounter effect (the existing whole-state Undo is unchanged).
 - Encounter operations write one entry per character they changed, one for the acting character
   when it rolled or changed a state, and one for the character who must decide when it stopped;
-  `decide` continues that operation. Each character's entry is in its own journal and day.
+  `decide` continues that operation. Which operation that is lives on the encounter record
+  (`pending_op`, next to the engine's document like `modes`): set by the stopping operation, saved
+  and checked on load (kept only while the encounter waits), restored by its undo steps, never
+  carried into an imported generation. Each character's entry is in its own journal and day.
 - Days are per character in its head (`HistoryMeta`): labels by hand, stable ids, no Undo, no
   change of the record's `rev` (the reroll window stays open). Long Rest counters come from done
   `long_rest` entries; a second one the same day needs the DM's exception (`playAction`'s
@@ -343,6 +346,16 @@ the documents stay the only game state, nothing is replayed from the journal, Re
   heads in its transaction (`history_changed`) and writes one `import_boundary` entry each, under the
   operation its undo step carries. Copies and new characters start empty; a deletion removes the
   journal in the same transaction. Transfers carry no history.
+- The History panel (`src/features/history/`) opens from the top bar beside any screen
+  (non-modal: it stays open while playing; Esc closes it, focus returns to the toggle). It shows one
+  character: the one picked, else the screen's, the player's, a table's first party member, the
+  last opened; a table offers its party. Entries come a page of 50 at a time, newest first, with
+  "older" until the first (never cut); each group is made whole even when its root is older than
+  the page (a roll's changes follow it in `seq` while its window is open: `groupFrom`). A group
+  shows each entry with its own cost and status and the current result (`projection`). Above:
+  the save state (saved, not saved yet, failed with a retry, conflict without one), the
+  character's days (next, rename, correct) and Long Rest counts. Exports and the panel say history
+  stays on this device. The sheet's and builder's Undo ask first when `undoWarning` says so.
 
 ## Manual play
 

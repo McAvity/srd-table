@@ -43,6 +43,7 @@ export async function resetStores(): Promise<void> {
     dice: [],
     role: { kind: "gm" },
     lastOpened: { encounter: null, character: null },
+    history: { open: false, character: null },
   });
   localStorage.clear();
   if (useLocale.getState().applied !== "en") await applyLocale("en");
