@@ -14,6 +14,23 @@ export const cacheNameOf = (r: Pick<SwRelease, "base" | "release_id">) =>
 export const completeKeyOf = (r: Pick<SwRelease, "base" | "release_id">) =>
   `${r.base}__release/${r.release_id}/complete`;
 
+/** A failed install's reason, in its own small cache (the incomplete release cache is dropped). */
+export const failureCacheOf = (r: Pick<SwRelease, "base" | "release_id">) =>
+  `srd-table:${r.base}:${r.release_id}:install-failed`;
+export const failureKeyOf = (r: Pick<SwRelease, "base" | "release_id">) =>
+  `${r.base}__release/${r.release_id}/install-failed`;
+export interface InstallFailure {
+  readonly release_id: string;
+  /** `release_asset_http <path> <status>`, `release_asset_hash <path>`, or the error's name and message. */
+  readonly error: string;
+}
+export const describeError = (e: unknown): string =>
+  e instanceof Error
+    ? e.message.startsWith("release_asset_")
+      ? e.message
+      : `${e.name}: ${e.message}`
+    : String(e);
+
 export const inBase = (url: string, base: string): boolean => {
   try {
     return new URL(url).pathname.startsWith(base);

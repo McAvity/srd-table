@@ -11,6 +11,9 @@ import {
   bytesMatch,
   cacheNameOf,
   completeKeyOf,
+  describeError,
+  failureCacheOf,
+  failureKeyOf,
   inBase,
   RELEASE_PROTO,
   routeOf,
@@ -93,7 +96,29 @@ async function inspect(): Promise<{ release_id: string; complete: boolean; missi
   return { release_id: R.release_id, complete: marker && missing.length === 0, missing };
 }
 
-self.addEventListener("install", (event) => event.waitUntil(install()));
+/**
+ * A failed install is never "ready": its incomplete cache is dropped (own staging only, §2.5) and
+ * the reason is kept in a separate small cache for the preparation UI (T04), then the install fails.
+ */
+async function failed(e: unknown): Promise<never> {
+  try {
+    await caches.delete(CACHE);
+    const c = await caches.open(failureCacheOf(R));
+    await c.put(
+      failureKeyOf(R),
+      new Response(JSON.stringify({ release_id: R.release_id, error: describeError(e) }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  } catch {
+    // the diagnosis is best effort; the failure itself is what matters
+  }
+  throw e;
+}
+
+self.addEventListener("install", (event) =>
+  event.waitUntil(caches.delete(failureCacheOf(R)).then(install).catch(failed)),
+);
 self.addEventListener("activate", () => {
   // Nothing: no claim, no cleanup of other releases' caches (offline.md §2.7).
 });

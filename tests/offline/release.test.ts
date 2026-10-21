@@ -17,6 +17,7 @@ import {
 import {
   inspectRelease,
   isReleaseBuild,
+  lastInstallFailure,
   RELEASE_ID,
   ReleaseError,
   registerCurrentRelease,
@@ -173,6 +174,32 @@ describe("release API (offline.md §8)", () => {
         timeoutMs: 20,
       }),
     ).toEqual({ release_id: ID, complete: false, missing: ["service_worker_unresponsive"] });
+  });
+
+  it("a failed install's recorded reason is read back per release; none recorded → null", async () => {
+    const stored = new Map<string, Map<string, unknown>>([
+      [
+        `srd-table:${BASE}:${ID}:install-failed`,
+        new Map([
+          [
+            `${BASE}__release/${ID}/install-failed`,
+            { release_id: ID, error: "QuotaExceededError: full" },
+          ],
+        ]),
+      ],
+    ]);
+    const fake = {
+      has: async (n: string) => stored.has(n),
+      open: async (n: string) => ({
+        match: async (k: string) =>
+          stored.get(n)?.has(k) ? { json: async () => stored.get(n)?.get(k) } : undefined,
+      }),
+    } as unknown as CacheStorage;
+    expect(await lastInstallFailure({ releaseId: ID, base: BASE, caches: fake })).toEqual({
+      release_id: ID,
+      error: "QuotaExceededError: full",
+    });
+    expect(await lastInstallFailure({ releaseId: OTHER, base: BASE, caches: fake })).toBeNull();
   });
 
   it("script URL → release only for sw-<id>.js directly under the base", () => {

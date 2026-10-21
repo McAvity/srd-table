@@ -12,7 +12,7 @@ import {
   type ReleaseDescriptor,
   swPathOf,
 } from "./descriptor";
-import { RELEASE_PROTO } from "./sw-core";
+import { failureCacheOf, failureKeyOf, type InstallFailure, RELEASE_PROTO } from "./sw-core";
 
 /** The release of the code running in this page (`r-dev` outside a release build). */
 export const RELEASE_ID: string = __RELEASE_ID__;
@@ -156,4 +156,18 @@ export async function releaseDescriptor(
   const d = (await res.json()) as ReleaseDescriptor;
   if (d.release_id !== id) throw new ReleaseError("descriptor_unavailable", "another release");
   return d;
+}
+
+/**
+ * Why this release's last install failed (missing/corrupt/interrupted file, storage quota), as its
+ * service worker recorded it; `null` when nothing failed. For T04's "incomplete/failed" readiness.
+ */
+export async function lastInstallFailure(
+  o: { readonly releaseId?: string; readonly base?: string; readonly caches?: CacheStorage } = {},
+): Promise<InstallFailure | null> {
+  const r = { release_id: o.releaseId ?? RELEASE_ID, base: o.base ?? BASE };
+  const store = o.caches ?? (typeof caches !== "undefined" ? caches : undefined);
+  if (!store || !(await store.has(failureCacheOf(r)))) return null;
+  const hit = await (await store.open(failureCacheOf(r))).match(failureKeyOf(r));
+  return hit ? ((await hit.json()) as InstallFailure) : null;
 }

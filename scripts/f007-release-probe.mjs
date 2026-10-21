@@ -261,6 +261,18 @@ const markerOf = (page, release) =>
       ).match(`${base}__release/${id}/complete`)),
     { base: BASE, id: release },
   );
+/** The reason the release SW recorded for its failed install (src/offline/sw.ts `failed`). */
+const failureOf = (page, release) =>
+  P(
+    page,
+    async ({ base, id }) => {
+      const name = `srd-table:${base}:${id}:install-failed`;
+      if (!(await caches.has(name))) return null;
+      const hit = await (await caches.open(name)).match(`${base}__release/${id}/install-failed`);
+      return hit ? hit.json() : null;
+    },
+    { base: BASE, id: release },
+  );
 /** What a fetch from the page gets: status + content-type, or a network error. */
 const probeFetch = (page, path) =>
   P(
@@ -484,7 +496,11 @@ try {
   // ───────── S2: never ready on missing / corrupt / cut / quota ─────────
   const lazyChunk = A.assets.find((a) => /^assets\/SettingsPage-/.test(a.path)).path;
   const failing = [
-    ["missing-file", { mutate: (d) => rmSync(join(d, lazyChunk)) }, {}],
+    [
+      "missing-file",
+      { mutate: (d) => rmSync(join(d, lazyChunk)) },
+      { cause: (e) => e.startsWith(`release_asset_http ${lazyChunk} 404`) },
+    ],
     [
       "corrupt-file",
       {
@@ -495,10 +511,14 @@ try {
           writeFileSync(f, b);
         },
       },
-      {},
+      { cause: (e) => e === `release_asset_hash ${lazyChunk}` },
     ],
-    ["connection-cut-mid-file", {}, { cut: lazyChunk.split("/").pop() }],
-    ["storage-quota", {}, { quota: 300_000 }],
+    [
+      "connection-cut-mid-file",
+      {},
+      { cut: lazyChunk.split("/").pop(), cause: (e) => /^TypeError|^release_asset_hash/.test(e) },
+    ],
+    ["storage-quota", {}, { quota: 300_000, cause: (e) => /^QuotaExceededError/.test(e) }],
   ];
   for (const [name, siteOpts, opts] of failing) {
     const srv = serve(site(name, siteOpts), { cut: opts.cut });
@@ -514,23 +534,20 @@ try {
     await page.waitForTimeout(300);
     const st = await swState(page);
     const marker = await markerOf(page, A.release_id);
-    const quota = opts.quota
-      ? await P(page, async () => (await navigator.storage.estimate()).quota)
-      : null;
-    note(`failure-${name}`, {
-      reg,
-      st,
-      marker,
-      ...(opts.quota ? { quota_seen_by_page: quota } : {}),
-    });
+    const why = await failureOf(page, A.release_id);
+    note(`failure-${name}`, { reg, st, marker, recorded: why });
     check(
       `${name}-never-active-never-complete`,
-      !st.active &&
-        !st.controller &&
-        marker === false &&
-        (reg.state === "redundant" || reg.error) &&
-        (!opts.quota || quota <= opts.quota),
-      { reg, st, marker, quota },
+      !st.active && !st.controller && marker === false && (reg.state === "redundant" || reg.error),
+      { reg, st, marker },
+    );
+    // the cause, as the SW recorded it (the quota override is not visible to storage.estimate())
+    check(
+      `${name}-failure-recorded-with-its-cause-incomplete-cache-dropped`,
+      why?.release_id === A.release_id &&
+        opts.cause(why.error) &&
+        !st.caches.includes(`srd-table:${BASE}:${A.release_id}`),
+      { why, caches: st.caches },
     );
     await ctx.close();
     await srv.stop();
@@ -569,6 +586,14 @@ try {
       { st, insp },
     );
     check("B-has-no-completeness-marker", (await markerOf(page, B.release_id)) === false);
+    const whyB = await failureOf(page, B.release_id);
+    check(
+      "B-failure-recorded-A-cache-intact",
+      whyB?.error === `release_asset_hash releases/${B.release_id}/index.html` &&
+        st.caches.includes(`srd-table:${BASE}:${A.release_id}`) &&
+        (await failureOf(page, A.release_id)) === null,
+      { whyB, caches: st.caches },
+    );
     await page.reload();
     await appReady(page);
     check("A-app-still-opens", (await swState(page)).controller === A.sw.path);
