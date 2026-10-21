@@ -276,11 +276,22 @@ const message: V = (v, at) => {
     messageParam(p, `${at}.params.${k}`);
 };
 /** Engine `RollCost` as F-006 records it; the inner play action is opaque but for what the panel reads. */
+const checkedCostFields = {
+  payable: T.bool(H),
+  reason: T.nul(
+    T.obj(H, {
+      code: T.str(H, undefined, 200),
+      category: T.str(H, undefined, 200),
+      text: T.str(H),
+      message,
+    }),
+  ),
+};
 const cost: V = (v, at) => {
   if (!isObj(v)) refuse(H, `${at}: object`);
   const c = v as Record<string, unknown>;
   if (c.type === "play") {
-    T.obj(H, { type: T.any(), action: T.objAny(H) })(c, at);
+    T.obj(H, { type: T.any(), action: T.objAny(H) }, checkedCostFields)(c, at);
     const a = c.action as Record<string, unknown>;
     T.str(H, re("[a-z_]{1,40}"))(a.type, `${at}.action.type`);
     if (a.type === "spend_slot" || Object.hasOwn(a, "level"))
@@ -288,8 +299,13 @@ const cost: V = (v, at) => {
     if (a.type === "use" || a.type === "use_feature" || Object.hasOwn(a, "key"))
       T.str(H, undefined, 200)(a.key, `${at}.action.key`);
   } else if (c.type === "daily")
-    T.obj(H, { type: T.any(), key: T.str(H), per_day: T.int(H, 1), name: T.str(H) })(c, at);
-  else if (c.type === "recharge") T.obj(H, { type: T.any(), name: T.str(H) })(c, at);
+    T.obj(
+      H,
+      { type: T.any(), key: T.str(H), per_day: T.int(H, 1), name: T.str(H) },
+      checkedCostFields,
+    )(c, at);
+  else if (c.type === "recharge")
+    T.obj(H, { type: T.any(), name: T.str(H) }, checkedCostFields)(c, at);
   else refuse(H, `${at}.type: play | daily | recharge`);
 };
 const nnum = T.nul(T.num(H));
