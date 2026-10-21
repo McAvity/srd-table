@@ -2,7 +2,9 @@
 
 import { PageTitle, Section } from "@/components/ui";
 import { t } from "@/i18n";
-import { RELEASE_ID } from "@/offline/release";
+
+/** The release this code was built as (kenli F-007 T05: a marker of each release's own lazy view). */
+const RELEASE: string = __RELEASE_ID__;
 
 export function AboutPage() {
   return (
@@ -11,7 +13,7 @@ export function AboutPage() {
       <Section title={t("app.name")}>
         <p>{t("about.body")}</p>
         <p className="mt-2 text-sm text-ink-muted" data-testid="about-version">
-          {t("about.version", { id: RELEASE_ID })}
+          {t("about.version", { id: RELEASE })}
         </p>
       </Section>
       <Section title="SRD 5.2.1 · CC-BY-4.0">

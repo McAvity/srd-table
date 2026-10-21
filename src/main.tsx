@@ -89,11 +89,12 @@ async function start() {
       <App router={router} queryClient={queryClient} />
     </StrictMode>,
   );
-  // kenli F-007 T05: the update protocol (freeze/thaw/transition, controllerchange); then (online)
-  // a look at the pointer first — an offer, never an installation; a newer pointer withdraws a
-  // consent for another release (§6) — and only then an interrupted consent is tried again.
+  // kenli F-007 T05: the update protocol (freeze/thaw/transition, controllerchange); then, once the
+  // start is over (not competing with the first load), a look at the pointer online — an offer,
+  // never an installation; a newer pointer withdraws a consent for another release (§6) — and only
+  // then an interrupted consent is tried again.
   startUpdateProtocol();
-  void checkForUpdate().then(() => resumeConsented());
+  setTimeout(() => void checkForUpdate().then(() => resumeConsented()), 5_000);
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") void checkForUpdate();
   });
