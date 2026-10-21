@@ -992,7 +992,8 @@ export const it: Messages = {
   "localCopy.problem.undo_import_changed":
     "La copia è cambiata dopo il caricamento: eliminala esplicitamente.",
   "localCopy.problem.undo_import_gone": "Non c'è un'importazione da annullare.",
-  "localCopy.problem.redo_import_present": "La copia è già qui.",
+  "localCopy.problem.redo_import_present":
+    "La copia è già qui, cambiata nel frattempo (forse in un'altra scheda): ricarica l'app per vederla.",
   "localCopy.problem.validator_error":
     "Il controllo stesso non è riuscito (un errore dell'app): non è stato salvato nulla.",
   "localCopy.problem.fields_dropped": "Il file ha campi che questa app perderebbe.",

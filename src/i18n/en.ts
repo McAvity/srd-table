@@ -965,7 +965,8 @@ export const en = {
   "localCopy.problem.undo_import_changed":
     "The copy changed since it was loaded: delete it explicitly instead.",
   "localCopy.problem.undo_import_gone": "There's no import to undo.",
-  "localCopy.problem.redo_import_present": "The copy is already here.",
+  "localCopy.problem.redo_import_present":
+    "The copy is already here, changed since (maybe in another tab): reload the app to see it.",
   "localCopy.problem.validator_error": "The check itself failed (an app bug): nothing was saved.",
   "localCopy.problem.fields_dropped": "The file has fields this app would lose.",
   "localCopy.problem.build_invalid": "The character's build doesn't load.",

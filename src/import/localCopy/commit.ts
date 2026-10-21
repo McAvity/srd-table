@@ -324,9 +324,17 @@ export async function redoLocalCopyImport(): Promise<
       try {
         const row = await tx.objectStore("characters").get(id);
         if (row) {
-          // A retry after a failed publication: this Redo's own copy is written, only show it.
-          if (localCopyOf(row.origin)?.import_id !== last.import_id || (row.rev ?? 0) !== 1)
-            refuse("redo_import_present", id);
+          // A retry after a failed publication: only this Redo's own copy, exactly as it wrote it —
+          // the document AND the journal head (or no head for an empty journal) unchanged, the
+          // same paired compare-and-set as the autosave and Undo. Another tab's change to either
+          // half refuses it: a reload shows the newer data, nothing stale is published.
+          const head = await tx.objectStore("history_meta").get(id);
+          if (
+            localCopyOf(row.origin)?.import_id !== last.import_id ||
+            (row.rev ?? 0) !== (last.record.rev ?? 0) ||
+            (head?.rev ?? null) !== (last.meta?.rev ?? null)
+          )
+            refuse("redo_import_present", "changed since this Redo wrote it: reload the app");
           await tx.done;
           return;
         }
@@ -345,7 +353,10 @@ export async function redoLocalCopyImport(): Promise<
       }
     });
   } catch (error) {
-    return storageRefusal(error);
+    const refused = storageRefusal(error);
+    // Changed meanwhile by another tab: this session's Redo is over (a reload shows the copy).
+    if (refused.code === "redo_import_present") setLast(null);
+    return refused;
   }
   if (alreadyPublished(id) === "partial")
     return { ok: false, code: "publication_failed", detail: "shown but not saved here: reload" };
