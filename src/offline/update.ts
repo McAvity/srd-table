@@ -729,6 +729,8 @@ const sameSet = (a: readonly { client_id: string }[], b: readonly { client_id: s
  * every gate released, play goes on; `{ok:true}`: the page reloads into the new release.
  */
 export async function updateNow(): Promise<{ ok: boolean; reasons: readonly Reason[] }> {
+  if (useUpdateStore.getState().busy === "updating")
+    return { ok: false, reasons: [{ code: "update_busy", detail: "" }] };
   useUpdateStore.setState({ busy: "updating", reasons: [] });
   const r = await withLock(async () => {
     const { state } = await readState();
@@ -834,8 +836,11 @@ export async function updateNow(): Promise<{ ok: boolean; reasons: readonly Reas
 
 /** After the start: a consent that was interrupted (restart in gating/registering) is tried again. */
 export async function resumeConsented(): Promise<void> {
+  // Never next to an update already running (this page's own "Now", or a live owner's barrier).
+  if (useUpdateStore.getState().busy) return;
   const { state } = await readState();
   useUpdateStore.setState({ state });
+  if (state.barrier) return;
   if (
     state.consent &&
     state.candidate?.release_id === state.consent.release_id &&
