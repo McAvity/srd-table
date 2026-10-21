@@ -2,7 +2,8 @@
  * kenli F-007 T02: the release this page runs, its explicit registration and its inspection
  * (offline.md §2.5, §2.7, §8). Frozen API for T04/T05. Nothing here runs by itself: the app does
  * not register a service worker until T04's explicit "Prepare offline" calls
- * `registerCurrentRelease()`, and this module never registers another release (T05's job, after
+ * `prepareCurrentRelease()` (register this release if needed, then inspect and restore its files
+ * in place — also the retry), and this module never registers another release (T05's job, after
  * consent and gates).
  */
 
@@ -12,7 +13,15 @@ import {
   type ReleaseDescriptor,
   swPathOf,
 } from "./descriptor";
-import { failureCacheOf, failureKeyOf, type InstallFailure, RELEASE_PROTO } from "./sw-core";
+import {
+  failureCacheOf,
+  failureKeyOf,
+  type InstallFailure,
+  RELEASE_PROTO,
+  type RepairResult,
+} from "./sw-core";
+
+export type { RepairResult };
 
 /** The release of the code running in this page (`r-dev` outside a release build). */
 export const RELEASE_ID: string = __RELEASE_ID__;
@@ -26,6 +35,8 @@ export class ReleaseError extends Error {
       | "sw_unsupported"
       | "release_other_registered"
       | "release_install_failed"
+      | "release_not_active"
+      | "release_mismatch"
       | "descriptor_unavailable",
     readonly detail = "",
   ) {
@@ -38,6 +49,11 @@ export interface Inspection {
   readonly release_id: string;
   readonly complete: boolean;
   readonly missing: readonly string[];
+  /** Why each file is not usable: absent, wrong content type, or other bytes. */
+  readonly problems?: readonly {
+    readonly path: string;
+    readonly reason: "absent" | "type" | "hash";
+  }[];
 }
 
 export interface ReleaseOptions {
@@ -170,4 +186,62 @@ export async function lastInstallFailure(
   if (!store || !(await store.has(failureCacheOf(r)))) return null;
   const hit = await (await store.open(failureCacheOf(r))).match(failureKeyOf(r));
   return hit ? ((await hit.json()) as InstallFailure) : null;
+}
+
+/** The active worker of THIS release for the base, or null. */
+async function ownActive(o: ReleaseOptions): Promise<ServiceWorker | null> {
+  const id = o.releaseId ?? RELEASE_ID;
+  const base = o.base ?? BASE;
+  const sw = containerOf(o);
+  const reg = sw ? await sw.getRegistration(base) : undefined;
+  return reg?.active && releaseOfScriptUrl(reg.active.scriptURL, base) === id ? reg.active : null;
+}
+
+/**
+ * Restore THIS release's files in place (R03-01): the active worker of this release fetches again,
+ * checks and stores every missing, damaged or wrongly typed file of its own list; good files stay,
+ * nothing else changes (no registration, no activation, no other release, no game data). A
+ * re-registration of the same URL does not do this (identical script bytes: no install).
+ */
+export async function repairCurrentRelease(
+  o: ReleaseOptions & { readonly timeoutMs?: number } = {},
+): Promise<RepairResult> {
+  const id = o.releaseId ?? RELEASE_ID;
+  if (!isReleaseBuild(id)) throw new ReleaseError("release_dev_build", id);
+  const active = await ownActive(o);
+  if (!active) throw new ReleaseError("release_not_active", id);
+  const channel = new MessageChannel();
+  const r = await new Promise<RepairResult>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      channel.port1.close();
+      reject(new ReleaseError("release_not_active", "the worker did not answer"));
+    }, o.timeoutMs ?? 120_000);
+    channel.port1.onmessage = (e: MessageEvent<RepairResult>) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      resolve(e.data);
+    };
+    active.postMessage({ proto: RELEASE_PROTO, type: "repair", release_id: id }, [channel.port2]);
+  });
+  if (!r || r.release_id !== id || r.error === "release_mismatch")
+    throw new ReleaseError("release_mismatch", r?.release_id ?? "no answer");
+  return r;
+}
+
+/**
+ * The preparation T04 calls (and retries): register THIS release if needed, then make its cache
+ * complete — inspect, and restore what is missing or damaged. The result is the truth after the
+ * attempt: `complete` only when every file is present, typed and byte-exact.
+ */
+export async function prepareCurrentRelease(
+  o: ReleaseOptions & { readonly timeoutMs?: number } = {},
+): Promise<
+  Inspection & { readonly repaired: readonly string[]; readonly failed: RepairResult["failed"] }
+> {
+  await registerCurrentRelease(o);
+  const first = await inspectRelease(o);
+  if (first.complete) return { ...first, repaired: [], failed: [] };
+  const r = await repairCurrentRelease(o);
+  const after = await inspectRelease(o);
+  return { ...after, repaired: r.repaired, failed: r.failed };
 }

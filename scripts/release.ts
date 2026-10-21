@@ -232,7 +232,11 @@ const swBuild = await Bun.build({
   minify: false,
 });
 if (!swBuild.success) fail(`SW build failed: ${swBuild.logs.join("\n")}`);
-const swRelease = swReleaseOf({ ...partial, sw: htmlRef } as unknown as ReleaseDescriptor);
+const swRelease = swReleaseOf({
+  ...partial,
+  sw: htmlRef,
+  graph: { roots: graph.roots, edges: graph.edges },
+} as unknown as ReleaseDescriptor);
 const swText = `// srd-table release ${releaseId} (immutable; offline.md §2.7)\nself.__F007_RELEASE__ = ${JSON.stringify(swRelease)};\n${await (swBuild.outputs[0] as Blob).text()}`;
 writeFileSync(join(out, swPathOf(releaseId)), swText);
 const descriptor: ReleaseDescriptor = {

@@ -67,7 +67,30 @@ export interface SwRelease {
   readonly release_id: string;
   readonly base: string;
   readonly html: string;
+  /** The HTML and what it loads directly (entry, CSS, preloads, icons): checked before every app navigation. */
+  readonly critical: readonly string[];
   readonly files: readonly FileRef[];
+}
+
+/**
+ * The one content type each release file is stored and served with (offline.md §2.5, R03-03):
+ * the bytes are the release's own (SHA-256 checked), so their type comes from the release, not
+ * from whatever header the host sent. A file of any other kind can't be in a release.
+ */
+export const CONTENT_TYPES: Readonly<Record<string, string>> = {
+  ".js": "text/javascript",
+  ".css": "text/css",
+  ".html": "text/html; charset=utf-8",
+  ".webmanifest": "application/manifest+json",
+  ".json": "application/json",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+export function contentTypeOf(path: string): string | null {
+  const dot = path.lastIndexOf(".");
+  return dot < 0 ? null : (CONTENT_TYPES[path.slice(dot)] ?? null);
 }
 
 export const RELEASE_ID = /^r-[0-9a-f]{16}$/;
@@ -116,10 +139,12 @@ export function releaseFiles(d: ReleaseDescriptor): FileRef[] {
 
 /** The SW's precache list for a descriptor. */
 export function swReleaseOf(d: ReleaseDescriptor): SwRelease {
+  const direct = d.graph.edges.filter(([from]) => from === d.html.path).map(([, to]) => to);
   return {
     release_id: d.release_id,
     base: d.base,
     html: d.html.path,
+    critical: [d.html.path, ...[...new Set(direct)].sort()],
     files: [d.html, d.webmanifest, ...d.assets].map(({ path, sha256, size }) => ({
       path,
       sha256,
@@ -161,6 +186,7 @@ export function descriptorProblems(
     if (!HEX64.test(f.sha256) || !Number.isSafeInteger(f.size) || f.size <= 0)
       bad("release_file", f.path);
     if (seen.has(f.path)) bad("path_duplicate", f.path);
+    if (f !== d.sw && !contentTypeOf(f.path)) bad("release_asset_type", f.path);
     seen.add(f.path);
   }
   const paths = d.assets.map((a) => a.path);

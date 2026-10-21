@@ -18,6 +18,16 @@
  *     no completeness marker (never "ready").
  *  S3 A prepared and in use; B registered with one corrupt B-only file: B fails, A stays active,
  *     complete and usable.
+ *  S4 (round 5, R03-03) the host sends text/plain for a JS chunk, the CSS and the release HTML:
+ *     the release is stored with its own types and is really usable (module import, stylesheet,
+ *     HTML); an entry with the right bytes but a wrong header is not verified, says why, and
+ *     repair makes it usable.
+ *  S5 (round 5, R03-01) with an IndexedDB sentinel and the game DB: a same-URL re-registration does
+ *     not repair; the same-release repair restores a missing/corrupt asset, refuses another identity,
+ *     keeps restored files on partial, quota or offline failure and works on retry; a lost release
+ *     HTML, entry chunk or whole app cache gives the self-contained 503 recovery document whose
+ *     button restores THIS release (only its files) and reloads; JSON routes stay JSON; no data
+ *     changes; a cold restart offline opens the repaired release.
  */
 
 import {
@@ -153,7 +163,7 @@ const TYPES = {
   ".woff2": "font/woff2",
   ".woff": "font/woff",
 };
-function serve(dir, { cut } = {}) {
+function serve(dir, { cut, types = {} } = {}) {
   const log = [];
   const srv = createServer((req, res) => {
     const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
@@ -164,8 +174,9 @@ function serve(dir, { cut } = {}) {
     if (!existsSync(file) || !statSync(file).isFile())
       return res.writeHead(404, { "content-type": "text/plain" }).end("not found");
     const body = readFileSync(file);
+    const forced = Object.entries(types).find(([suffix]) => path.endsWith(suffix));
     res.writeHead(200, {
-      "content-type": TYPES[extname(file)] ?? "application/octet-stream",
+      "content-type": forced ? forced[1] : (TYPES[extname(file)] ?? "application/octet-stream"),
       "content-length": body.length,
       "cache-control": "no-cache",
     });
@@ -184,7 +195,11 @@ function serve(dir, { cut } = {}) {
       this.port = srv.address().port;
       return `http://127.0.0.1:${this.port}`;
     },
-    stop: () => new Promise((ok) => srv.close(() => ok())),
+    stop: () =>
+      new Promise((ok) => {
+        srv.closeAllConnections?.();
+        srv.close(() => ok());
+      }),
   };
 }
 
@@ -599,6 +614,467 @@ try {
     check("A-app-still-opens", (await swState(page)).controller === A.sw.path);
     await ctx.close();
     await srv.stop();
+  }
+
+  // ───────── round 5 helpers ─────────
+  const pathOf = (re) => A.assets.find((a) => re.test(a.path)).path;
+  const ABOUT = pathOf(/^assets\/AboutPage-/);
+  const SETTINGS = pathOf(/^assets\/SettingsPage-/);
+  const ENTRY = A.assets.find((a) => a.role === "entry").path;
+  const CSS = A.assets.find((a) => a.role === "css").path;
+  const CACHE = `srd-table:${BASE}:${A.release_id}`;
+  const repairRpc = (page, id) =>
+    P(
+      page,
+      async ({ base, id }) => {
+        const r = await navigator.serviceWorker.getRegistration(base);
+        const ch = new MessageChannel();
+        const got = new Promise((ok) => (ch.port1.onmessage = (e) => ok(e.data)));
+        r.active.postMessage({ proto: "srd-table.release/1", type: "repair", release_id: id }, [
+          ch.port2,
+        ]);
+        return got;
+      },
+      { base: BASE, id },
+    );
+  const cacheDo = (page, op, path, extra) =>
+    P(
+      page,
+      async ({ cacheName, base, op, path, extra }) => {
+        const c = await caches.open(cacheName);
+        const u = base + path;
+        if (op === "delete") return c.delete(u);
+        if (op === "drop-all") return caches.delete(cacheName);
+        const hit = await c.match(u);
+        const bytes = new Uint8Array(await hit.arrayBuffer());
+        if (op === "corrupt") bytes[20] ^= 0xff;
+        await c.put(
+          u,
+          new Response(bytes, {
+            headers: { "content-type": op === "retype" ? extra : hit.headers.get("content-type") },
+          }),
+        );
+        return true;
+      },
+      { cacheName: CACHE, base: BASE, op, path, extra },
+    );
+  const importOk = (page, path) =>
+    P(
+      page,
+      async (u) => {
+        try {
+          await import(u);
+          return "ok";
+        } catch (e) {
+          return String(e).slice(0, 120);
+        }
+      },
+      `${BASE}${path}`,
+    );
+  const freshImport = async (ctx, origin, path) => {
+    const t = await ctx.newPage();
+    await t.goto(`${origin}${BASE}library/manifest.json`); // a page in scope that runs no app code
+    const r = await importOk(t, path);
+    await t.close();
+    return r;
+  };
+  /** Click "Restore": either the page reloads (complete) or it says why not (status text). */
+  const clickRestore = async (page) => {
+    const loaded = page.waitForEvent("load", { timeout: 60000 }).then(() => ({ reloaded: true }));
+    await page.click("#restore");
+    const said = page
+      .waitForFunction(
+        () => document.getElementById("status")?.textContent?.startsWith("Not restored yet"),
+        null,
+        { timeout: 60000 },
+      )
+      .then(async () => ({
+        reloaded: false,
+        status: await P(page, () => document.getElementById("status").textContent),
+      }))
+      .catch(() => new Promise(() => {}));
+    return Promise.race([loaded, said]);
+  };
+  const idbSnapshot = (page) =>
+    P(
+      page,
+      () =>
+        new Promise((ok) => {
+          const out = {};
+          const r = indexedDB.open("srd-table");
+          r.onsuccess = async () => {
+            const db = r.result;
+            for (const name of [...db.objectStoreNames].sort()) {
+              out[name] = await new Promise((done) => {
+                const q = db.transaction(name).objectStore(name).getAllKeys();
+                q.onsuccess = () => done(JSON.stringify(q.result));
+              });
+            }
+            db.close();
+            const s = indexedDB.open("f007-probe-sentinel", 1);
+            s.onupgradeneeded = () => s.result.createObjectStore("s");
+            s.onsuccess = () => {
+              const g = s.result.transaction("s").objectStore("s").get("sentinel");
+              g.onsuccess = () => {
+                out.sentinel = g.result ?? null;
+                s.result.close();
+                ok(out);
+              };
+            };
+          };
+        }),
+    );
+  const writeSentinel = (page) =>
+    P(
+      page,
+      () =>
+        new Promise((ok) => {
+          const s = indexedDB.open("f007-probe-sentinel", 1);
+          s.onupgradeneeded = () => s.result.createObjectStore("s");
+          s.onsuccess = () => {
+            const tx = s.result.transaction("s", "readwrite");
+            tx.objectStore("s").put({ character: "probe", hp: 17 }, "sentinel");
+            tx.oncomplete = () => {
+              s.result.close();
+              ok(true);
+            };
+          };
+        }),
+    );
+  const waitPacks = (page) =>
+    page.waitForFunction(
+      () =>
+        new Promise((ok) => {
+          const r = indexedDB.open("srd-table");
+          r.onsuccess = () => {
+            const db = r.result;
+            if (!db.objectStoreNames.contains("packs")) return ok(false);
+            const q = db.transaction("packs").objectStore("packs").getAllKeys();
+            q.onsuccess = () => ok(q.result.some((k) => String(k).startsWith("srd-5.2.1@")));
+          };
+          r.onerror = () => ok(false);
+        }),
+      null,
+      { timeout: 60000, polling: 500 },
+    );
+
+  // ───────── S4: wrong MIME from the host (JS, CSS, release HTML), and a cached wrong header ─────────
+  {
+    const srv = serve(site("mime"), {
+      types: { [ABOUT]: "text/plain", [CSS]: "text/plain", [A.html.path]: "text/plain" },
+    });
+    const origin = await srv.start();
+    const ctx = await launch(join(work, "profile-mime"));
+    const page = ctx.pages()[0] ?? (await ctx.newPage());
+    await page.goto(`${origin}${BASE}`);
+    await appReady(page);
+    check(
+      "mime-host-really-sends-text-plain",
+      (await probeFetch(page, `${BASE}${ABOUT}`)).type === "text/plain",
+    );
+    const reg = await register(page, A.sw.path);
+    const insp = await inspect(page);
+    check(
+      "mime-install-stores-release-types-and-is-complete",
+      reg.state === "activated" && insp?.complete === true,
+      { reg, insp },
+    );
+    await page.reload();
+    await appReady(page);
+    const usable = await P(
+      page,
+      (css) => ({
+        contentType: document.contentType,
+        cssRules: [...document.styleSheets]
+          .filter((x) => x.href?.endsWith(css))
+          .map((x) => x.cssRules.length),
+      }),
+      CSS,
+    );
+    check(
+      "mime-html-and-css-actually-usable-from-cache",
+      usable.contentType === "text/html" && usable.cssRules.length === 1 && usable.cssRules[0] > 10,
+      usable,
+    );
+    check("mime-js-module-imports-from-cache", (await importOk(page, ABOUT)) === "ok");
+    // an entry stored by anything else with the right bytes but a wrong header is not verified
+    await cacheDo(page, "retype", ABOUT, "text/plain");
+    const bad = await inspect(page);
+    const unusable = await freshImport(ctx, origin, ABOUT);
+    note("cached-wrong-header", { bad, unusable });
+    check(
+      "cached-wrong-header-is-not-complete-and-says-why",
+      bad.complete === false &&
+        bad.problems?.some((x) => x.path === ABOUT && x.reason === "type") &&
+        unusable !== "ok",
+      { bad, unusable },
+    );
+    const fixed = await repairRpc(page, A.release_id);
+    check(
+      "repair-restores-wrong-header-to-usable",
+      fixed.complete === true &&
+        fixed.repaired.includes(ABOUT) &&
+        (await inspect(page)).complete === true &&
+        (await freshImport(ctx, origin, ABOUT)) === "ok",
+      fixed,
+    );
+    await ctx.close();
+    await srv.stop();
+  }
+
+  // ───────── S5: active release repair and the recovery document (data untouched) ─────────
+  {
+    const dir = site("repair");
+    const srv = serve(dir);
+    let origin = await srv.start();
+    const port = srv.port;
+    const profile = join(work, "profile-repair");
+    let ctx = await launch(profile);
+    let page = ctx.pages()[0] ?? (await ctx.newPage());
+    await page.goto(`${origin}${BASE}`);
+    await appReady(page);
+    await waitPacks(page);
+    await writeSentinel(page);
+    check("repair-setup-registered", (await register(page, A.sw.path)).state === "activated");
+    await page.reload();
+    await appReady(page);
+    const data0 = await idbSnapshot(page);
+    check(
+      "repair-setup-sentinel-and-game-db-present",
+      data0.sentinel?.hp === 17 && data0.packs?.includes("srd-5.2.1@"),
+      Object.keys(data0),
+    );
+
+    // a) the native same-URL path is NOT a repair
+    await cacheDo(page, "delete", ABOUT);
+    await P(
+      page,
+      async ({ base, sw }) => {
+        const r = await navigator.serviceWorker.register(base + sw, {
+          scope: base,
+          updateViaCache: "none",
+        });
+        await r.update();
+      },
+      { base: BASE, sw: A.sw.path },
+    );
+    await page.waitForTimeout(500);
+    const still = await inspect(page);
+    check(
+      "native-same-url-register-and-update-do-not-repair",
+      still.complete === false && still.missing.includes(ABOUT),
+      still,
+    );
+    // b) explicit same-release repair
+    const r1 = await repairRpc(page, A.release_id);
+    check(
+      "explicit-repair-restores-missing-lazy-asset",
+      r1.complete === true &&
+        r1.repaired.length === 1 &&
+        r1.repaired[0] === ABOUT &&
+        (await freshImport(ctx, origin, ABOUT)) === "ok",
+      r1,
+    );
+    // c) corrupt bytes
+    await cacheDo(page, "corrupt", ABOUT);
+    const corrupt = await inspect(page);
+    const r2 = await repairRpc(page, A.release_id);
+    check(
+      "corrupt-bytes-detected-and-repaired",
+      corrupt.problems?.some((x) => x.path === ABOUT && x.reason === "hash") &&
+        r2.complete === true,
+      { corrupt, r2 },
+    );
+    // d) identity
+    const wrong = [
+      await repairRpc(page, B.release_id),
+      await repairRpc(page, "r-0000000000000000"),
+    ];
+    check(
+      "repair-refuses-another-release-identity",
+      wrong.every((w) => w.error === "release_mismatch" && w.repaired.length === 0) &&
+        (await inspect(page)).complete === true,
+      wrong,
+    );
+    // e) partial failure keeps the good subset, retry after the host is fixed
+    await cacheDo(page, "delete", ABOUT);
+    await cacheDo(page, "delete", SETTINGS);
+    const settingsFile = join(dir, BASE.slice(1), SETTINGS);
+    const good = readFileSync(settingsFile);
+    const broken = Buffer.from(good);
+    broken[5] ^= 0xff;
+    writeFileSync(settingsFile, broken);
+    const r3 = await repairRpc(page, A.release_id);
+    const after3 = await inspect(page);
+    check(
+      "partial-repair-truthful-and-keeps-restored-files",
+      r3.complete === false &&
+        r3.repaired.includes(ABOUT) &&
+        r3.failed.length === 1 &&
+        r3.failed[0].error === `release_asset_hash ${SETTINGS}` &&
+        after3.complete === false &&
+        after3.missing.length === 1 &&
+        after3.missing[0] === SETTINGS &&
+        !(await markerOf(page, A.release_id)),
+      { r3, after3 },
+    );
+    writeFileSync(settingsFile, good);
+    check(
+      "repair-retry-after-host-fixed",
+      (await repairRpc(page, A.release_id)).complete === true &&
+        (await markerOf(page, A.release_id)),
+    );
+    // f) quota during repair
+    await cacheDo(page, "delete", ABOUT);
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Storage.overrideQuotaForOrigin", { origin, quotaSize: 50_000 });
+    const r4 = await repairRpc(page, A.release_id);
+    const after4 = await inspect(page);
+    await cdp.send("Storage.overrideQuotaForOrigin", { origin });
+    check(
+      "quota-during-repair-truthful-subset-kept",
+      r4.complete === false &&
+        /QuotaExceededError/.test(r4.failed[0]?.error ?? "") &&
+        after4.missing.length === 1 &&
+        after4.missing[0] === ABOUT,
+      { r4, after4 },
+    );
+    check("repair-after-quota-released", (await repairRpc(page, A.release_id)).complete === true);
+    // g) host gone during repair
+    await cacheDo(page, "delete", ABOUT);
+    await srv.stop();
+    const r5 = await repairRpc(page, A.release_id);
+    origin = await srv.start(port);
+    check(
+      "offline-repair-truthful-then-retry-works",
+      r5.complete === false &&
+        /TypeError/.test(r5.failed[0]?.error ?? "") &&
+        (await repairRpc(page, A.release_id)).complete === true,
+      r5,
+    );
+    // h) the release HTML lost: the recovery document, self-contained, restores THIS release only
+    await cacheDo(page, "delete", A.html.path);
+    let mark = srv.log.length;
+    const nav = await page.goto(`${origin}${BASE}`);
+    const doc = await P(page, () => ({
+      recovery: document.querySelector("main")?.dataset.recovery ?? null,
+      root: !!document.querySelector("#root"),
+      scripts: [...document.scripts].map((s) => s.src).filter(Boolean),
+      links: [...document.querySelectorAll("link")].length,
+      text: document.body.innerText.slice(0, 200),
+    }));
+    check(
+      "lost-html-gives-503-recovery-document-without-app-chunks",
+      nav.status() === 503 &&
+        doc.recovery === A.release_id &&
+        !doc.root &&
+        doc.scripts.length === 0 &&
+        doc.links === 0 &&
+        srv.log.length === mark,
+      { status: nav.status(), doc, requests: srv.log.slice(mark) },
+    );
+    const json = await ctx.newPage();
+    const jr = await json.goto(`${origin}${BASE}library/manifest.json`);
+    check(
+      "json-route-is-json-not-recovery-or-app-html",
+      /json/.test(jr.headers()["content-type"] ?? "") &&
+        !(await json.content()).includes("data-recovery"),
+    );
+    await json.close();
+    mark = srv.log.length;
+    const reloaded = await clickRestore(page);
+    note("restore-click", reloaded);
+    if (!reloaded.reloaded) throw new Error(`restore not completed: ${reloaded.status}`);
+    await appReady(page, 60000);
+    const fetched = srv.log.slice(mark);
+    const listed = new Set(
+      [A.html.path, A.webmanifest.path, ...A.assets.map((a) => a.path)].map((x) => `${BASE}${x}`),
+    );
+    const st = await swState(page);
+    check(
+      "recovery-button-restores-and-reloads-into-same-release",
+      st.controller === A.sw.path &&
+        st.active === A.sw.path &&
+        !st.waiting &&
+        !st.installing &&
+        (await inspect(page)).complete === true,
+      st,
+    );
+    check(
+      "recovery-fetches-only-own-release-files-no-pointer-no-other-sw",
+      fetched.some((x) => listed.has(x)) &&
+        fetched.every(
+          (x) =>
+            x !== `${BASE}release.json` &&
+            (!x.includes("/sw-") || x === `${BASE}${A.sw.path}`) &&
+            (!/^\/[^/]+\/(assets|releases)\//.test(x) || listed.has(x)),
+        ),
+      fetched,
+    );
+    // i) the entry chunk lost
+    await cacheDo(page, "delete", ENTRY);
+    const nav2 = await page.goto(`${origin}${BASE}`);
+    check(
+      "lost-entry-gives-recovery-document",
+      nav2.status() === 503 &&
+        (await P(page, () => document.querySelector("main")?.dataset.recovery)) === A.release_id,
+    );
+    const reloaded2 = await clickRestore(page);
+    note("restore-click", reloaded2);
+    if (!reloaded2.reloaded) throw new Error(`restore not completed: ${reloaded2.status}`);
+    await appReady(page, 60000);
+    check("entry-restored-app-opens", (await swState(page)).controller === A.sw.path);
+    // j) the whole app cache lost, host gone: truthful error; host back: restored; then cold restart offline
+    await cacheDo(page, "drop-all");
+    await page.goto(`${origin}${BASE}`);
+    await srv.stop();
+    await page.click("#restore");
+    await page.waitForFunction(
+      () => document.getElementById("status")?.textContent?.startsWith("Not restored yet"),
+      null,
+      { timeout: 20000 },
+    );
+    const failedDoc = await P(page, () => ({
+      status: document.getElementById("status").textContent,
+      enabled: !document.getElementById("restore").disabled,
+      recovery: document.querySelector("main")?.dataset.recovery,
+    }));
+    check(
+      "whole-cache-lost-offline-restore-says-not-restored",
+      failedDoc.enabled &&
+        failedDoc.recovery === A.release_id &&
+        /Failed to fetch|TypeError/.test(failedDoc.status),
+      failedDoc,
+    );
+    origin = await srv.start(port);
+    const reloaded3 = await clickRestore(page);
+    note("restore-click", reloaded3);
+    if (!reloaded3.reloaded) throw new Error(`restore not completed: ${reloaded3.status}`);
+    await appReady(page, 60000);
+    check("whole-cache-restored-when-host-back", (await inspect(page)).complete === true);
+    const data1 = await idbSnapshot(page);
+    check(
+      "game-db-and-sentinel-unchanged-by-all-repairs",
+      JSON.stringify(data1) === JSON.stringify(data0),
+      { before: data0, after: data1 },
+    );
+    await ctx.close();
+    await srv.stop();
+    ctx = await launch(profile);
+    page = ctx.pages()[0] ?? (await ctx.newPage());
+    await page.goto(`${origin}${BASE}`);
+    await appReady(page, 60000);
+    await P(page, () => {
+      location.hash = "#/about";
+    });
+    await page.waitForFunction(() => document.body.innerText.includes("About"), null, {
+      timeout: 60000,
+    });
+    check(
+      "cold-restart-offline-after-repair-opens-same-release",
+      (await swState(page)).controller === A.sw.path,
+    );
+    await ctx.close();
   }
 } catch (e) {
   failures++;

@@ -6,6 +6,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
+  contentTypeOf,
   descriptorProblems,
   RELEASE_INPUTS_FORMAT,
   type ReleaseDescriptor,
@@ -18,17 +19,21 @@ import {
   inspectRelease,
   isReleaseBuild,
   lastInstallFailure,
+  prepareCurrentRelease,
   RELEASE_ID,
   ReleaseError,
   registerCurrentRelease,
   releaseOfScriptUrl,
+  repairCurrentRelease,
 } from "@/offline/release";
 import {
   bytesMatch,
   cacheNameOf,
   completeKeyOf,
+  recoveryHtml,
   routeOf,
   stamp,
+  typeMatches,
   UPDATE_PROTO,
 } from "@/offline/sw-core";
 import { buildGraph } from "../../scripts/release/graph";
@@ -77,6 +82,8 @@ function fakeContainer(
     },
     async register(url: string, options: RegistrationOptions) {
       calls.push({ url, options });
+      // same script URL as the active worker: the browser keeps it (no install, no new worker)
+      if (reg?.active && new URL(reg.active.scriptURL).pathname === url) return reg;
       const w = new FakeWorker(`http://h${url}`, "installing", (_m, ports) =>
         opts.reply?.(ports[0] as MessagePort),
       );
@@ -221,6 +228,7 @@ const R = {
   release_id: ID,
   base: BASE,
   html: `releases/${ID}/index.html`,
+  critical: [`releases/${ID}/index.html`, "assets/index-AAAA.js"],
   files: [
     { path: `releases/${ID}/index.html`, sha256: "a".repeat(64), size: 1 },
     { path: `releases/${ID}/manifest.webmanifest`, sha256: "b".repeat(64), size: 1 },
@@ -489,5 +497,176 @@ describe("release id and descriptor (offline.md §2.2, §2.4)", () => {
     expect(
       bad({ sw: f(`releases/${id}/sw.js`) }).some((e) => e.startsWith("release_sw_path")),
     ).toBe(true);
+  });
+});
+
+// ───────────── round 5: same-release repair, preparation, recovery document, content types ─────────────
+/** An active worker of release ID that answers inspect/repair like the release SW (state in `files`). */
+function repairingWorker(opts: { restorable?: boolean; answerAs?: string } = {}) {
+  const files = { "assets/About-1.js": "absent" as "absent" | "ok" };
+  const posted: unknown[] = [];
+  const w = new FakeWorker(`http://h/dnd/sw-${ID}.js`, "activated", (msg, ports) => {
+    posted.push(msg);
+    const m = msg as { type: string; release_id?: string };
+    const port = ports[0] as MessagePort;
+    const id = opts.answerAs ?? ID;
+    if (m.type === "inspect") {
+      const missing = Object.entries(files)
+        .filter(([, v]) => v !== "ok")
+        .map(([k]) => k);
+      port.postMessage({ release_id: id, complete: missing.length === 0, missing });
+    }
+    if (m.type === "repair") {
+      if (m.release_id !== id)
+        return port.postMessage({
+          release_id: id,
+          complete: false,
+          repaired: [],
+          failed: [],
+          error: "release_mismatch",
+        });
+      if (opts.restorable === false)
+        return port.postMessage({
+          release_id: id,
+          complete: false,
+          repaired: [],
+          failed: [{ path: "assets/About-1.js", error: "TypeError: Failed to fetch" }],
+        });
+      files["assets/About-1.js"] = "ok";
+      port.postMessage({
+        release_id: id,
+        complete: true,
+        repaired: ["assets/About-1.js"],
+        failed: [],
+      });
+    }
+  });
+  return { w, posted, files };
+}
+
+describe("same-release repair and preparation (R03-01)", () => {
+  it("repair needs this release's active worker and a release build", async () => {
+    await expect(
+      repairCurrentRelease({ container: fakeContainer().container }),
+    ).rejects.toMatchObject({ code: "release_dev_build" });
+    await expect(
+      repairCurrentRelease({ container: fakeContainer().container, releaseId: ID, base: BASE }),
+    ).rejects.toMatchObject({ code: "release_not_active" });
+    const other = fakeContainer({
+      existing: new FakeWorker(`http://h/dnd/sw-${OTHER}.js`, "activated"),
+    });
+    await expect(
+      repairCurrentRelease({ container: other.container, releaseId: ID, base: BASE }),
+    ).rejects.toMatchObject({ code: "release_not_active" });
+  });
+
+  it("repair names the expected release; a worker of another identity is refused", async () => {
+    const { w, posted } = repairingWorker();
+    const r = await repairCurrentRelease({
+      container: fakeContainer({ existing: w }).container,
+      releaseId: ID,
+      base: BASE,
+    });
+    expect(r).toEqual({
+      release_id: ID,
+      complete: true,
+      repaired: ["assets/About-1.js"],
+      failed: [],
+    });
+    expect(posted).toEqual([{ proto: "srd-table.release/1", type: "repair", release_id: ID }]);
+    const liar = repairingWorker({ answerAs: OTHER });
+    await expect(
+      repairCurrentRelease({
+        container: fakeContainer({ existing: liar.w }).container,
+        releaseId: ID,
+        base: BASE,
+      }),
+    ).rejects.toMatchObject({ code: "release_mismatch" });
+  });
+
+  it("preparation retries really restore an incomplete active release (same URL, no new registration)", async () => {
+    const { w, files } = repairingWorker();
+    const f = fakeContainer({ existing: w });
+    const r = await prepareCurrentRelease({ container: f.container, releaseId: ID, base: BASE });
+    expect(r).toMatchObject({
+      release_id: ID,
+      complete: true,
+      missing: [],
+      repaired: ["assets/About-1.js"],
+      failed: [],
+    });
+    expect(files["assets/About-1.js"]).toBe("ok");
+    expect(f.calls.map((c) => c.url)).toEqual([`/dnd/sw-${ID}.js`]);
+    expect(f.reg()?.active).toBe(w); // same worker: no other release, no activation
+  });
+
+  it("a failed restore is reported truthfully (still incomplete, with the reason)", async () => {
+    const { w } = repairingWorker({ restorable: false });
+    const r = await prepareCurrentRelease({
+      container: fakeContainer({ existing: w }).container,
+      releaseId: ID,
+      base: BASE,
+    });
+    expect(r.complete).toBe(false);
+    expect(r.missing).toEqual(["assets/About-1.js"]);
+    expect(r.failed).toEqual([{ path: "assets/About-1.js", error: "TypeError: Failed to fetch" }]);
+  });
+});
+
+describe("content types are part of integrity (R03-03)", () => {
+  it("one type per kind; parameters ignored; anything else is not the release's file", () => {
+    expect(contentTypeOf("assets/a.js")).toBe("text/javascript");
+    expect(contentTypeOf("assets/a.css")).toBe("text/css");
+    expect(contentTypeOf("releases/r/index.html")).toBe("text/html; charset=utf-8");
+    expect(contentTypeOf("assets/a.exe")).toBeNull();
+    expect(typeMatches("text/javascript; charset=utf-8", "assets/a.js")).toBe(true);
+    expect(typeMatches("TEXT/CSS", "assets/a.css")).toBe(true);
+    for (const [h, p] of [
+      ["text/plain", "assets/a.js"],
+      ["application/octet-stream", "assets/a.css"],
+      ["text/plain", "releases/r/index.html"],
+      [null, "assets/a.js"],
+      ["text/javascript", "assets/a.exe"],
+    ] as const)
+      expect(typeMatches(h, p)).toBe(false);
+  });
+});
+
+describe("recovery document (offline.md §2.6 exception)", () => {
+  const html = recoveryHtml({ release_id: ID, base: BASE }, [
+    "releases/x/index.html",
+    "assets/index-AAAA.js",
+  ]);
+  it("self-contained: no app chunk, stylesheet, image or other URL is loaded", () => {
+    expect(html).not.toMatch(/\s(src|href)=/);
+    expect(html).not.toMatch(/import\(|fetch\(|release\.json|indexedDB|localStorage/);
+  });
+  it("its inline script is valid JavaScript (it must run without any app chunk)", () => {
+    const script = /<script>([\s\S]*)<\/script>/.exec(html)?.[1] ?? "";
+    expect(script.length).toBeGreaterThan(100);
+    expect(() => new Function(script)).not.toThrow();
+  });
+  it("only asks THIS worker to restore THIS release, and reloads only after a complete answer", () => {
+    expect(html).toContain(`var id = "${ID}"`);
+    expect(html).toContain('type: "repair", release_id: id');
+    expect(html).toContain("r.release_id === id && r.complete");
+    expect(html).toContain("Restore the files of this version");
+    expect(html).not.toMatch(/clear|delete|storage/i);
+  });
+  it("critical files: the HTML and what it loads directly", () => {
+    const g = buildGraph(graphInput());
+    const d = {
+      release_id: ID,
+      base: BASE,
+      html: { path: `releases/${ID}/index.html` },
+      webmanifest: { path: `releases/${ID}/manifest.webmanifest` },
+      assets: [],
+      graph: { edges: g.edges },
+    } as unknown as ReleaseDescriptor;
+    expect(swReleaseOf(d).critical).toEqual([
+      `releases/${ID}/index.html`,
+      "assets/index-AAAA.js",
+      "assets/index-DDDD.css",
+    ]);
   });
 });
