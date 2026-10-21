@@ -11,6 +11,7 @@ import { downloadJson } from "@/lib/files";
 import { installationId } from "@/persistence/sync";
 import { useInstalledPacks, usePacks } from "@/queries";
 import { type DecisionMode, PLAY_WAYS, type Theme, useSettings } from "@/store/settings";
+import { OfflinePanel } from "./OfflinePanel";
 
 const lines = (text: string) =>
   text
@@ -187,6 +188,8 @@ export function SettingsPage() {
         </label>
         <p className="mt-1 text-[13px] text-ink-muted">{t("settings.seedHint")}</p>
       </Section>
+
+      <OfflinePanel />
 
       <InstalledPacks />
 

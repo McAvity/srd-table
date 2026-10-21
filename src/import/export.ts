@@ -9,14 +9,20 @@
 import type { CharacterState } from "srd-rules-engine";
 import { engine } from "@/engine/client";
 import { type ContentContext, contentSha, type PackRef } from "@/lib/canonical";
+import { matchingContext } from "@/offline/campaign";
 import { db, type StoredPack } from "@/persistence/db";
 import { type CharacterRecord, characterKeysOf, type EncounterRecord } from "@/store/documents";
 import { useSettings } from "@/store/settings";
 import { type DependencyRef, type Envelope, TRANSFER_FORMAT } from "./transfer";
 
-/** The campaign's packs as exact refs (each served pack read whole and hashed). */
+/**
+ * The campaign's packs as exact refs: the prepared context when it matches the settings (kenli
+ * F-007 T04 §5.2, no network), else each served pack read whole and hashed.
+ */
 export async function campaignContext(): Promise<ContentContext> {
   const { packs, sources } = useSettings.getState().settings;
+  const prepared = await matchingContext({ packs, sources });
+  if (prepared) return prepared;
   return { packs: await Promise.all(packs.map((id) => engine().servedPack(id))), sources };
 }
 

@@ -122,7 +122,14 @@ import {
 import { z } from "zod";
 import type { EngineLanguage } from "@/i18n/engine";
 import type { ContentContext, PackFiles, PackRef } from "@/lib/canonical";
-import { ContentRegistry, type ContentSettings, type FetchPackFile } from "./content";
+import {
+  ContentRegistry,
+  type ContentSettings,
+  type FetchPackFile,
+  type LocalPackStatus,
+  type StoredPackRow,
+  type StoredPackStatus,
+} from "./content";
 import { engineLanguage, localize, renderAll } from "./messages";
 
 // --- results ------------------------------------------------------------------------------
@@ -394,6 +401,21 @@ export interface EngineFacade {
    * for documents whose `content` names them. Returns their exact refs.
    */
   registerPacks(packs: readonly PackFiles[], bundled?: boolean): Promise<PackRef[]>;
+  /**
+   * kenli F-007 T04 §5.1.2: stored pack rows, each registered only when its whole files hash to
+   * its own ref and key; the others are reported `corrupt` (not registered, not deleted).
+   */
+  registerStoredPacks(rows: readonly StoredPackRow[]): Promise<StoredPackStatus[]>;
+  /**
+   * kenli F-007 T04 §5.2: the campaign's packs and sources, with the prepared exact context when
+   * it matches them (then read only from registered files, no network). `true`: it is used.
+   */
+  configureCampaign(options: {
+    readonly settings: ContentSettings;
+    readonly prepared: ContentContext | null;
+  }): Promise<boolean>;
+  /** kenli F-007 T04 §5.2: whether an exact pack is registered here and whole (no network). */
+  localPackFiles(ref: PackRef): Promise<LocalPackStatus>;
   /** The exact ref of a pack served with the app (`srd-5.2.1`), read whole for the session. */
   servedPack(id: string): Promise<PackRef>;
   /** A pack served with the app, whole, with its exact ref (kept in storage as `bundled`). */
@@ -663,6 +685,10 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       content.configure(settings);
     },
     registerPacks: (packs, bundled) => content.register(packs, bundled),
+    registerStoredPacks: (rows) => content.registerStored(rows),
+    configureCampaign: async ({ settings, prepared }) =>
+      content.configureCampaign(settings, prepared),
+    localPackFiles: async (ref) => content.localPackFiles(ref),
     servedPack: (id) => content.servedRef(id),
     servedPackFiles: (id) => content.servedFiles(id),
     checkContent: async (ctx) => {
@@ -908,6 +934,9 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
 const UNLOCALIZED = new Set<keyof EngineFacade>([
   "constants",
   "configure",
+  "registerStoredPacks",
+  "configureCampaign",
+  "localPackFiles",
   "setLocale",
   "renderMessages",
   "setSeed",

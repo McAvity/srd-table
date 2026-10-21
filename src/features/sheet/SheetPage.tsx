@@ -12,6 +12,7 @@ import { Explain } from "@/components/Explain";
 import { Icon } from "@/components/Icon";
 import { PortraitPicker } from "@/components/Portrait";
 import { Button, Empty, Spinner, StatBox, Tabs } from "@/components/ui";
+import { OfflineStatus } from "@/features/characters/OfflineStatus";
 import { UndoButton } from "@/features/history/UndoButton";
 import { signed, t } from "@/i18n";
 import { usePlayView } from "@/queries";
@@ -97,6 +98,7 @@ function Sheet({
             {t("common.level", { level: sheet.level })}
             {classes && ` · ${classes}`}
           </p>
+          <OfflineStatus id={id} />
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Link to="/characters/$id/build" params={{ id }} search={{}} className="btn btn-sm">
               <Icon name="edit" size={16} />

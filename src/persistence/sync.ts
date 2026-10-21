@@ -18,8 +18,11 @@
  */
 
 import { engine } from "@/engine/client";
+import type { StoredPackStatus } from "@/engine/content";
 import { t } from "@/i18n";
 import { canonicalJson } from "@/lib/canonical";
+import { configureCampaign, loadPreparedCampaign } from "@/offline/campaign";
+import { loadStorageState } from "@/offline/storage";
 import {
   type CharacterRecord,
   type EncounterRecord,
@@ -34,7 +37,7 @@ import {
 } from "@/store/history";
 import { PLAY_WAYS, type PlayWay, readSettings, useSettings } from "@/store/settings";
 import { useUi } from "@/store/ui";
-import { db, newInstallationId, onDbBlocked, packKey } from "./db";
+import { db, newInstallationId, onDbBlocked, packKey, type StoredPack } from "./db";
 
 const SETTINGS_KEY = "campaign";
 const INSTALLATION_KEY = "installation";
@@ -55,11 +58,52 @@ export function installationId(): string {
   return installation;
 }
 
+/**
+ * Stored packs whose files didn't verify at the last start (kenli F-007 T04): kept out of every
+ * catalog, kept in storage, shown by the readiness check.
+ */
+let packProblems: readonly StoredPackStatus[] = [];
+export const storedPackProblems = (): readonly StoredPackStatus[] => packProblems;
+
+/**
+ * Register the stored packs (kenli F-007 T04 §5.1.2): each only when its whole files hash to its
+ * own ref and key; imported ones first, then the stored copies of served packs by install time.
+ */
+export async function registerStoredPacks(
+  rows: readonly StoredPack[],
+): Promise<readonly StoredPackStatus[]> {
+  const ordered = [
+    ...rows.filter((p) => p.origin.kind !== "bundled"),
+    ...rows
+      .filter((p) => p.origin.kind === "bundled")
+      .sort((a, b) => a.installed_at - b.installed_at),
+  ];
+  const statuses = await engine().registerStoredPacks(
+    ordered.map((p) => ({
+      key: p.key,
+      ref: p.ref,
+      files: p.files,
+      bundled: p.origin.kind === "bundled",
+    })),
+  );
+  packProblems = [
+    ...packProblems.filter((x) => !statuses.some((y) => y.key === x.key)),
+    ...statuses.filter((x) => x.status !== "ok"),
+  ];
+  return statuses;
+}
+
 export async function loadAll(): Promise<void> {
   const database = await db();
   const settings = readSettings(await database.get("settings", SETTINGS_KEY));
   useSettings.getState().replace(settings);
-  await engine().configure({ packs: settings.packs, sources: settings.sources });
+  await loadPreparedCampaign(database);
+  await loadStorageState(database);
+  // Stored packs first (verified), then the campaign catalog: with a prepared context matching the
+  // settings it reads those exact refs from storage, without trying the host (kenli F-007 T04).
+  packProblems = [];
+  await registerStoredPacks(await database.getAll("packs"));
+  await configureCampaign(settings);
   if (settings.dev_seed !== null) await engine().setSeed(settings.dev_seed);
   const id = await database.get("settings", INSTALLATION_KEY);
   if (typeof id === "string") installation = id;
@@ -67,19 +111,6 @@ export async function loadAll(): Promise<void> {
     installation = newInstallationId();
     await database.put("settings", installation, INSTALLATION_KEY);
   }
-  // Imported packs, for the documents pinned to them (their hashes are checked in the worker),
-  // and the stored copies of the served SRD (also for the campaign's catalog when the host is gone).
-  const packs = await database.getAll("packs");
-  const imported = packs.filter((p) => p.origin.kind !== "bundled");
-  const bundled = packs
-    .filter((p) => p.origin.kind === "bundled")
-    .sort((a, b) => a.installed_at - b.installed_at);
-  if (imported.length) await engine().registerPacks(imported.map((p) => p.files));
-  if (bundled.length)
-    await engine().registerPacks(
-      bundled.map((p) => p.files),
-      true,
-    );
 
   const problems: string[] = [];
   const characters: CharacterRecord[] = [];
@@ -348,6 +379,21 @@ export function forgetCommitted(characterIds: readonly string[]): void {
 export function isCommitted(characterId: string): boolean {
   if (!active) return true;
   return Object.hasOwn(active.baseline.characters, characterId);
+}
+
+/**
+ * kenli F-007 T04: whether this tab saved a record exactly as it is now (the autosave's baseline
+ * holds this very version). Without a running autosave nothing is tracked: counted as saved.
+ */
+export function recordSaved(store: "characters" | "encounters", id: string): boolean {
+  if (!active) return true;
+  const now = useDocuments.getState()[store][id];
+  return !!now && active.baseline[store][id] === now;
+}
+
+/** kenli F-007 T04: whether this tab has settings it hasn't saved yet (no autosave: none tracked). */
+export function unsavedSettings(): boolean {
+  return !!active && useSettings.getState().settings !== active.baseline.settings;
 }
 
 /** Save documents and settings when they change (debounced), deleting removed ones. */

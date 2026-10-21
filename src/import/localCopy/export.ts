@@ -10,6 +10,10 @@
 
 import { type ContentContext, contentSha, type PackRef } from "@/lib/canonical";
 import { fileSlug } from "@/lib/format";
+import { CAMPAIGN_CONTEXT_KEY, parsePrepared, settingsFingerprint } from "@/offline/campaign";
+
+export { CAMPAIGN_CONTEXT_KEY, settingsFingerprint };
+
 import { isReleaseBuild, RELEASE_ID } from "@/offline/release";
 import { db, packKey, type StoredCharacter, type StoredPack } from "@/persistence/db";
 import { flushNow, installationId, savedHead, unsavedState } from "@/persistence/sync";
@@ -33,7 +37,6 @@ import {
 } from "./format";
 
 /** The settings key a prepared legacy campaign context lives under (offline.md §5.3, written by T04). */
-export const CAMPAIGN_CONTEXT_KEY = "offline.campaign-context.v1";
 
 export interface ExportSummary {
   readonly name: string;
@@ -57,11 +60,6 @@ export type ExportResult =
   | Refused;
 
 /** Fingerprint of campaign settings (offline.md §5.3): SHA-256 of JCS({packs, sources sorted|null}). */
-export const settingsFingerprint = (packs: readonly string[], sources: readonly string[] | null) =>
-  contentSha({
-    packs: [...packs],
-    sources: sources === null ? null : [...new Set(sources)].sort(),
-  });
 
 interface Snapshot {
   readonly record: StoredCharacter;
@@ -85,15 +83,10 @@ export function localCopyFileName(name: string, fallback: string, at: number): s
 }
 
 /** What a prepared legacy context says, when its shape is right (else `null`). */
+/** The stored prepared legacy context (kenli F-007 T04 `parsePrepared`: one reader for all). */
 function preparedContext(v: unknown): { fingerprint: string; context: ContentContext } | null {
-  if (typeof v !== "object" || v === null) return null;
-  const o = v as Record<string, unknown>;
-  if (o.schema !== "srd-table.campaign-context/1" || typeof o.settings_fingerprint !== "string")
-    return null;
-  const c = o.context as ContentContext | undefined;
-  if (!c || !Array.isArray(c.packs) || !(c.sources === null || Array.isArray(c.sources)))
-    return null;
-  return { fingerprint: o.settings_fingerprint, context: c };
+  const p = parsePrepared(v);
+  return p ? { fingerprint: p.settings_fingerprint, context: p.context } : null;
 }
 
 export async function exportLocalCopy(recordId: string, now = Date.now()): Promise<ExportResult> {

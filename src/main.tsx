@@ -5,8 +5,8 @@ import { App } from "./App";
 import { engine } from "./engine/client";
 import { loadConstants } from "./engine/constants";
 import { t } from "./i18n";
+import { startGameData } from "./offline/boot";
 import { onDbBlocked } from "./persistence/db";
-import { loadAll, persistBundled, startAutosave } from "./persistence/sync";
 import { createQueryClient } from "./queries";
 import { createAppRouter } from "./routes/router";
 import { applyLocale, startLocaleSync } from "./store/locale";
@@ -42,16 +42,32 @@ async function start() {
         </div>,
       );
   });
+  // kenli F-007 T04: the update boot gate first (T05; a fail-closed stub until then), then — only
+  // when it opens — the data: loadAll (migrations, installation id, verified packs, the campaign
+  // catalog), the autosave and the served SRD in the background (`offline/boot.ts`).
+  let gate: Awaited<ReturnType<typeof startGameData>>;
   try {
-    await loadAll();
+    gate = await startGameData({
+      afterLoad: async () => {
+        await applyLocale(useSettings.getState().settings.locale);
+        startLocaleSync();
+      },
+    });
   } finally {
     stopBlocked();
   }
-  await applyLocale(useSettings.getState().settings.locale);
-  startLocaleSync();
-  startAutosave();
-  // The served SRD into storage (kenli F-008 §9.5), after the start: never in the way of the app.
-  void persistBundled();
+  if (gate === "reload") {
+    location.reload();
+    return;
+  }
+  if (gate !== "open") {
+    root.render(
+      <div className="flex h-full items-center justify-center p-6 text-center text-xl" role="alert">
+        {t(gate === "waiting" ? "offline.boot.waiting" : "offline.boot.readOnly")}
+      </div>,
+    );
+    return;
+  }
   const router = createAppRouter();
   const queryClient = createQueryClient();
   root.render(

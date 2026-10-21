@@ -64,6 +64,8 @@ export class ContentLoader {
     this.settings = settings;
     this.loaded = null;
     this.pending = null;
+    // kenli F-007 T04: another configuration may read other files under the same pack id.
+    this.files.clear();
   }
 
   /** A catalog with at least these tables (rebuilt with the union of what's loaded and them). */
@@ -186,6 +188,39 @@ export class ContextUnavailable extends ContentError {
   override name = "ContextUnavailable";
 }
 
+/** A stored pack row as the app reads it from IndexedDB (kenli F-007 T04 §5.1.2). */
+export interface StoredPackRow {
+  readonly key: string;
+  readonly ref: PackRef;
+  readonly files: PackFiles;
+  readonly bundled: boolean;
+}
+
+/** What registering a stored row found: registered, or kept out (`corrupt`, with why). */
+export interface StoredPackStatus {
+  readonly key: string;
+  readonly status: "ok" | "corrupt";
+  readonly detail: string | null;
+}
+
+export type LocalPackStatus =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly code: "context_unavailable" | "pack_corrupt" };
+
+const rowKey = (ref: PackRef) => `${ref.id}@${ref.version ?? ""}#${ref.sha256}`;
+
+/** Whether a pack's files are whole: its manifest and every table file it lists. */
+function missingFiles(files: PackFiles): string[] | null {
+  const manifest = files["manifest.json"] as
+    | { manifest?: { id?: unknown }; tables?: Record<string, { file?: unknown }> }
+    | undefined;
+  if (typeof manifest?.manifest?.id !== "string") return null;
+  return Object.values(manifest.tables ?? {})
+    .map((t) => t?.file)
+    .filter((f): f is string => typeof f !== "string" || !Object.hasOwn(files, f))
+    .map(String);
+}
+
 const MAX_CONTEXTS = 8;
 
 /**
@@ -197,6 +232,14 @@ export class ContentRegistry {
   readonly session: SessionPacks;
   private readonly legacy: ContentLoader;
   private readonly registered = new Map<string, PackFiles>();
+  /** Hashes of stored rows that didn't verify (kenli F-007 T04): never registered. */
+  private readonly corrupt = new Set<string>();
+  /**
+   * kenli F-007 T04 §5.2: the prepared campaign context's exact refs, by pack id, while it matches
+   * the settings. The campaign catalog then reads only these registered files — never the host,
+   * never another version.
+   */
+  private campaign: ReadonlyMap<string, PackRef> | null = null;
   private readonly served = new Map<string, Promise<PackRef>>();
   private readonly loaders = new Map<
     string,
@@ -206,11 +249,92 @@ export class ContentRegistry {
 
   constructor(fetchFile: FetchPackFile) {
     this.session = new SessionPacks(fetchFile);
-    this.legacy = new ContentLoader((pack, file) => this.session.file(pack, file));
+    this.legacy = new ContentLoader((pack, file) => this.campaignFile(pack, file));
   }
 
   configure(settings: ContentSettings): void {
+    this.campaign = null;
     this.legacy.configure(settings);
+  }
+
+  /**
+   * The campaign's catalog (kenli F-007 T04 §5.2): with a prepared context whose pack ids (in
+   * order) and sources are the settings', its exact refs from registered files, no network;
+   * otherwise as `configure` (served packs, then a stored copy when the host is gone).
+   */
+  configureCampaign(settings: ContentSettings, prepared: ContentContext | null): boolean {
+    const sources = (s: readonly string[] | null) =>
+      s === null ? null : JSON.stringify([...new Set(s)].sort());
+    const usable =
+      !!prepared &&
+      prepared.packs.length === settings.packs.length &&
+      prepared.packs.every((p, i) => p.id === settings.packs[i]) &&
+      sources(prepared.sources) === sources(settings.sources);
+    this.legacy.configure(settings);
+    this.campaign = usable ? new Map(prepared.packs.map((p) => [p.id, p])) : null;
+    return usable;
+  }
+
+  private async campaignFile(pack: string, file: string): Promise<unknown> {
+    const refs = this.campaign;
+    if (!refs) return this.session.file(pack, file);
+    const ref = refs.get(pack);
+    if (!ref)
+      throw new ContextUnavailable(`context_unavailable: no ${pack} in the prepared context`);
+    const files = this.registered.get(ref.sha256);
+    if (!files)
+      throw new ContextUnavailable(
+        `context_unavailable: ${ref.id} ${ref.version ?? ""} (${ref.sha256.slice(0, 12)}) isn't stored on this device`,
+      );
+    if (!Object.hasOwn(files, file)) throw new ContentError(`${pack} has no file ${file}`);
+    return files[file];
+  }
+
+  /**
+   * Register stored rows (kenli F-007 T04 §5.1.2): a row is registered only when its files are
+   * whole and hash to its own ref and key; anything else is reported `corrupt`, not registered
+   * (and not deleted). A bad row never stands in for a hash, and never takes a good one out.
+   */
+  async registerStored(rows: readonly StoredPackRow[]): Promise<StoredPackStatus[]> {
+    const out: StoredPackStatus[] = [];
+    // Older stored copies first: the newest bundled copy of a pack is the one kept for the host.
+    for (const row of rows) {
+      let detail: string | null = null;
+      const missing = missingFiles(row.files);
+      if (missing === null) detail = "manifest";
+      else if (missing.length) detail = `missing ${missing.join(", ")}`;
+      else {
+        const ref = await packRefOf(row.files);
+        if (
+          ref.id !== row.ref.id ||
+          ref.version !== row.ref.version ||
+          ref.sha256 !== row.ref.sha256 ||
+          rowKey(row.ref) !== row.key
+        )
+          detail = `hash ${ref.sha256.slice(0, 12)} ≠ ${row.ref.sha256.slice(0, 12)}`;
+      }
+      if (detail) {
+        if (!this.registered.has(row.ref.sha256)) this.corrupt.add(row.ref.sha256);
+        out.push({ key: row.key, status: "corrupt", detail });
+        continue;
+      }
+      this.registered.set(row.ref.sha256, row.files);
+      this.corrupt.delete(row.ref.sha256);
+      if (row.bundled) this.session.remember(row.ref.id, row.files);
+      out.push({ key: row.key, status: "ok", detail: null });
+    }
+    return out;
+  }
+
+  /** Whether an exact pack is registered here and whole (kenli F-007 T04 §5.2), without network. */
+  localPackFiles(ref: PackRef): LocalPackStatus {
+    const files = this.registered.get(ref.sha256);
+    if (!files)
+      return this.corrupt.has(ref.sha256)
+        ? { ok: false, code: "pack_corrupt" }
+        : { ok: false, code: "context_unavailable" };
+    const missing = missingFiles(files);
+    return missing && missing.length === 0 ? { ok: true } : { ok: false, code: "pack_corrupt" };
   }
 
   /**

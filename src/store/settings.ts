@@ -5,6 +5,7 @@
 
 import { create } from "zustand";
 import { engine } from "@/engine/client";
+import { configureCampaign } from "@/offline/campaign";
 
 export type DecisionMode = "ask" | "auto";
 /**
@@ -88,7 +89,9 @@ export const useSettings = create<SettingsState>()((set) => ({
     set({ settings });
   },
   async setContent(packs, sources) {
-    await engine().configure({ packs, sources });
+    // kenli F-007 T04: other settings leave a prepared context unused (never "the latest
+    // installed"); the same settings again use it again.
+    await configureCampaign({ packs, sources });
     set((s) => ({ settings: { ...s.settings, packs, sources } }));
   },
   async setDevSeed(seed) {
