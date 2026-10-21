@@ -5,6 +5,7 @@
 
 import { create } from "zustand";
 import { engine } from "@/engine/client";
+import { admission } from "@/offline/admission";
 import { configureCampaign } from "@/offline/campaign";
 
 export type DecisionMode = "ask" | "auto";
@@ -71,10 +72,13 @@ interface SettingsState {
 
 export const useSettings = create<SettingsState>()((set) => ({
   settings: DEFAULT_SETTINGS,
+  // kenli F-007 T05 (offline.md §7.3): settings change only while the admission gate is open.
   update(patch) {
+    if (!admission.allowed()) return;
     set((s) => ({ settings: { ...s.settings, ...patch } }));
   },
   toggleFavorite(character, label) {
+    if (!admission.allowed()) return;
     set((s) => {
       const current = s.settings.favorites[character] ?? [];
       const next = current.includes(label)
@@ -86,15 +90,18 @@ export const useSettings = create<SettingsState>()((set) => ({
     });
   },
   replace(settings) {
+    if (!admission.allowed()) return;
     set({ settings });
   },
   async setContent(packs, sources) {
+    if (!admission.allowed()) return;
     // kenli F-007 T04: other settings leave a prepared context unused (never "the latest
     // installed"); the same settings again use it again.
     await configureCampaign({ packs, sources });
     set((s) => ({ settings: { ...s.settings, packs, sources } }));
   },
   async setDevSeed(seed) {
+    if (!admission.allowed()) return;
     await engine().setSeed(seed);
     set((s) => ({ settings: { ...s.settings, dev_seed: seed } }));
   },

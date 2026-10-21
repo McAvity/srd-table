@@ -17,6 +17,7 @@
 
 import type { Message, RollCost, RollResult } from "srd-rules-engine";
 import { create } from "zustand";
+import { admission } from "@/offline/admission";
 import type { RecordOrigin } from "@/persistence/db";
 
 export type OperationId = string;
@@ -180,7 +181,7 @@ export type ConflictKind = "document" | "history";
 
 /** Refused day or journal changes (the app's reasons, never applied). */
 export type DayOutcome = { readonly ok: true } | { readonly ok: false; readonly code: DayRefusal };
-export type DayRefusal = "history.dayLabelInvalid" | "history.dayUnknown";
+export type DayRefusal = "history.dayLabelInvalid" | "history.dayUnknown" | "update.inProgress";
 
 function randomId(prefix: string): string {
   const bytes = crypto.getRandomValues(new Uint8Array(6));
@@ -525,6 +526,8 @@ export const useHistory = create<HistoryState>()((set, get) => {
     },
 
     startNextDay(recordId, label) {
+      // kenli F-007 T05: a day is a mutation of the journal (offline.md §7.3).
+      if (!admission.allowed()) return { ok: false, code: "update.inProgress" };
       const l = dayLabel(label);
       if (l === false) return { ok: false, code: "history.dayLabelInvalid" };
       const now = Date.now();
@@ -544,6 +547,7 @@ export const useHistory = create<HistoryState>()((set, get) => {
     },
 
     setCurrentDay(recordId, dayId) {
+      if (!admission.allowed()) return { ok: false, code: "update.inProgress" };
       const m = get().meta[recordId];
       if (!m?.days.some((d) => d.id === dayId)) return { ok: false, code: "history.dayUnknown" };
       if (m.current_day_id !== dayId)
@@ -552,6 +556,7 @@ export const useHistory = create<HistoryState>()((set, get) => {
     },
 
     renameDay(recordId, dayId, label) {
+      if (!admission.allowed()) return { ok: false, code: "update.inProgress" };
       const l = dayLabel(label);
       if (l === false) return { ok: false, code: "history.dayLabelInvalid" };
       const m = get().meta[recordId];

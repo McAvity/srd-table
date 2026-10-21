@@ -9,7 +9,7 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, Dialog, Spinner } from "@/components/ui";
 import { dayName } from "@/features/history/format";
 import { t } from "@/i18n";
@@ -23,6 +23,7 @@ import {
 } from "@/import/localCopy/commit";
 import { validateLocalCopy } from "@/import/localCopy/format";
 import { type LocalCopyPlan, planLocalCopy } from "@/import/localCopy/plan";
+import { admission } from "@/offline/admission";
 import { useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 import { formatSize } from "./LocalCopyExport";
@@ -50,6 +51,8 @@ export function LocalCopyImport({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // kenli F-007 T05: an open local-copy import blocks an update until it closes (offline.md §7.3).
+  useEffect(() => (open ? admission.hold("import_open") : undefined), [open]);
   const characters = useDocuments((s) => s.characters);
   const navigate = useNavigate();
   const [busy, setBusy] = useState<"checking" | "committing" | null>(null);

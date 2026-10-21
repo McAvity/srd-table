@@ -4,6 +4,7 @@
  */
 
 import { create } from "zustand";
+import { admission } from "@/offline/admission";
 import { db } from "@/persistence/db";
 
 const MAX_SIDE = 512;
@@ -24,20 +25,46 @@ export const usePortraits = create<PortraitsState>()((set, get) => ({
     const blob = await (await db()).get("portraits", id);
     if (blob) set((s) => ({ urls: { ...s.urls, [id]: URL.createObjectURL(blob) } }));
   },
-  async set(id, file) {
+  // kenli F-007 T05 (offline.md §7.3): portraits change only while the admission gate is open.
+  set(id, file) {
+    return admission.guard(
+      "portraits.set",
+      () => putPortrait(id, file),
+      () => undefined,
+    );
+  },
+  remove(id) {
+    return admission.guard(
+      "portraits.remove",
+      () => removePortrait(id),
+      () => undefined,
+    );
+  },
+}));
+
+async function putPortrait(id: string, file: Blob): Promise<void> {
+  const { set, get } = portraitsApi;
+  {
     const blob = await shrink(file);
     await (await db()).put("portraits", blob, id);
     const old = get().urls[id];
     if (old) URL.revokeObjectURL(old);
     set((s) => ({ urls: { ...s.urls, [id]: URL.createObjectURL(blob) } }));
-  },
-  async remove(id) {
-    await (await db()).delete("portraits", id);
-    const old = get().urls[id];
-    if (old) URL.revokeObjectURL(old);
-    set((s) => ({ urls: { ...s.urls, [id]: null } }));
-  },
-}));
+  }
+}
+
+async function removePortrait(id: string): Promise<void> {
+  const { set, get } = portraitsApi;
+  await (await db()).delete("portraits", id);
+  const old = get().urls[id];
+  if (old) URL.revokeObjectURL(old);
+  set((s) => ({ urls: { ...s.urls, [id]: null } }));
+}
+
+const portraitsApi = {
+  set: (fn: (s: PortraitsState) => Partial<PortraitsState>) => usePortraits.setState(fn),
+  get: () => usePortraits.getState(),
+};
 
 /** Scale a large image down so the database stays small. */
 async function shrink(file: Blob): Promise<Blob> {

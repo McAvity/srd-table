@@ -21,6 +21,7 @@
 import { create } from "zustand";
 import { engine } from "@/engine/client";
 import { type PackRef, packRefOf } from "@/lib/canonical";
+import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { db, packKey, type StoredPack } from "@/persistence/db";
 import {
   flushNow,
@@ -140,7 +141,7 @@ function alreadyPublished(recordId: string): "done" | "partial" | null {
   return isCommitted(recordId) ? "done" : "partial";
 }
 
-export async function commitLocalCopy(
+async function commitLocalCopyNow(
   plan: LocalCopyPlan,
   options: { readonly confirmNewCopy?: boolean } = {},
 ): Promise<CommitResult> {
@@ -255,7 +256,7 @@ export async function commitLocalCopy(
   return { ok: true, recordId: record.id, import_id: importId };
 }
 
-export async function undoLocalCopyImport(): Promise<
+async function undoLocalCopyImportNow(): Promise<
   { readonly ok: true; readonly recordId: string } | Refused
 > {
   const last = useLocalCopySession.getState().last;
@@ -307,7 +308,7 @@ export async function undoLocalCopyImport(): Promise<
   }
 }
 
-export async function redoLocalCopyImport(): Promise<
+async function redoLocalCopyImportNow(): Promise<
   { readonly ok: true; readonly recordId: string } | Refused
 > {
   const last = useLocalCopySession.getState().last;
@@ -373,4 +374,37 @@ export async function redoLocalCopyImport(): Promise<
   }
   setLast({ ...last, state: "done" });
   return { ok: true, recordId: id };
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function commitLocalCopy(
+  ...args: Parameters<typeof commitLocalCopyNow>
+): ReturnType<typeof commitLocalCopyNow> {
+  return admission.guard(
+    "localCopy.commit",
+    () => commitLocalCopyNow(...args),
+    () => ({ ok: false, code: UPDATE_IN_PROGRESS, detail: "" }) as const,
+  );
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function undoLocalCopyImport(
+  ...args: Parameters<typeof undoLocalCopyImportNow>
+): ReturnType<typeof undoLocalCopyImportNow> {
+  return admission.guard(
+    "localCopy.undo",
+    () => undoLocalCopyImportNow(...args),
+    () => ({ ok: false, code: UPDATE_IN_PROGRESS, detail: "" }) as const,
+  );
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function redoLocalCopyImport(
+  ...args: Parameters<typeof redoLocalCopyImportNow>
+): ReturnType<typeof redoLocalCopyImportNow> {
+  return admission.guard(
+    "localCopy.redo",
+    () => redoLocalCopyImportNow(...args),
+    () => ({ ok: false, code: UPDATE_IN_PROGRESS, detail: "" }) as const,
+  );
 }

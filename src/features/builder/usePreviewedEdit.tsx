@@ -4,10 +4,11 @@
  * confirms before anything is applied. Refusals come back as reasons to show where they acted.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Dialog, Reasons } from "@/components/ui";
 import type { BuildEdit, ChangePreview } from "@/engine/facade";
 import { t } from "@/i18n";
+import { admission } from "@/offline/admission";
 import { useDocuments } from "@/store/documents";
 
 export interface PreviewedEdit {
@@ -25,6 +26,9 @@ export function usePreviewedEdit(characterId: string): PreviewedEdit {
     resolve: (reasons: readonly string[] | null) => void;
   } | null>(null);
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
+  // kenli F-007 T05: a build change waiting for confirmation blocks an update (offline.md §7.3).
+  const asking = pending !== null;
+  useEffect(() => (asking ? admission.hold("build_preview_open") : undefined), [asking]);
 
   async function apply(edit: BuildEdit): Promise<readonly string[] | null> {
     const result = await editBuild(characterId, edit);

@@ -7,7 +7,7 @@
  */
 
 import { useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dialog, Reasons, Spinner } from "@/components/ui";
 import { t } from "@/i18n";
 import { en } from "@/i18n/en";
@@ -27,6 +27,7 @@ import { blockers, contentLabel, defaultChoice, referencedBy } from "@/import/pl
 import type { ContentContext, PackRef } from "@/lib/canonical";
 import { changedFields, downloadJson } from "@/lib/files";
 import { fileSlug } from "@/lib/format";
+import { admission } from "@/offline/admission";
 import { useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 
@@ -47,6 +48,8 @@ export function ImportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  // kenli F-007 T05: an open import blocks an update until it closes (offline.md §7.3).
+  useEffect(() => (open ? admission.hold("import_open") : undefined), [open]);
   const characters = useDocuments((s) => s.characters);
   const encounters = useDocuments((s) => s.encounters);
   const navigate = useNavigate();

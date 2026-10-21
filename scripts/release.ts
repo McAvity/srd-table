@@ -2,6 +2,7 @@
  * kenli F-007 T02: build one immutable app release (dnd5 contracts/offline.md §2).
  *
  *   bun scripts/release.ts --base /dnd/ --out /tmp/rel [--variant name] [--allow-dirty] [--report r.json]
+ *     [--declare-db-version N]   (T05 probes only: a candidate declaring other data, never published)
  *
  * 1. Inputs known before the build (Table/engine commits, base, protocol, data formats, Bun/Vite
  *    versions) → release id `r-<16 hex>`; a dirty tree is refused (or marked `dirty`, never publishable).
@@ -68,6 +69,9 @@ const { values: args } = parseArgs({
     base: { type: "string", default: "/dnd/" },
     out: { type: "string" },
     variant: { type: "string" },
+    // kenli F-007 T05 probes only: declare another DB version (an incompatible candidate). Never
+    // for a published release (the data the code really reads is DB 4).
+    "declare-db-version": { type: "string" },
     "allow-dirty": { type: "boolean", default: false },
     report: { type: "string" },
   },
@@ -107,7 +111,7 @@ const inputs: ReleaseInputs = {
   engine_commit: pin,
   protocol: RELEASE_PROTOCOL,
   data: {
-    db_version: 4,
+    db_version: args["declare-db-version"] ? Number(args["declare-db-version"]) : 4,
     history_schema: "kenli.history/1",
     history_meta_schema: "kenli.history-meta/1",
     transfer_formats: ["srd-table.transfer/1"],

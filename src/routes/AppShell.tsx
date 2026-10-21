@@ -12,6 +12,7 @@ import { Icon, type IconName } from "@/components/Icon";
 import { Toasts } from "@/components/Toasts";
 import { Spinner } from "@/components/ui";
 import { HistoryControl } from "@/features/history/HistoryPanel";
+import { UpdateBanner } from "@/features/settings/UpdatePanel";
 import { t } from "@/i18n";
 import { useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
@@ -101,6 +102,7 @@ export function AppShell() {
             </Link>
           </div>
         </header>
+        <UpdateBanner />
         <main id="main" className="min-h-0 flex-1 overflow-auto">
           <Suspense
             fallback={

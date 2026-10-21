@@ -2,6 +2,7 @@
 
 import { PageTitle, Section } from "@/components/ui";
 import { t } from "@/i18n";
+import { RELEASE_ID } from "@/offline/release";
 
 export function AboutPage() {
   return (
@@ -9,6 +10,9 @@ export function AboutPage() {
       <PageTitle sub={t("app.tagline")}>{t("about.title")}</PageTitle>
       <Section title={t("app.name")}>
         <p>{t("about.body")}</p>
+        <p className="mt-2 text-sm text-ink-muted" data-testid="about-version">
+          {t("about.version", { id: RELEASE_ID })}
+        </p>
       </Section>
       <Section title="SRD 5.2.1 · CC-BY-4.0">
         <p className="mb-2">{t("about.attribution")}</p>

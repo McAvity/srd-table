@@ -16,6 +16,7 @@
 import type { CharacterState } from "srd-rules-engine";
 import { engine } from "@/engine/client";
 import { type ContentContext, packRefOf } from "@/lib/canonical";
+import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { db, packKey, type StoredPack } from "@/persistence/db";
 import { flushNow, markCommitted, savedHead, writeQueue } from "@/persistence/sync";
 import {
@@ -57,7 +58,7 @@ const records = (): Records => {
   return { characters: s.characters, encounters: s.encounters };
 };
 
-export async function commitPlan(plan: Plan, decisions: Decisions): Promise<CommitOutcome> {
+async function commitPlanNow(plan: Plan, decisions: Decisions): Promise<CommitOutcome> {
   const blocked = blockers(plan, decisions, records());
   if (blocked.length) return { ok: false, problems: blocked };
   const now = Date.now();
@@ -318,4 +319,15 @@ function boundary(
 
 function fail(code: string, detail = ""): CommitOutcome {
   return { ok: false, problems: [{ code, detail }] };
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function commitPlan(
+  ...args: Parameters<typeof commitPlanNow>
+): ReturnType<typeof commitPlanNow> {
+  return admission.guard(
+    "import.commitPlan",
+    () => commitPlanNow(...args),
+    () => ({ ok: false, problems: [{ code: UPDATE_IN_PROGRESS, detail: "" }] }) as const,
+  );
 }

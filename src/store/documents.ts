@@ -55,6 +55,7 @@ import type {
 import { t } from "@/i18n";
 import { canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
+import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import type { RecordMeta } from "@/persistence/db";
 import { longRests } from "@/persistence/history";
 import { rollDice } from "./dice";
@@ -400,6 +401,11 @@ function serialMany<T>(ids: readonly string[], fn: () => T | Promise<T>): Promis
   return settled;
 }
 
+/** kenli F-007 T05: resolves when every document queue started so far has finished. */
+export function documentsIdle(): Promise<void> {
+  return Promise.all([...tails.values()]).then(() => undefined);
+}
+
 /**
  * Hold these documents' queues while `fn` runs (an import's flush, transaction and publication):
  * changes asked for meanwhile run after it.
@@ -552,6 +558,23 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
   const quietly = () => {
     replaced();
   };
+  /** A build edit (the outer `editBuild`, and `levelUp`/`setLevelHp` inside their own admission). */
+  const editBuildNow = (id: string, edit: BuildEdit): Promise<Outcome<BuildChange>> =>
+    guarded(
+      [id],
+      async () => {
+        const record = get().characters[id];
+        if (!record) return missing();
+        const result = await engine().editBuild(record.build, edit, record.content);
+        if (!result.ok) return result;
+        // The state follows the build: reconcile and show what it changed.
+        const fitted = await engine().reconcileState(result.build, record.state, record.content);
+        if (!commitCharacter(record, result.build, fitted.state)) return replaced();
+        toastNotes([...result.notes, ...fitted.notes]);
+        return result;
+      },
+      replaced,
+    );
   /** Remember a character's last roll with its window: the record as it is now. */
   const remember = (
     id: string,
@@ -784,21 +807,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
 
     editBuild(id, edit) {
-      return guarded(
-        [id],
-        async () => {
-          const record = get().characters[id];
-          if (!record) return missing();
-          const result = await engine().editBuild(record.build, edit, record.content);
-          if (!result.ok) return result;
-          // The state follows the build: reconcile and show what it changed.
-          const fitted = await engine().reconcileState(result.build, record.state, record.content);
-          if (!commitCharacter(record, result.build, fitted.state)) return replaced();
-          toastNotes([...result.notes, ...fitted.notes]);
-          return result;
-        },
-        replaced,
-      );
+      return editBuildNow(id, edit);
     },
 
     async previewEdit(id, edit) {
@@ -821,7 +830,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         if (!rolled.ok) return rolled;
         roll = rolled.roll.total;
       }
-      return get().editBuild(id, { type: "level_up", class_id: classId, hp: roll });
+      return editBuildNow(id, { type: "level_up", class_id: classId, hp: roll });
     },
 
     async setLevelHp(id, level, hp) {
@@ -837,7 +846,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         if (!rolled.ok) return rolled;
         roll = rolled.roll.total;
       }
-      return get().editBuild(id, { type: "level_hp", level, hp: roll });
+      return editBuildNow(id, { type: "level_hp", level, hp: roll });
     },
 
     playAction(id, action, at, extra) {
@@ -1493,6 +1502,102 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     },
   };
 });
+
+/**
+ * kenli F-007 T05 (offline.md §7.3): every outer document mutation enters through the admission
+ * gate; while an update is being agreed (or this page must reload) it is refused at once with
+ * `update_in_progress` — nothing runs, nothing is written, no history entry. Publication of an
+ * import already admitted (`publishImport`, `publishLocalCopy`, `withdrawLocalCopy`) and reads are
+ * not entry points.
+ */
+{
+  const raw = useDocuments.getState();
+  const refusedText = () => {
+    const reason = t("update.inProgress");
+    useUi.getState().toast([reason], "error");
+    return reason;
+  };
+  const outcome = () => ({
+    ok: false as const,
+    reasons: [refusedText()],
+    code: UPDATE_IN_PROGRESS,
+  });
+  const nothing = () => {
+    refusedText();
+    return undefined;
+  };
+  const none = () => {
+    refusedText();
+    return null;
+  };
+  const fail = (): never => {
+    throw new Error(refusedText());
+  };
+  const kinds: Record<string, () => unknown> = {
+    createCharacter: fail,
+    createEncounter: fail,
+    duplicateCharacter: none,
+    rollDamage: none,
+    deleteCharacter: nothing,
+    renameEncounter: nothing,
+    deleteEncounter: nothing,
+    clearLog: nothing,
+    setPlayMode: nothing,
+    undo: nothing,
+    redo: nothing,
+    importCharacter: outcome,
+    editBuild: outcome,
+    levelUp: outcome,
+    setLevelHp: outcome,
+    playAction: outcome,
+    rollByHand: outcome,
+    rollTest: outcome,
+    deathSave: outcome,
+    lateAdvantage: outcome,
+    heroicReroll: outcome,
+    setCritical: outcome,
+    importEncounter: outcome,
+    encounterAction: outcome,
+    rollAndPay: outcome,
+  };
+  const wrapped: Record<string, unknown> = {};
+  for (const [name, refused] of Object.entries(kinds)) {
+    const fn = (raw as unknown as Record<string, (...a: unknown[]) => unknown>)[name];
+    if (!fn) throw new Error(`no document mutation ${name}`);
+    wrapped[name] = (...args: unknown[]) =>
+      admission.guard(`documents.${name}`, () => fn(...args), refused);
+  }
+  useDocuments.setState(wrapped as Partial<DocumentsState>);
+}
+
+/** Every outer document mutation (offline.md §7.3 inventory; tests check it stays complete). */
+export const DOCUMENT_MUTATIONS = [
+  "createCharacter",
+  "importCharacter",
+  "duplicateCharacter",
+  "deleteCharacter",
+  "editBuild",
+  "levelUp",
+  "setLevelHp",
+  "playAction",
+  "rollByHand",
+  "rollDamage",
+  "rollTest",
+  "deathSave",
+  "lateAdvantage",
+  "heroicReroll",
+  "setCritical",
+  "createEncounter",
+  "importEncounter",
+  "renameEncounter",
+  "deleteEncounter",
+  "encounterAction",
+  "rollAndPay",
+  "clearLog",
+  "setPlayMode",
+  "undo",
+  "redo",
+] as const;
 
 /** The records an encounter action changes: the encounter and every character of its party. */
 function encounterIds(id: string, action: EncounterAction | readonly EncounterAction[]): string[] {

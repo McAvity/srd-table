@@ -6,6 +6,7 @@ import { engine } from "./engine/client";
 import { loadConstants } from "./engine/constants";
 import { t } from "./i18n";
 import { startGameData } from "./offline/boot";
+import { checkForUpdate, resumeConsented, startUpdateProtocol } from "./offline/update";
 import { onDbBlocked } from "./persistence/db";
 import { createQueryClient } from "./queries";
 import { createAppRouter } from "./routes/router";
@@ -42,17 +43,34 @@ async function start() {
         </div>,
       );
   });
-  // kenli F-007 T04: the update boot gate first (T05; a fail-closed stub until then), then — only
-  // when it opens — the data: loadAll (migrations, installation id, verified packs, the campaign
-  // catalog), the autosave and the served SRD in the background (`offline/boot.ts`).
+  // kenli F-007 T04/T05: the update boot gate first (offline.md §5.1, §7.5), then — only when it
+  // opens — the data: loadAll (migrations, installation id, verified packs, the campaign catalog),
+  // the autosave and the served SRD in the background (`offline/boot.ts`). A release installing
+  // keeps the start waiting; a live update owner elsewhere keeps the gate queued on its lock.
+  const message = (key: "offline.boot.waiting" | "offline.boot.readOnly") =>
+    root.render(
+      <div className="flex h-full items-center justify-center p-6 text-center text-xl" role="alert">
+        {t(key)}
+      </div>,
+    );
   let gate: Awaited<ReturnType<typeof startGameData>>;
   try {
-    gate = await startGameData({
-      afterLoad: async () => {
-        await applyLocale(useSettings.getState().settings.locale);
-        startLocaleSync();
-      },
-    });
+    for (;;) {
+      const slow = setTimeout(() => message("offline.boot.waiting"), 800);
+      try {
+        gate = await startGameData({
+          afterLoad: async () => {
+            await applyLocale(useSettings.getState().settings.locale);
+            startLocaleSync();
+          },
+        });
+      } finally {
+        clearTimeout(slow);
+      }
+      if (gate !== "waiting") break;
+      message("offline.boot.waiting");
+      await new Promise((r) => setTimeout(r, 1500));
+    }
   } finally {
     stopBlocked();
   }
@@ -61,11 +79,7 @@ async function start() {
     return;
   }
   if (gate !== "open") {
-    root.render(
-      <div className="flex h-full items-center justify-center p-6 text-center text-xl" role="alert">
-        {t(gate === "waiting" ? "offline.boot.waiting" : "offline.boot.readOnly")}
-      </div>,
-    );
+    message("offline.boot.readOnly");
     return;
   }
   const router = createAppRouter();
@@ -75,6 +89,14 @@ async function start() {
       <App router={router} queryClient={queryClient} />
     </StrictMode>,
   );
+  // kenli F-007 T05: the update protocol (freeze/thaw/transition, controllerchange); then (online)
+  // a look at the pointer first — an offer, never an installation; a newer pointer withdraws a
+  // consent for another release (§6) — and only then an interrupted consent is tried again.
+  startUpdateProtocol();
+  void checkForUpdate().then(() => resumeConsented());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") void checkForUpdate();
+  });
 }
 
 start().catch((error: unknown) => {

@@ -29,6 +29,7 @@ import {
   type PackRef,
   sha256Hex,
 } from "@/lib/canonical";
+import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { db, packKey, type StoredPack } from "@/persistence/db";
 import {
   flushNow,
@@ -429,7 +430,7 @@ const codeOf = (error: unknown): { code: string; detail: string } => {
  * The explicit preparation (also its retry). Returns the readiness after it, with what failed;
  * whatever was there before stays (a failed or cancelled step writes nothing of its own).
  */
-export async function prepareOffline(
+async function prepareOfflineNow(
   target: Target,
   options: { readonly signal?: AbortSignal; readonly storage?: () => Promise<Persisted> } = {},
 ): Promise<Readiness> {
@@ -563,7 +564,37 @@ export function useReadiness(target: Target | null) {
   }, [id, kind]);
 
   const cancel = useCallback(() => abort.current?.abort(), []);
+  // kenli F-007 T05: a running preparation blocks an update (offline.md §7.3).
+  const preparing = busy === "preparing";
+  useEffect(() => (preparing ? admission.hold("prepare_in_progress") : undefined), [preparing]);
   const status: ReadinessStatus | null =
     busy === "preparing" ? "preparing" : (readiness?.status ?? (busy ? "checking" : null));
   return { readiness, status, busy, check: () => check(true), prepare, cancel };
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function prepareOffline(
+  ...args: Parameters<typeof prepareOfflineNow>
+): ReturnType<typeof prepareOfflineNow> {
+  return admission.guard(
+    "offline.prepare",
+    () => prepareOfflineNow(...args),
+    () => refusedReadiness(args[0]),
+  );
+}
+
+/** A preparation refused by the closed admission gate: nothing ran. */
+function refusedReadiness(target: Target): Readiness {
+  return {
+    schema: "srd-table.readiness/1",
+    record_id: target.id,
+    release_id: release.releaseId,
+    release_complete: false,
+    context_key_sha256: null,
+    legacy_settings_fingerprint: null,
+    items: [{ kind: "app", id: release.releaseId, status: "failed", detail: UPDATE_IN_PROGRESS }],
+    storage: { persisted: storageState()?.persisted ?? null },
+    status: "failed",
+    checked_at: Date.now(),
+  };
 }

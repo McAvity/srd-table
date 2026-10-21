@@ -70,9 +70,34 @@ left out; the prepared binding stays (the game says "unavailable" rather than us
 - With the app prepared and the server unreachable: the app opens from its own files, play saves
   on the device, history continues. New URLs (imports from a library, other sites) need a
   connection and say so.
-- Updates to a newer app version are never applied by themselves (a later step adds an explicit
-  update with your consent). If the app finds an unfinished update at start, it opens without
-  changing data and asks you to close every window of the app and open it again.
+- A newer app version is never applied by itself (see below).
+
+## Updating the app
+
+Only a prepared app (Settings → Offline play) is offered updates. When the server has a newer
+version, a banner and Settings → **App updates** offer it:
+
+1. **Download** — its files are fetched and checked into their own storage; nothing is installed
+   and the app you use doesn't change.
+2. **Update now** (after a confirmation) — or **Later**, which is no consent: nothing changes, also
+   after closing every window or restarting the device. Consent is for that one version only; when
+   the server offers yet another one, the earlier consent is dropped and the new one is offered.
+3. On **Update now** every open window of the app pauses changes, finishes what it was doing and
+   saves. The update goes ahead only when everything is saved and nothing is open that would be
+   lost; otherwise nothing is installed, the windows go on, and the list says what to finish or
+   close first — an open rest or import dialog, a build change waiting for confirmation, an
+   encounter decision, a roll that can still be changed (Lucky, Heroic Inspiration), a failed save,
+   a change made in another tab (reload it), or a window of the app that doesn't answer (an older
+   version: close it). Then **Try again**.
+4. Then the new version is installed and every window reloads into it. After the update, Undo
+   doesn't cover actions from before it. Characters, history, days and packs stay as they are; the
+   old version is never brought back.
+
+If the app was closed during an update, the next start finishes it when it can, or waits for the
+window still updating, or — when it finds a state it can't finish safely — opens without changing
+data and asks you to close every window of the app and open it again. A version that needs data
+this one can't hand over safely is not offered. A damaged or failed download leaves the current
+version and its data as they are.
 
 ## Checks (developers)
 
@@ -81,4 +106,9 @@ npx vitest run tests/offline tests/components/offline-panel.test.tsx
 bun scripts/release.ts --base /dnd/ --out /tmp/rel
 npx tsx scripts/f007-local-copy-seed.ts > /tmp/seed.json
 node scripts/f007-readiness-probe.mjs --release /tmp/rel --seed /tmp/seed.json --out /tmp/r.json
+# updates: releases B, C (variants) and D (declares other data) from the same commit
+bun scripts/release.ts --base /dnd/ --out /tmp/relB --variant b
+bun scripts/release.ts --base /dnd/ --out /tmp/relC --variant c
+bun scripts/release.ts --base /dnd/ --out /tmp/relD --variant d --declare-db-version 5
+node scripts/f007-update-probe.mjs --a /tmp/rel --b /tmp/relB --c /tmp/relC --d /tmp/relD --seed /tmp/seed.json
 ```

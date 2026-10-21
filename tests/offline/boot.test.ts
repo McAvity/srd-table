@@ -8,7 +8,13 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startGameData } from "@/offline/boot";
-import { type BootDecision, decideBoot, type Observed, updateBootGate } from "@/offline/update";
+import {
+  type BootDecision,
+  decideRecovery,
+  emptyState,
+  type Observed,
+  updateBootGate,
+} from "@/offline/update";
 import { db } from "@/persistence/db";
 import { loadAll, persistBundled, startAutosave } from "@/persistence/sync";
 import { resetStores } from "../helpers/app";
@@ -91,19 +97,28 @@ describe("the boot order: the gate before any game-data write", () => {
   });
 });
 
-describe("the minimal update boot gate (fail closed; never registers, activates or clears)", () => {
-  it("decides from what this page executes and what the base has registered", () => {
-    expect(decideBoot(seen(), false, false)).toBe("open");
-    expect(decideBoot(seen({ active: A, controller: A }), false, false)).toBe("open");
+describe("the boot gate's decision (offline.md §7.5, decideRecovery)", () => {
+  const none = { barrier: null, consent: null };
+  const barrier = (target: string) => ({
+    barrier: { request_id: "u-1", owner_client_id: "x", target_release: target, since: 1 },
+    consent: { release_id: target, at: 1, request_id: "u-1" },
+  });
+  it("one rule from what this page executes and what the base has registered", () => {
+    expect(decideRecovery(seen(), none)).toBe("open");
+    expect(decideRecovery(seen({ active: A, controller: A }), none)).toBe("open");
     // first explicit registration: active A, this page not controlled yet — coherent
-    expect(decideBoot(seen({ active: A }), false, false)).toBe("open");
-    expect(decideBoot(seen({ installing: B }), false, false)).toBe("waiting");
-    expect(decideBoot(seen({ active: B }), false, false)).toBe("reload");
-    expect(decideBoot(seen({ active: B }), false, true)).toBe("read_only");
-    expect(decideBoot(seen({ active: "unknown" }), false, false)).toBe("reload");
-    expect(decideBoot(seen({ active: A, controller: B }), false, false)).toBe("reload");
-    expect(decideBoot(seen({ active: A, waiting: B }), false, false)).toBe("read_only");
-    expect(decideBoot(seen({ active: A }), true, false)).toBe("read_only");
+    expect(decideRecovery(seen({ active: A }), none)).toBe("open");
+    expect(decideRecovery(seen({ installing: B }), barrier(B))).toBe("wait");
+    expect(decideRecovery(seen({ active: B }), none)).toBe("reload");
+    expect(decideRecovery(seen({ active: "unknown" }), none)).toBe("reload");
+    expect(decideRecovery(seen({ active: A, controller: B }), none)).toBe("reload");
+    expect(decideRecovery(seen({ active: A, waiting: B }), barrier(B))).toBe("complete");
+    expect(decideRecovery(seen({ active: A, waiting: B }), barrier("r-cccccccccccccccc"))).toBe(
+      "fail_closed",
+    );
+    expect(decideRecovery(seen({ active: A, waiting: B }), none)).toBe("fail_closed");
+    expect(decideRecovery(seen({ active: A }), barrier(B))).toBe("clear");
+    expect(decideRecovery(seen({ exec: B, active: B, controller: B }), barrier(B))).toBe("clear");
   });
 
   it("reloads once for a mismatch, then stays read-only; an open start clears the guard", async () => {
@@ -113,32 +128,31 @@ describe("the minimal update boot gate (fail closed; never registers, activates 
       setItem: (k: string, v: string) => void store.set(k, v),
       removeItem: (k: string) => void store.delete(k),
     };
+    const read = async () => ({ state: emptyState(A), unreadable: false });
     const mismatch = async () => seen({ active: B });
-    const none = async () => false;
-    expect(await updateBootGate({ observe: mismatch, barrier: none, session })).toBe("reload");
-    expect(await updateBootGate({ observe: mismatch, barrier: none, session })).toBe("read_only");
-    expect(
-      await updateBootGate({ observe: async () => seen({ active: A }), barrier: none, session }),
-    ).toBe("open");
+    expect(await updateBootGate({ observe: mismatch, read, session })).toBe("reload");
+    expect(await updateBootGate({ observe: mismatch, read, session })).toBe("read_only");
+    expect(await updateBootGate({ observe: async () => seen({ active: A }), read, session })).toBe(
+      "open",
+    );
     expect(store.size).toBe(0);
-    expect(await updateBootGate({ observe: mismatch, barrier: none, session })).toBe("reload");
+    expect(await updateBootGate({ observe: mismatch, read, session })).toBe("reload");
   });
 
-  it("a barrier stored by an update in progress keeps the game closed (read only)", async () => {
+  it("a stored barrier is decided under the update lock (none in jsdom: fail closed, read only)", async () => {
     await resetStores();
     await (await db()).put(
       "settings",
-      { schema: "srd-table.update-state/1", barrier: { request_id: "u-1" } },
+      {
+        ...emptyState(A),
+        barrier: { request_id: "u-1", owner_client_id: "x", target_release: B, since: 1 },
+      },
       "offline.update.v1",
     );
     expect(await updateBootGate({ observe: async () => seen({ active: A, controller: A }) })).toBe(
       "read_only",
     );
-    await (await db()).put(
-      "settings",
-      { schema: "srd-table.update-state/1", barrier: null },
-      "offline.update.v1",
-    );
+    await (await db()).put("settings", { ...emptyState(A), barrier: null }, "offline.update.v1");
     expect(await updateBootGate({ observe: async () => seen({ active: A, controller: A }) })).toBe(
       "open",
     );

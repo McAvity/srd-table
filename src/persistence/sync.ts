@@ -51,6 +51,11 @@ export function writeQueue<T>(fn: () => Promise<T>): Promise<T> {
   return next;
 }
 
+/** kenli F-007 T05: resolves when every database write queued so far has finished. */
+export function writesIdle(): Promise<void> {
+  return writes.then(() => undefined);
+}
+
 /** This installation's id (kenli F-008 local export identity), created once. */
 let installation: string | null = null;
 export function installationId(): string {

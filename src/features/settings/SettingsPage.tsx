@@ -12,6 +12,7 @@ import { installationId } from "@/persistence/sync";
 import { useInstalledPacks, usePacks } from "@/queries";
 import { type DecisionMode, PLAY_WAYS, type Theme, useSettings } from "@/store/settings";
 import { OfflinePanel } from "./OfflinePanel";
+import { UpdatePanel } from "./UpdatePanel";
 
 const lines = (text: string) =>
   text
@@ -190,6 +191,8 @@ export function SettingsPage() {
       </Section>
 
       <OfflinePanel />
+
+      <UpdatePanel />
 
       <InstalledPacks />
 

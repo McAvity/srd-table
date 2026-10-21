@@ -12,6 +12,7 @@ import { engine } from "@/engine/client";
 import { damageTypes } from "@/engine/constants";
 import { t } from "@/i18n";
 import { titleCase } from "@/lib/format";
+import { admission } from "@/offline/admission";
 import { longRests } from "@/persistence/history";
 import { useTable } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
@@ -355,6 +356,9 @@ export function RestButtons({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const record = useDocuments((s) => s.characters[id]);
   const [draft, setDraft] = useState<RestDraft | null>(null);
   const [pending, setPending] = useState(0);
+  // kenli F-007 T05: a rest's open preview (its dice) blocks an update until it closes (§7.3).
+  const previewing = draft !== null;
+  useEffect(() => (previewing ? admission.hold("rest_preview_open") : undefined), [previewing]);
   // kenli F-006 §6.3: Long Rests already taken on this character's current day, and the DM's exception.
   const [restsToday, setRestsToday] = useState(0);
   const [exception, setException] = useState<{ on: boolean; note: string }>({

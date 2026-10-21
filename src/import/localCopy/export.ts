@@ -14,6 +14,7 @@ import { CAMPAIGN_CONTEXT_KEY, parsePrepared, settingsFingerprint } from "@/offl
 
 export { CAMPAIGN_CONTEXT_KEY, settingsFingerprint };
 
+import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { isReleaseBuild, RELEASE_ID } from "@/offline/release";
 import { db, packKey, type StoredCharacter, type StoredPack } from "@/persistence/db";
 import { flushNow, installationId, savedHead, unsavedState } from "@/persistence/sync";
@@ -89,7 +90,7 @@ function preparedContext(v: unknown): { fingerprint: string; context: ContentCon
   return p ? { fingerprint: p.settings_fingerprint, context: p.context } : null;
 }
 
-export async function exportLocalCopy(recordId: string, now = Date.now()): Promise<ExportResult> {
+async function exportLocalCopyNow(recordId: string, now = Date.now()): Promise<ExportResult> {
   try {
     if (!Object.hasOwn(useDocuments.getState().characters, recordId))
       return refuse("source_missing", recordId);
@@ -267,4 +268,15 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       legacy: !record.content,
     },
   };
+}
+
+/** kenli F-007 T05 (offline.md §7.3): an entry point of the admission gate. */
+export function exportLocalCopy(
+  ...args: Parameters<typeof exportLocalCopyNow>
+): ReturnType<typeof exportLocalCopyNow> {
+  return admission.guard(
+    "localCopy.export",
+    () => exportLocalCopyNow(...args),
+    () => ({ ok: false, code: UPDATE_IN_PROGRESS, detail: "" }) as const,
+  );
 }
