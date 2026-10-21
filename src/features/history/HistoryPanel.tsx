@@ -7,6 +7,12 @@
  * Hit), each with its own cost and status, and the roll's current result put together from them; rests, play
  * actions, encounter actions and import boundaries. Above them: the character's days (by hand),
  * Long Rest counts, and whether this tab saved its journal. History stays on this device.
+ *
+ * kenli F-007 T03: a character made from a local copy reads its journal like any other. References
+ * outside the copy (`ext:<installation>:<id>`: another character, an encounter, an earlier entry)
+ * are named from the entries or the copy's own record of encounter names, marked "outside this
+ * copy", and never matched with a record or encounter here; a decision the copy was waiting for is
+ * shown as historical, never resumed. Engine messages are rendered as text in the app's language.
  */
 
 import { useRouterState } from "@tanstack/react-router";
@@ -15,9 +21,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, cx, Empty } from "@/components/ui";
 import { t } from "@/i18n";
+import { inheritedEncounterNames, isExternal, localCopyOf } from "@/import/localCopy/format";
 import { byOperations, entryCount, groupFrom, longRests, page } from "@/persistence/history";
 import { flushNow, unsavedState } from "@/persistence/sync";
-import { usePlayView } from "@/queries";
+import { usePlayView, useRenderedMessages } from "@/queries";
 import { characterKeysOf, useDocuments } from "@/store/documents";
 import {
   type HistoryDay,
@@ -151,6 +158,7 @@ function HistoryBody() {
           <Icon name="lock" size={14} className="mr-1 inline" />
           {t("history.local")}
         </p>
+        <p className="text-[13px] text-ink-muted">{t("history.localCopyHint")}</p>
       </div>
     </>
   );
@@ -219,6 +227,16 @@ function Journal({ id }: { id: string }) {
   const days = head?.days ?? [];
   const dayOf = (dayIdOf: string) => days.find((d) => d.id === dayIdOf);
   const encounters = useDocuments((s) => s.encounters);
+  const origin = useDocuments((s) => s.characters[id]?.origin);
+  // kenli F-007 T03: names of encounters outside this copy, as the copy recorded them.
+  const external = useMemo(() => inheritedEncounterNames(origin), [origin]);
+  const copied = localCopyOf(origin)?.entry_count ?? 0;
+  const encounterName = (eid: string) =>
+    isExternal(eid)
+      ? (external.get(eid) ?? undefined)
+      : Object.hasOwn(encounters, eid)
+        ? encounters[eid]?.name
+        : undefined;
   const { data } = usePlayView(id);
   const nameOfUse = (key: string) => data?.sheet.play.uses.find((u) => u.key === key)?.name;
   return (
@@ -262,8 +280,11 @@ function Journal({ id }: { id: string }) {
                 <Group
                   entries={g}
                   nameOfUse={nameOfUse}
-                  encounterName={(eid) => encounters[eid]?.name}
-                  linkOf={(op) => loaded.linked[op] ?? null}
+                  encounterName={encounterName}
+                  copied={copied}
+                  linkOf={(op) =>
+                    Object.hasOwn(loaded.linked, op) ? (loaded.linked[op] ?? null) : null
+                  }
                 />
               </li>
             );
@@ -293,11 +314,14 @@ function Group({
   entries,
   nameOfUse,
   encounterName,
+  copied,
   linkOf,
 }: {
   entries: readonly HistoryEntry[];
   nameOfUse: (key: string) => string | undefined;
   encounterName: (id: string) => string | undefined;
+  /** How many of the first entries came with a local copy (their pending decisions are history). */
+  copied: number;
   linkOf: (op: string) => HistoryEntry | null;
 }) {
   const root = entries[0] as HistoryEntry;
@@ -330,6 +354,7 @@ function Group({
             child={e !== root}
             nameOfUse={nameOfUse}
             encounterName={encounterName}
+            copied={copied}
             linkOf={linkOf}
           />
         ))}
@@ -343,16 +368,20 @@ function EntryLine({
   child,
   nameOfUse,
   encounterName,
+  copied,
   linkOf,
 }: {
   e: HistoryEntry;
   child: boolean;
   nameOfUse: (key: string) => string | undefined;
   encounterName: (id: string) => string | undefined;
+  copied: number;
   linkOf: (op: string) => HistoryEntry | null;
 }) {
+  const { data: rendered } = useRenderedMessages(`history:${e.id}`, [e.messages]);
   /** The earlier action this one follows or answers: named, with its own result and status. */
   const context = (op: string, kind: "follows" | "answers") => {
+    if (isExternal(op)) return t("history.context.external");
     const to = linkOf(op);
     if (!to)
       return kind === "follows"
@@ -369,7 +398,18 @@ function EntryLine({
   const badges: string[] = [];
   if (e.status === "undone") badges.push(t("history.status.undone"));
   if (!e.commit && e.kind !== "import_boundary") badges.push(t("history.status.noChange"));
-  if (e.pending_decision) badges.push(t("history.status.pending"));
+  const outside =
+    isExternal(e.context.encounter_id) ||
+    e.participants.some((p) => isExternal(p.record_id)) ||
+    isExternal(e.links.follows) ||
+    isExternal(e.links.continues);
+  if (e.pending_decision)
+    badges.push(
+      e.seq <= copied || isExternal(e.context.encounter_id)
+        ? t("history.status.pendingHistorical")
+        : t("history.status.pending"),
+    );
+  if (outside) badges.push(t("history.external"));
   if (e.links.continues) badges.push(t("history.status.continues"));
   if (e.links.follows) badges.push(t("history.status.follows"));
   if (e.forced) badges.push(t("history.status.forced"));
@@ -448,7 +488,12 @@ function EntryLine({
       {others.length > 0 && (
         <p className="text-[13px] text-ink-muted">
           {t("history.with", {
-            names: others.map((p) => p.name || t("common.unnamed")).join(", "),
+            names: others
+              .map(
+                (p) =>
+                  `${p.name || t("common.unnamed")}${isExternal(p.record_id) ? ` (${t("history.external")})` : ""}`,
+              )
+              .join(", "),
           })}
         </p>
       )}
@@ -456,9 +501,14 @@ function EntryLine({
         <details className="text-[13px] text-ink-muted">
           <summary className="cursor-pointer">{t("history.details")}</summary>
           <ul>
-            {messagesOf(e).map((m) => (
-              <li key={`m-${m}`}>{m}</li>
-            ))}
+            {/* Rendered as text only (never HTML): in the app's language, else as stored. */}
+            {e.messages.map((m, i) =>
+              m.text ? (
+                <li key={`m-${i}`} data-testid="history-message">
+                  {rendered?.[0]?.[i] || m.text}
+                </li>
+              ) : null,
+            )}
             {e.effect.state_delta.map((c) => (
               <li key={`d-${c.path}`}>{changeText(c)}</li>
             ))}

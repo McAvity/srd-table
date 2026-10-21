@@ -289,6 +289,14 @@ export interface DocumentsState {
    * get the import's version, their previous documents go on their undo stack.
    */
   publishImport(publication: ImportPublication, op?: OperationId): void;
+  /**
+   * kenli F-007 T03: show a local copy its transaction wrote (a new character with its own journal).
+   * No undo step: the import's Undo is the copy's own (`import/localCopy/commit.ts`), and the
+   * source's stack is never carried over.
+   */
+  publishLocalCopy(record: CharacterRecord): void;
+  /** kenli F-007 T03: a local copy's Undo deleted it from the database: drop it from the session. */
+  withdrawLocalCopy(id: string): void;
 }
 
 export function newId(prefix: string): string {
@@ -1465,6 +1473,22 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           history,
           revs: bump(s.revs, ...ids),
         };
+      });
+    },
+
+    publishLocalCopy(record) {
+      set((s) => ({
+        characters: { ...s.characters, [record.id]: record },
+        revs: bump(s.revs, record.id),
+      }));
+    },
+
+    withdrawLocalCopy(id) {
+      set((s) => {
+        if (!Object.hasOwn(s.characters, id)) return s;
+        const { [id]: _gone, ...characters } = s.characters;
+        const { [id]: _h, ...history } = s.history;
+        return { characters, history, revs: bump(s.revs, id) };
       });
     },
   };

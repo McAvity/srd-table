@@ -917,4 +917,94 @@ export const it: Messages = {
   "dice.featureDie": "Il suo dado ({dice})",
   "dice.modifier": "{label} {value}",
   "dice.bonusDie": "{label} {dice}: {rolls} ({total})",
+  "localCopy.export": "Copia locale con stato e cronologia",
+  "localCopy.exportTitle": "Copia locale di {name}",
+  "localCopy.exportWorking": "Preparo la copia…",
+  "localCopy.exportSummary":
+    "{entries} voci di cronologia ({undone} annullate), {days} giorni, {rests} Riposi lunghi, {packs} pacchetti, {size}.",
+  "localCopy.exportNotSync":
+    "Una copia di questo momento, non una sincronizzazione: il gioco in un posto non arriva all'altro.",
+  "localCopy.download": "Salva il file",
+  "localCopy.import": "Carica copia locale",
+  "localCopy.importTitle": "Carica una copia locale",
+  "localCopy.importPick": "File di copia locale (.local-copy.json)",
+  "localCopy.checking": "Controllo l'intero file…",
+  "localCopy.from": "Dall'installazione {installation}, esportata {at}",
+  "localCopy.fromRelease": "Versione dell'app {release}",
+  "localCopy.hp": "Punti Ferita {current} / {max}",
+  "localCopy.entries": "{total} voci di cronologia: {done} fatte, {undone} annullate",
+  "localCopy.days": "Giorni",
+  "localCopy.dayRests": "{name}: {rests} Riposi lunghi",
+  "localCopy.longRests": "Riposi lunghi in tutto: {count}",
+  "localCopy.pendingHistorical": "{count} in attesa di una decisione allora (storico, non ripreso)",
+  "localCopy.packsNew": "Pacchetti nuovi: {list}",
+  "localCopy.packsPresent": "Già presenti: {list}",
+  "localCopy.packsConflict": "In conflitto (stessa versione, altro contenuto): {list}",
+  "localCopy.size": "Dimensione: {size}",
+  "localCopy.legacy":
+    "La fonte giocava sui pacchetti della campagna: questa copia è fissata su di essi.",
+  "localCopy.separate":
+    "Si crea un nuovo personaggio separato: la sua cronologia non si unisce a nessuno qui, e il gioco che continua alla fonte non lo raggiunge.",
+  "localCopy.already":
+    "Questa stessa copia è già stata caricata qui ({names}). Caricarla di nuovo crea un altro personaggio separato.",
+  "localCopy.confirmAnother": "Crea un'altra copia separata",
+  "localCopy.confirm": "Crea la copia",
+  "localCopy.created": "Creato {name} dalla copia locale.",
+  "localCopy.unpublished":
+    "La copia di {name} è salvata ma non ancora mostrata. Ricarica l'app per vederla (importazione {importId}).",
+  "localCopy.retry": "Riprova a mostrarla",
+  "localCopy.reload": "Ricarica",
+  "localCopy.last": "Ultima copia locale caricata: {name}",
+  "localCopy.undo": "Annulla l'importazione",
+  "localCopy.redo": "Ripeti l'importazione",
+  "localCopy.undone":
+    "Importazione di {name} annullata: la copia e la sua cronologia non ci sono più (pacchetti conservati).",
+  "localCopy.problem.other": "Rifiutato ({code}).",
+  "localCopy.problem.malformed": "La cronologia o la struttura del file non è valida ({code}).",
+  "localCopy.problem.limit_copy_bytes": "La copia supera i 20 MiB.",
+  "localCopy.problem.limit_json_depth": "Il file è annidato troppo in profondità.",
+  "localCopy.problem.limit_packs": "Più di 64 pacchetti.",
+  "localCopy.problem.limit_depth": "Dipendenze dei pacchetti oltre 8 livelli.",
+  "localCopy.problem.not_utf8": "Il file non è testo.",
+  "localCopy.problem.content_html": "Il file è una pagina web, non una copia.",
+  "localCopy.problem.not_json": "Il file non è JSON.",
+  "localCopy.problem.format_unknown": "Non è una copia locale.",
+  "localCopy.problem.format_newer": "Creato da un'app più recente: aggiorna questa.",
+  "localCopy.problem.format_unsupported": "Un formato di copia locale che questa app non legge.",
+  "localCopy.problem.format_transfer_not_local_copy":
+    "Un trasferimento senza cronologia: aprilo con Importa.",
+  "localCopy.problem.hash_mismatch":
+    "Il contenuto del file non corrisponde alla sua identità (modificato o danneggiato).",
+  "localCopy.problem.source_unsaved":
+    "Il personaggio non è ancora salvato (o è stato cambiato in un'altra scheda): attendi il salvataggio o ricarica.",
+  "localCopy.problem.source_missing": "Il personaggio non c'è più.",
+  "localCopy.problem.context_unprepared":
+    "Questo personaggio gioca sui pacchetti della campagna: preparali prima per l'uso offline.",
+  "localCopy.problem.dependency_missing":
+    "Un pacchetto necessario non è salvato su questo dispositivo.",
+  "localCopy.problem.copy_already_imported": "Questa copia è già stata caricata qui.",
+  "localCopy.problem.pack_identity_conflict":
+    "Qui c'è un pacchetto con lo stesso id e versione ma altro contenuto.",
+  "localCopy.problem.storage_quota":
+    "Spazio insufficiente sul dispositivo: non è stato salvato nulla.",
+  "localCopy.problem.storage_failed": "Salvataggio non riuscito: non è stato salvato nulla.",
+  "localCopy.problem.publication_failed": "Salvata, ma non si è potuta mostrare: ricarica l'app.",
+  "localCopy.problem.undo_import_changed":
+    "La copia è cambiata dopo il caricamento: eliminala esplicitamente.",
+  "localCopy.problem.undo_import_gone": "Non c'è un'importazione da annullare.",
+  "localCopy.problem.redo_import_present": "La copia è già qui.",
+  "localCopy.problem.validator_error":
+    "Il controllo stesso non è riuscito (un errore dell'app): non è stato salvato nulla.",
+  "localCopy.problem.fields_dropped": "Il file ha campi che questa app perderebbe.",
+  "localCopy.problem.build_invalid": "La costruzione del personaggio non si carica.",
+  "localCopy.problem.state_invalid": "Lo stato di gioco del personaggio non si carica.",
+  "localCopy.problem.state_would_change": "Il caricamento cambierebbe lo stato di gioco.",
+  "localCopy.problem.context_unavailable": "I pacchetti della copia non si caricano.",
+  "import.problem.format_local_copy":
+    "Una copia locale con cronologia: aprila con “Carica copia locale” nella pagina Personaggi.",
+  "history.status.pendingHistorical": "In attesa di una decisione (storico)",
+  "history.external": "fuori da questa copia",
+  "history.context.external": "Si riferisce a una voce fuori da questa copia.",
+  "history.localCopyHint":
+    "Una copia locale (pagina Personaggi) porta un personaggio con tutta la sua cronologia su un altro dispositivo.",
 };

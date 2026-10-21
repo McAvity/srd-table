@@ -97,6 +97,9 @@ export function recognize(bytes: Uint8Array, contentType: string | null = null):
       value: value as { current: PointerTarget } & Record<string, unknown>,
     };
   if (typeof format === "string") {
+    // kenli F-007 T03: a local copy with history is its own format with its own import.
+    if (format.startsWith("srd-table.local-copy/"))
+      throw new ImportError("format_local_copy", format);
     const m = /^srd-table\.(transfer|library-pointer)\/(\d+)$/.exec(format);
     if (m && Number(m[2]) > 1) throw new ImportError("format_newer", format);
     if (format === "kenli.bundle/1") throw new ImportError("format_adapter_required", format);

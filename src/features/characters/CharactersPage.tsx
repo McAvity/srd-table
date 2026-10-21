@@ -1,6 +1,7 @@
 /**
  * Characters: the list, create, import (files or a URL, kenli F-008) and export (the documents'
- * JSON, or a transfer with their content's identity), duplicate, delete.
+ * JSON, or a transfer with their content's identity), duplicate, delete. kenli F-007 T03: a local
+ * copy with state and whole history (its own format, its own import; F-008's stay without history).
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -19,12 +20,15 @@ import { installationId } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
+import { LocalCopyExport } from "./LocalCopyExport";
+import { LocalCopyImport, LocalCopyLast } from "./LocalCopyImport";
 
 export function CharactersPage() {
   const characters = useDocuments((s) => s.characters);
   const create = useDocuments((s) => s.createCharacter);
   const navigate = useNavigate();
   const [importing, setImporting] = useState(false);
+  const [loadingCopy, setLoadingCopy] = useState(false);
   const list = Object.values(characters).sort((a, b) => b.updated - a.updated);
 
   async function onCreate() {
@@ -44,8 +48,13 @@ export function CharactersPage() {
         <Button icon="upload" onClick={() => setImporting(true)} title={t("characters.importHint")}>
           {t("import.open")}
         </Button>
+        <Button icon="book" onClick={() => setLoadingCopy(true)} data-testid="local-copy-open">
+          {t("localCopy.import")}
+        </Button>
       </div>
       <ImportDialog open={importing} onOpenChange={setImporting} />
+      <LocalCopyImport open={loadingCopy} onOpenChange={setLoadingCopy} />
+      <LocalCopyLast />
       {list.length === 0 ? (
         <div className="panel">
           <Empty icon="sheet">{t("characters.empty")}</Empty>
@@ -74,6 +83,7 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
   const duplicate = useDocuments((s) => s.duplicateCharacter);
   const remove = useDocuments((s) => s.deleteCharacter);
   const [confirm, setConfirm] = useState(false);
+  const [copying, setCopying] = useState(false);
   // kenli F-006 §7.5: the journal on this device goes with the character; say how much.
   const [entries, setEntries] = useState<number | null>(null);
   const name = record.build.name || t("common.unnamed");
@@ -164,6 +174,13 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
           />
           <Button
             size="sm"
+            icon="book"
+            iconOnly
+            label={t("localCopy.export")}
+            onClick={() => setCopying(true)}
+          />
+          <Button
+            size="sm"
             icon="copy"
             iconOnly
             label={t("common.duplicate")}
@@ -183,6 +200,7 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
           />
         </div>
       </div>
+      <LocalCopyExport recordId={record.id} name={name} open={copying} onOpenChange={setCopying} />
       <Dialog
         open={confirm}
         onOpenChange={setConfirm}

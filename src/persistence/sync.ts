@@ -322,6 +322,24 @@ export function markCommitted(records: {
   };
 }
 
+/**
+ * kenli F-007 T03: a transaction outside the autosave deleted these characters with their journals
+ * (a local copy's Undo): they are no longer this tab's to save or delete.
+ */
+export function forgetCommitted(characterIds: readonly string[]): void {
+  if (!active || !characterIds.length) return;
+  const b = active.baseline;
+  const gone = new Set(characterIds);
+  active.baseline = {
+    ...b,
+    characters: Object.fromEntries(Object.entries(b.characters).filter(([id]) => !gone.has(id))),
+    entries: Object.fromEntries(
+      Object.entries(b.entries).filter(([, e]) => !gone.has(e.record_id)),
+    ),
+    meta: Object.fromEntries(Object.entries(b.meta).filter(([id]) => !gone.has(id))),
+  };
+}
+
 /** Save documents and settings when they change (debounced), deleting removed ones. */
 export function startAutosave(): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;
