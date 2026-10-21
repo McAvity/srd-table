@@ -11,7 +11,14 @@
  */
 
 import { engine } from "@/engine/client";
-import { type ContentContext, contentSha, type PackRef, sha256Hex } from "@/lib/canonical";
+import {
+  type ContentContext,
+  canonicalJson,
+  contentSha,
+  type PackRef,
+  sha256Hex,
+} from "@/lib/canonical";
+import { changedFields } from "@/lib/files";
 import type { RecordOrigin } from "@/persistence/db";
 import type { HistoryEntry, HistoryMeta } from "@/store/history";
 import { checkCharacter } from "../plan";
@@ -789,6 +796,17 @@ export async function checkWithEngine(copy: LocalCopy): Promise<void> {
   const first = checked.problems[0];
   if (first) refuse(first.code, first.detail);
   if (!checked.build || !checked.state) refuse("state_invalid", "the engine read nothing");
+  // R04-03: a copy is stored verbatim, so the engine must read it exactly as it is — no value
+  // changed, no default added, no version normalized (else the next load would silently change
+  // it). Stricter than F-008's import, which keeps the parsed documents.
+  const changed = (raw: unknown, parsed: unknown) =>
+    canonicalJson(raw) === canonicalJson(parsed)
+      ? null
+      : changedFields(raw as object, parsed as object).join(", ") || "normalized";
+  const build = changed(c.build, checked.build);
+  if (build) refuse("build_invalid", `the engine would read the build differently: ${build}`);
+  const state = changed(c.state, checked.state);
+  if (state) refuse("state_would_change", `the engine would read the state differently: ${state}`);
 }
 
 /**

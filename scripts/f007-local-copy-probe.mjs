@@ -54,6 +54,7 @@ const { values: args } = parseArgs({
     release: { type: "string" },
     seed: { type: "string" },
     dev: { type: "boolean", default: false },
+    opaque: { type: "boolean", default: false },
     out: { type: "string" },
     keep: { type: "boolean", default: false },
   },
@@ -66,6 +67,20 @@ if (!args.release || !args.seed) {
 }
 const work = mkdtempSync(join(tmpdir(), "f007-t03-local-copy-probe-"));
 const seed = JSON.parse(readFileSync(resolve(args.seed), "utf8"));
+/**
+ * Round 7 (review04 R04-02) `--opaque`: valid but unusual historical values the format keeps as
+ * opaque JSON — the review's exact case (the newest play request `{type:{opaque:true}}`, as its
+ * make-opaque-seed.py), a `null` and an array request on the two plays before it.
+ */
+const OPAQUE_REQUESTS = [{ type: { opaque: true } }, null, [1, { type: 3 }]];
+const opaqueSeqs = [];
+if (args.opaque) {
+  const plays = seed.journal.entries.filter((e) => e.kind === "play").reverse();
+  OPAQUE_REQUESTS.forEach((request, i) => {
+    plays[i].request = request;
+    opaqueSeqs.push(plays[i].seq);
+  });
+}
 const results = {
   probe: "f007-t03-local-copy",
   playwright: require("playwright-core/package.json").version,
@@ -77,7 +92,7 @@ const check = (id, pass, detail) => {
   results.checks.push({ id, pass: !!pass, ...(pass ? {} : { detail }) });
   if (!pass) failures++;
   console.log(
-    `${pass ? "PASS" : "FAIL"} ${id}${pass ? "" : ` — ${JSON.stringify(detail).slice(0, 800)}`}`,
+    `${pass ? "PASS" : "FAIL"} ${id}${pass ? "" : ` — ${String(JSON.stringify(detail) ?? "").slice(0, 800)}`}`,
   );
 };
 const note = (what, value) => {
@@ -594,6 +609,34 @@ async function main() {
     d2.packs.some((p) => p.ref.id === "test-actions") &&
       d2.packs.some((p) => p.ref.id === "srd-5.2.1"),
   );
+  // R04-02: the real History panel on the imported copy stays readable (no error boundary)
+  await openApp(i2.page, url, `characters/${l2.id}/sheet`);
+  await i2.page
+    .getByRole("button", { name: "History: what this character played", exact: true })
+    .click();
+  const historyDialog = i2.page.getByRole("dialog", { name: "History", exact: true });
+  await historyDialog.waitFor({ timeout: 30_000 }).catch(() => undefined);
+  await i2.page
+    .getByTestId("history-entry")
+    .first()
+    .waitFor({ timeout: 30_000 })
+    .catch(() => undefined);
+  const historyText = await i2.page.locator("body").innerText();
+  const shownEntries = await i2.page.getByTestId("history-entry").count();
+  check(
+    "L2.history-readable",
+    !historyText.includes("Something went wrong") &&
+      (await historyDialog.isVisible().catch(() => false)) &&
+      shownEntries > 0 &&
+      (await i2.page.getByTestId("history-unreadable").count()) === 0,
+    { shownEntries, tail: historyText.slice(-400) },
+  );
+  if (args.opaque) {
+    const kept = opaqueSeqs.map((seq) => c2.rows.find((e) => e.seq === seq)?.request);
+    check("L2.opaque-kept-verbatim", jcs(kept) === jcs(OPAQUE_REQUESTS), kept);
+    check("L2.opaque-titled", (await historyDialog.getByText(/^Sheet: /).count()) > 0);
+  }
+  await i2.page.keyboard.press("Escape");
   // close the browser, reopen the profile, play on
   await closeProfile("I2");
   const i2b = await profile("I2");
@@ -952,6 +995,97 @@ async function devScenario(f1) {
       "L7.reload-shows",
       copies.length === 2 && listed.filter((n) => n === "Pip").length === 2,
       { copies: copies.length, listed },
+    );
+    // Round 7 (R04-01): a failure AFTER the record is shown (before its head, before the
+    // autosave's baseline) leaves nothing half shown; the autosave keeps saving without a conflict;
+    // the retry shows it whole and the next action is saved.
+    for (const step of ["head", "baseline"]) {
+      await openApp(f.page, url);
+      await f.page.evaluate((at) => {
+        globalThis.__srdTableLocalCopyFaults.publish = (s) => {
+          if (s === at) throw new Error(`injected before ${s}`);
+        };
+      }, step);
+      const rp = await loadCopy(f.page, f1, { another: true });
+      check(`L7.${step}.saved-unpublished`, typeof rp.unpublished === "string", rp);
+      const dp = await dumpDb(f.page);
+      const fresh = dp.characters.filter(
+        (c) => c.origin?.extensions?.local_copy && !d4.characters.some((x) => x.id === c.id),
+      );
+      const pid = fresh.at(-1)?.id;
+      await f.page.evaluate(() => {
+        globalThis.__srdTableLocalCopyFaults.publish = null;
+      });
+      await f.page.waitForTimeout(1000); // an autosave tick would run here
+      const dq = await dumpDb(f.page);
+      check(
+        `L7.${step}.untouched-by-autosave`,
+        !!pid && jcs(rowsOf(dq, pid)) === jcs(rowsOf(dp, pid)) && rowsOf(dq, pid).length === 595,
+      );
+      await f.page.getByRole("button", { name: "Try to show it again" }).click();
+      await f.page.waitForURL(/\/characters\/c-[^/]+\/sheet/, { timeout: 60_000 });
+      const sid = /\/characters\/(c-[^/]+)\/sheet/.exec(f.page.url())?.[1];
+      check(`L7.${step}.retry-same-copy`, sid === pid, { sid, pid });
+      const hp = f.page.getByRole("region", { name: "Hit Points" });
+      await hp.waitFor({ timeout: 60_000 });
+      await hp.getByPlaceholder("Amount").fill("2");
+      await hp.getByRole("button", { name: "Damage" }).click();
+      let saved2 = false;
+      try {
+        await until(
+          async () =>
+            (await dumpDb(f.page)).history_meta.find((m) => m.record_id === pid)?.rev === 2,
+          20_000,
+        );
+        saved2 = true;
+      } catch {
+        saved2 = false;
+      }
+      const dr = await dumpDb(f.page);
+      check(
+        `L7.${step}.next-action-saved`,
+        saved2 &&
+          rowsOf(dr, pid).at(-1)?.seq === 596 &&
+          dr.characters.find((c) => c.id === pid)?.rev === 2,
+        { last: rowsOf(dr, pid).at(-1)?.seq },
+      );
+      for (const c of dq.characters) d4.characters.push(c);
+    }
+    // Redo whose publication fails: written again, not shown, Redo still offered; then whole
+    await openApp(f.page, url);
+    const rr = await loadCopy(f.page, f1, { another: true });
+    await toList(f.page);
+    const rowsBefore = rowsOf(await dumpDb(f.page), rr.id);
+    const bar = f.page.getByTestId("local-copy-last");
+    await bar.getByRole("button", { name: "Undo the import" }).click();
+    await bar.getByRole("button", { name: "Redo the import" }).waitFor();
+    await f.page.evaluate(() => {
+      globalThis.__srdTableLocalCopyFaults.publish = (s) => {
+        if (s === "head") throw new Error("injected before head");
+      };
+    });
+    await bar.getByRole("button", { name: "Redo the import" }).click();
+    await f.page
+      .getByText(/Saved, but it couldn't be shown/)
+      .first()
+      .waitFor({ timeout: 30_000 });
+    const dw = await dumpDb(f.page);
+    check(
+      "L7.redo-unpublished",
+      jcs(rowsOf(dw, rr.id)) === jcs(rowsBefore) &&
+        (await bar.getByRole("button", { name: "Redo the import" }).isVisible()),
+    );
+    await f.page.evaluate(() => {
+      globalThis.__srdTableLocalCopyFaults.publish = null;
+    });
+    await bar.getByRole("button", { name: "Redo the import" }).click();
+    await bar.getByRole("button", { name: "Undo the import" }).waitFor({ timeout: 30_000 });
+    const dz = await dumpDb(f.page);
+    check(
+      "L7.redo-retry-whole",
+      jcs(rowsOf(dz, rr.id)) === jcs(rowsBefore) &&
+        dz.characters.filter((c) => c.id === rr.id).length === 1 &&
+        (await f.page.locator("article h2").allInnerTexts()).filter((n) => n === "Pip").length >= 3,
     );
     await closeProfile("F1");
   } finally {

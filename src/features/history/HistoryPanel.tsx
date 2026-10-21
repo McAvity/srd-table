@@ -13,11 +13,13 @@
  * are named from the entries or the copy's own record of encounter names, marked "outside this
  * copy", and never matched with a record or encounter here; a decision the copy was waiting for is
  * shown as historical, never resumed. Engine messages are rendered as text in the app's language.
+ * Stored request/result values are opaque (R04-02): read only through guards, an unreadable shape
+ * gives a neutral line, and a group that still can't be drawn never takes the panel down.
  */
 
 import { useRouterState } from "@tanstack/react-router";
 import { Dialog as RDialog } from "radix-ui";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Button, cx, Empty } from "@/components/ui";
 import { t } from "@/i18n";
@@ -35,7 +37,17 @@ import {
   useHistory,
 } from "@/store/history";
 import { useUi } from "@/store/ui";
-import { changeText, costText, dayName, messagesOf, outcomeText, titleOf } from "./format";
+import {
+  changeText,
+  costText,
+  dayName,
+  field,
+  label,
+  messagesOf,
+  outcomeText,
+  plain,
+  titleOf,
+} from "./format";
 
 const PAGE = 50;
 
@@ -277,15 +289,17 @@ function Journal({ id }: { id: string }) {
                     {dayName(dayOf(first.day_id))}
                   </h3>
                 )}
-                <Group
-                  entries={g}
-                  nameOfUse={nameOfUse}
-                  encounterName={encounterName}
-                  copied={copied}
-                  linkOf={(op) =>
-                    Object.hasOwn(loaded.linked, op) ? (loaded.linked[op] ?? null) : null
-                  }
-                />
+                <GroupBoundary>
+                  <Group
+                    entries={g}
+                    nameOfUse={nameOfUse}
+                    encounterName={encounterName}
+                    copied={copied}
+                    linkOf={(op) =>
+                      Object.hasOwn(loaded.linked, op) ? (loaded.linked[op] ?? null) : null
+                    }
+                  />
+                </GroupBoundary>
               </li>
             );
           })}
@@ -309,6 +323,44 @@ function Journal({ id }: { id: string }) {
   );
 }
 
+/**
+ * A roll group's current result as text (`null`: its root was undone). Its stored results are
+ * opaque historical JSON (R04-02): a shape the projection can't read gives a neutral line.
+ */
+function currentText(entries: readonly HistoryEntry[], root: HistoryEntry): string | null {
+  try {
+    const current = projection(entries, root.group_id);
+    if (!current) return null;
+    const values = outcomeOf(root.kind, current, { label: label(field(root.request, "label")) });
+    return `${t("history.current")}: ${values.map(outcomeText).join(" | ")}`;
+  } catch {
+    return t("history.currentAsRecorded");
+  }
+}
+
+/**
+ * A group that can't be drawn (a stored shape no reader expects) shows a neutral line instead of
+ * taking the whole panel down; its data stays as it was recorded.
+ */
+class GroupBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  override state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  override render() {
+    return this.state.failed ? (
+      <p
+        className="rounded border border-edge bg-card p-2 text-sm"
+        data-testid="history-unreadable"
+      >
+        {t("history.entryAsRecorded")}
+      </p>
+    ) : (
+      this.props.children
+    );
+  }
+}
+
 /** One roll with its changes (or one action): its current result and each entry's own line. */
 function Group({
   entries,
@@ -326,7 +378,7 @@ function Group({
 }) {
   const root = entries[0] as HistoryEntry;
   const isRoll = RESULT_KINDS.has(root.kind) && entries.length > 1;
-  const current = isRoll ? projection(entries, root.group_id) : null;
+  const current = isRoll ? currentText(entries, root) : null;
   return (
     <article
       className={cx(
@@ -337,13 +389,7 @@ function Group({
     >
       {isRoll && (
         <p className="mb-1 text-sm font-semibold" data-testid="history-current">
-          {current
-            ? `${t("history.current")}: ${outcomeOf(root.kind, current, {
-                label: (root.request as { label?: string })?.label,
-              })
-                .map(outcomeText)
-                .join(" | ")}`
-            : t("history.currentNone")}
+          {current ?? t("history.currentNone")}
         </p>
       )}
       <ul className="space-y-1.5">
@@ -467,8 +513,8 @@ function EntryLine({
             dice: e.rest.dice
               .map((d) =>
                 d.rerolled_from
-                  ? `d${d.die}: ${d.rerolled_from.total} → ${d.roll.total}`
-                  : `d${d.die}: ${d.roll.total}`,
+                  ? `d${d.die}: ${plain(field(d.rerolled_from, "total"))} → ${plain(field(d.roll, "total"))}`
+                  : `d${d.die}: ${plain(field(d.roll, "total"))}`,
               )
               .join(", "),
           })}

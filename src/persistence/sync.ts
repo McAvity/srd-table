@@ -340,6 +340,16 @@ export function forgetCommitted(characterIds: readonly string[]): void {
   };
 }
 
+/**
+ * kenli F-007 T03 R04-01: whether a character is this tab's saved version (in the autosave's
+ * baseline): a published import is; a record only in the store is not. Without a running
+ * autosave nothing is tracked, so whatever the store has counts.
+ */
+export function isCommitted(characterId: string): boolean {
+  if (!active) return true;
+  return Object.hasOwn(active.baseline.characters, characterId);
+}
+
 /** Save documents and settings when they change (debounced), deleting removed ones. */
 export function startAutosave(): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null;

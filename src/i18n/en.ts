@@ -979,4 +979,6 @@ export const en = {
   "history.context.external": "Refers to an entry outside this copy.",
   "history.localCopyHint":
     "A local copy (Characters page) takes a character with its whole history to another device.",
+  "history.currentAsRecorded": "Current result: kept as recorded (not readable here)",
+  "history.entryAsRecorded": "An entry kept as recorded; this app can't show its details.",
 } as const;

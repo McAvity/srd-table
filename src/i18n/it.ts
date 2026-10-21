@@ -1007,4 +1007,8 @@ export const it: Messages = {
   "history.context.external": "Si riferisce a una voce fuori da questa copia.",
   "history.localCopyHint":
     "Una copia locale (pagina Personaggi) porta un personaggio con tutta la sua cronologia su un altro dispositivo.",
+  "history.currentAsRecorded":
+    "Risultato attuale: conservato com'è stato registrato (non leggibile qui)",
+  "history.entryAsRecorded":
+    "Una voce conservata com'è stata registrata; questa app non può mostrarne i dettagli.",
 };

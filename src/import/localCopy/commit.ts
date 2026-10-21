@@ -7,8 +7,12 @@
  * (`markCommitted`), so the autosave never takes it for unsaved nor writes an empty head over it.
  *
  * A failure after the transaction (the publication) is said as "saved, not shown — reload": no
- * rollback, no second copy. The plan keeps its `import_id`: confirming it again finds the copy in
- * the database (same transaction check) and only shows it.
+ * rollback of what was written, no second copy. The publication is all or nothing in memory
+ * (R04-01): the record, its head and the autosave's baseline are set together, and a failure at
+ * any step takes back what this attempt put in the store, so the app never shows a copy the
+ * autosave doesn't know as saved. The plan keeps its `import_id`: confirming it again finds the
+ * copy in the database (same transaction check) and publishes it whole; a copy already published
+ * (and maybe played since) is left as it is.
  *
  * Undo/Redo of the last import is session-only: Undo deletes the copy with its journal while it is
  * unchanged since the import, Redo writes the same objects again. A reload ends the window.
@@ -21,6 +25,7 @@ import { db, packKey, type StoredPack } from "@/persistence/db";
 import {
   flushNow,
   forgetCommitted,
+  isCommitted,
   markCommitted,
   unsavedState,
   writeQueue,
@@ -49,8 +54,10 @@ export type CommitResult =
       readonly detail: string;
     };
 
+/** The steps of a publication, in order (the test seam names the one about to run). */
+export type PublishStep = "packs" | "record" | "head" | "baseline";
 /** Test seam (development builds only): make the publication after the transaction fail. */
-export const localCopyFaults: { publish: (() => void) | null } = { publish: null };
+export const localCopyFaults: { publish: ((step: PublishStep) => void) | null } = { publish: null };
 if (import.meta.env.DEV)
   (globalThis as { __srdTableLocalCopyFaults?: typeof localCopyFaults }).__srdTableLocalCopyFaults =
     localCopyFaults;
@@ -92,19 +99,45 @@ async function storedPacks(plan: LocalCopyPlan, now: number): Promise<StoredPack
   return out;
 }
 
-/** The copy in the store and the autosave's baseline, in one synchronous step (no save between). */
+/**
+ * The copy in the store and the autosave's baseline (R04-01): the packs for the worker, then — in
+ * one synchronous step, so no save runs between — the record, its head and the baseline. A failure
+ * at any step takes back what this attempt published in memory (never the database), so the copy
+ * is either shown and saved here or not shown at all, and a retry starts clean.
+ */
 async function publish(
   record: CharacterRecord,
   meta: HistoryMeta | null,
   packs: readonly StoredPack[],
 ): Promise<void> {
-  if (import.meta.env.DEV) localCopyFaults.publish?.();
+  const fault = (step: PublishStep) => {
+    if (import.meta.env.DEV) localCopyFaults.publish?.(step);
+  };
+  fault("packs");
   await engine().registerPacks(packs.map((p) => p.files));
-  // The store first: a failure between the two leaves a record the autosave can't overwrite
-  // (compare-and-set), never a baseline without the record (which it would delete).
-  useDocuments.getState().publishLocalCopy(record);
-  if (meta) useHistory.getState().published([], [meta]);
-  markCommitted({ characters: [record], encounters: [], meta: meta ? [meta] : [] });
+  if (Object.hasOwn(useDocuments.getState().characters, record.id))
+    throw new Error(`${record.id} is already in this session`);
+  try {
+    fault("record");
+    useDocuments.getState().publishLocalCopy(record);
+    fault("head");
+    if (meta) useHistory.getState().published([], [meta]);
+    fault("baseline");
+    markCommitted({ characters: [record], encounters: [], meta: meta ? [meta] : [] });
+  } catch (error) {
+    // Nothing of a half publication stays: the autosave would take the record for one it never
+    // saved (a conflict) or a baseline without its record for a deletion.
+    forgetCommitted([record.id]);
+    useDocuments.getState().withdrawLocalCopy(record.id);
+    useHistory.getState().saved({ entries: [], meta: [], dropped: [record.id] });
+    throw error;
+  }
+}
+
+/** A copy written by this import and already in the session: done (then never overwritten), or not. */
+function alreadyPublished(recordId: string): "done" | "partial" | null {
+  if (!Object.hasOwn(useDocuments.getState().characters, recordId)) return null;
+  return isCommitted(recordId) ? "done" : "partial";
 }
 
 export async function commitLocalCopy(
@@ -196,8 +229,18 @@ export async function commitLocalCopy(
   const record = found?.record ?? mapped.record;
   const meta = found ? found.meta : mapped.meta;
   const entries = found?.entries ?? mapped.entries;
-  if (found && Object.hasOwn(useDocuments.getState().characters, record.id))
-    return { ok: true, recordId: record.id, import_id: importId };
+  if (found) {
+    // A technical retry: a copy published before (and maybe played since) is left as it is.
+    const shown = alreadyPublished(record.id);
+    if (shown === "done") return { ok: true, recordId: record.id, import_id: importId };
+    if (shown === "partial")
+      return {
+        ok: "saved_unpublished",
+        recordId: record.id,
+        import_id: importId,
+        detail: "shown but not saved here: reload the app",
+      };
+  }
   try {
     await publish(record, meta, packs);
   } catch (error) {
@@ -270,12 +313,23 @@ export async function redoLocalCopyImport(): Promise<
   const last = useLocalCopySession.getState().last;
   if (last?.state !== "undone") return { ok: false, code: "undo_import_gone", detail: "" };
   const id = last.record.id;
+  if (alreadyPublished(id) === "done") {
+    setLast({ ...last, state: "done" });
+    return { ok: true, recordId: id };
+  }
   try {
     await writeQueue(async () => {
       const database = await db();
       const tx = database.transaction(["characters", "history", "history_meta"], "readwrite");
       try {
-        if (await tx.objectStore("characters").get(id)) refuse("redo_import_present", id);
+        const row = await tx.objectStore("characters").get(id);
+        if (row) {
+          // A retry after a failed publication: this Redo's own copy is written, only show it.
+          if (localCopyOf(row.origin)?.import_id !== last.import_id || (row.rev ?? 0) !== 1)
+            refuse("redo_import_present", id);
+          await tx.done;
+          return;
+        }
         await tx.objectStore("characters").add(last.record);
         for (const e of last.entries) await tx.objectStore("history").add(e);
         if (last.meta) await tx.objectStore("history_meta").add(last.meta);
@@ -293,10 +347,13 @@ export async function redoLocalCopyImport(): Promise<
   } catch (error) {
     return storageRefusal(error);
   }
+  if (alreadyPublished(id) === "partial")
+    return { ok: false, code: "publication_failed", detail: "shown but not saved here: reload" };
   try {
     await publish(last.record, last.meta, last.packs);
   } catch (error) {
-    setLast({ ...last, state: "done" });
+    // Written again but not shown: Redo stays offered (it only shows the written copy) and a
+    // reload shows it too.
     return {
       ok: false,
       code: "publication_failed",
