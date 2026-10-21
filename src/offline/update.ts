@@ -21,6 +21,14 @@
  * installing) may open or clear a barrier; any other page reloads, waits, completes the agreed
  * transition, or fails closed — never a mutation with old code next to a newer active release.
  * After `controllerchange` this page refuses every mutation until it reloads.
+ *
+ * A stored state this release can't read (another schema, a broken record) is never written over:
+ * no path here repairs, resets or drops it (with a barrier the start fails closed). A failure of
+ * this page's own records, of the service worker or of an activation is a result, never a stuck
+ * "updating": before registration the barrier goes and play goes on (or, when even that can't be
+ * saved, the barrier stays and the page fails closed); once a release may be registered, the same
+ * observation decides — coherent: released as before; otherwise the barrier stays, the page fails
+ * closed and a reload recovers by the one rule.
  */
 
 import { create } from "zustand";
@@ -51,6 +59,11 @@ export const OWN_DATA = {
   local_copy_formats: ["srd-table.local-copy/1"],
 } as const;
 const FREEZE_TIMEOUT_MS = 5_000;
+/** Poll step of the activation wait (300 steps); tests shorten it. */
+let ACTIVATE_POLL_MS = 100;
+export const _setActivatePollMs = (ms: number) => {
+  ACTIVATE_POLL_MS = ms;
+};
 
 export type Phase =
   | "idle"
@@ -123,7 +136,7 @@ export function emptyState(exec: string = RELEASE_ID, base: string = BASE): Upda
   };
 }
 
-/** A stored state when its shape is right (else `null`: treated as none, never repaired). */
+/** A stored state when its shape is right (else `null`: unreadable, never repaired). */
 export function parseState(raw: unknown): UpdateState | null {
   const o = raw as Partial<UpdateState> | null;
   if (typeof o !== "object" || o === null || o.schema !== UPDATE_SCHEMA) return null;
@@ -138,15 +151,45 @@ export function parseState(raw: unknown): UpdateState | null {
   } as UpdateState;
 }
 
-/** The stored update state; `barrierRaw`: whether any barrier is stored (also an unreadable one). */
-export async function readState(): Promise<{ state: UpdateState; unreadable: boolean }> {
+export interface StoredState {
+  readonly state: UpdateState;
+  /** A record is stored that this release can't read: `state` is only a placeholder, never written. */
+  readonly unreadable: boolean;
+  /** Unreadable: whether it may hold a barrier (absent: assumed). */
+  readonly barrier?: boolean;
+}
+
+/** The stored update state (an unreadable record is reported as such, left as it is). */
+export async function readState(): Promise<StoredState> {
   const raw = await (await db()).get("settings", UPDATE_KEY);
   if (raw === undefined) return { state: emptyState(), unreadable: false };
   const state = parseState(raw);
   if (state) return { state, unreadable: false };
-  const hasBarrier = !!raw && typeof raw === "object" && (raw as { barrier?: unknown }).barrier;
-  return { state: emptyState(), unreadable: !!hasBarrier };
+  const barrier =
+    typeof raw !== "object" ||
+    raw === null ||
+    ((raw as { barrier?: unknown }).barrier ?? null) !== null;
+  return { state: emptyState(), unreadable: true, barrier };
 }
+
+/** An unreadable record that may hold a barrier: the start and a frozen page fail closed. */
+const blocking = (s: StoredState) => s.unreadable && s.barrier !== false;
+
+const UNKNOWN: Reason = { code: "update_state_unknown", detail: "" };
+const NO_BARRIER = { barrier: null, consent: null } as const;
+
+/** A failure as a reason (a full metadata store: `storage_quota`). */
+function reasonOf(error: unknown, code = "update_metadata_failed"): Reason {
+  const e = error as { code?: unknown; name?: unknown; message?: unknown } | null;
+  if (e && typeof e === "object") {
+    const detail = typeof e.message === "string" ? e.message : String(error);
+    if (e.name === "QuotaExceededError") return { code: "storage_quota", detail };
+    return { code: typeof e.code === "string" ? e.code : code, detail };
+  }
+  return { code, detail: String(error) };
+}
+
+const coded = (code: string, detail: string) => Object.assign(new Error(detail), { code });
 
 /** Write the state (only the lock holder does: §6). */
 async function writeState(state: UpdateState): Promise<void> {
@@ -225,6 +268,10 @@ interface UpdateUi {
   /** The request this page is frozen for (another window is updating). */
   readonly frozen: string | null;
   readonly readOnly: boolean;
+  /** The stored update state can't be read: shown, never written; updates are paused. */
+  readonly unreadable: boolean;
+  /** This page's update failed where it can't safely go back: changes stay paused until a reload. */
+  readonly halted: Reason | null;
 }
 
 export const useUpdateStore = create<UpdateUi>()(() => ({
@@ -234,6 +281,8 @@ export const useUpdateStore = create<UpdateUi>()(() => ({
   needsReload: false,
   frozen: null,
   readOnly: false,
+  unreadable: false,
+  halted: null,
 }));
 
 // ───────────────────────── the protocol client (§7.1) ─────────────────────────
@@ -258,17 +307,22 @@ async function activeWorker(): Promise<ServiceWorker | null> {
   return ((await sw?.getRegistration(BASE))?.active as ServiceWorker | undefined) ?? null;
 }
 
+/** Post to the active worker (`false`: none, or the transport failed — callers decide). */
 async function send(msg: Record<string, unknown>): Promise<boolean> {
-  const w = await activeWorker();
-  if (!w) return false;
-  w.postMessage({
-    proto: UPDATE_PROTO,
-    page_id: PAGE_ID,
-    release_id: RELEASE_ID,
-    to: null,
-    ...msg,
-  });
-  return true;
+  try {
+    const w = await activeWorker();
+    if (!w) return false;
+    w.postMessage({
+      proto: UPDATE_PROTO,
+      page_id: PAGE_ID,
+      release_id: RELEASE_ID,
+      to: null,
+      ...msg,
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function next(predicate: (m: Delivered) => boolean, timeoutMs: number): Promise<Delivered | null> {
@@ -328,7 +382,7 @@ async function onFreeze(m: Delivered): Promise<void> {
   // Queue for the owner's lock: whoever gets it next knows no live owner runs and decides (§7.5).
   void withLock(async () => {
     await resolveAfterLock(requestId);
-  }, false);
+  }, false).catch((error) => failClosedView(reasonOf(error)));
   const reasons = [...blockers(), ...(await savedReasons())];
   await send({
     type: "frozen",
@@ -355,23 +409,34 @@ function onTransition(m: Delivered): void {
 
 /** A frozen page got the lock (the owner finished or is gone): decide again from what it sees. */
 async function resolveAfterLock(requestId: string): Promise<void> {
-  const o = await observeRelease();
-  const { state } = await readState();
-  const d = decideRecovery(o, state);
-  if (d === "reload" || d === "complete" || d === "wait") {
-    admission.close("reload", null);
-    useUpdateStore.setState({ needsReload: true });
-    if (d === "complete") await completeTransition(state);
-    location.reload();
-    return;
+  try {
+    const o = await observeRelease();
+    const stored = await readState();
+    // Frozen for an update and now a record this release can't read: fail closed, write nothing.
+    if (stored.unreadable) return failClosedView(null);
+    const { state } = stored;
+    const d = decideRecovery(o, state);
+    if (d === "reload" || d === "complete" || d === "wait") {
+      admission.close("reload", null);
+      useUpdateStore.setState({ needsReload: true });
+      try {
+        if (d === "complete") await completeTransition(state);
+      } finally {
+        location.reload();
+      }
+      return;
+    }
+    if (d === "fail_closed") {
+      await failClosed(state);
+      return;
+    }
+    if (d === "clear") await clearBarrier(state, o);
+    if (useUpdateStore.getState().frozen === requestId && admission.open(requestId))
+      useUpdateStore.setState({ frozen: null });
+  } catch (error) {
+    // The decision couldn't be carried out (its record not saved): stay closed, nothing thawed.
+    failClosedView(reasonOf(error));
   }
-  if (d === "fail_closed") {
-    await failClosed(state);
-    return;
-  }
-  if (d === "clear") await clearBarrier(state, o);
-  if (useUpdateStore.getState().frozen === requestId && admission.open(requestId))
-    useUpdateStore.setState({ frozen: null });
 }
 
 let started = false;
@@ -418,10 +483,17 @@ async function clearBarrier(state: UpdateState, o: Observed): Promise<void> {
   await send({ type: "thaw", request_id: b.request_id });
 }
 
-async function failClosed(state: UpdateState): Promise<void> {
+/** Read only, nothing written (the stored record stays exactly as it is); `reason`: a failure. */
+function failClosedView(reason: Reason | null): void {
   admission.close("reload", null);
-  useUpdateStore.setState({ readOnly: true });
-  await writeState({ ...state, last_error: { code: "update_state_unknown", detail: "" } });
+  const halted = useUpdateStore.getState().halted ?? reason;
+  useUpdateStore.setState({ readOnly: true, halted });
+}
+
+async function failClosed(state: UpdateState): Promise<void> {
+  failClosedView(null);
+  // The reason recorded next to the barrier and consent, both kept (a failed write changes nothing).
+  await writeState({ ...state, last_error: UNKNOWN }).catch(() => undefined);
 }
 
 /** Activate the agreed waiting release (the barrier's), then announce the transition. */
@@ -430,20 +502,34 @@ async function completeTransition(state: UpdateState): Promise<void> {
   const reg = await container()?.getRegistration(BASE);
   if (!target || !reg) return;
   await writeState({ ...state, phase: "activating" });
-  await activateWaiting(reg, target);
+  if (!(await activateWaiting(reg, target))) throw coded("update_activation_timeout", target);
   await writeState({ ...state, phase: "transitioning" });
   if (state.barrier) await send({ type: "transition", request_id: state.barrier.request_id });
 }
 
 async function decideWithLock(): Promise<BootDecision> {
   const o = await observeRelease();
-  const { state, unreadable } = await readState();
-  const d = unreadable ? "fail_closed" : decideRecovery(o, state);
+  const stored = await readState();
+  if (stored.unreadable) {
+    // Never written (its barrier, its unknown fields stay): read only, unless it holds no barrier
+    // and the rule — seeing none — lets this page go on.
+    const d = blocking(stored) ? "fail_closed" : decideRecovery(o, NO_BARRIER);
+    return d === "wait"
+      ? "waiting"
+      : d === "reload"
+        ? "reload"
+        : d === "open"
+          ? "open"
+          : "read_only";
+  }
+  const { state } = stored;
+  const d = decideRecovery(o, state);
   if (d === "wait") return "waiting";
   if (d === "reload") return "reload";
   if (d === "open") return "open";
   if (d === "fail_closed") {
-    await writeState({ ...state, last_error: { code: "update_state_unknown", detail: "" } });
+    // The reason next to the barrier and consent, both kept; read only also when it can't be saved.
+    await writeState({ ...state, last_error: UNKNOWN }).catch(() => undefined);
     return "read_only";
   }
   if (d === "complete") {
@@ -462,23 +548,34 @@ async function decideWithLock(): Promise<BootDecision> {
 export async function updateBootGate(
   o: {
     readonly observe?: () => Promise<Observed>;
-    readonly read?: () => Promise<{ state: UpdateState; unreadable: boolean }>;
+    readonly read?: () => Promise<StoredState>;
     readonly locked?: () => Promise<BootDecision>;
     readonly session?: Pick<Storage, "getItem" | "setItem" | "removeItem">;
   } = {},
 ): Promise<BootDecision> {
   const session = o.session ?? (typeof sessionStorage !== "undefined" ? sessionStorage : undefined);
   const observed = await (o.observe ?? observeRelease)();
-  const { state, unreadable } = await (o.read ?? readState)();
-  useUpdateStore.setState({ state });
+  const stored = await (o.read ?? readState)();
+  const { state, unreadable } = stored;
+  useUpdateStore.setState({ state: unreadable ? null : state, unreadable });
   const flag = `${RELOAD_FLAG}:${observed.exec}`;
   let d: BootDecision;
-  const first = unreadable ? "fail_closed" : decideRecovery(observed, state);
+  // An unreadable record without a barrier is no update in progress: the rule sees no barrier.
+  const first = blocking(stored)
+    ? "fail_closed"
+    : decideRecovery(observed, unreadable ? NO_BARRIER : state);
   if (first === "open") d = "open";
   else if (first === "wait") d = "waiting";
   else if (first === "reload") d = "reload";
   else {
-    const locked = await withLock(o.locked ?? decideWithLock, false);
+    let locked: BootDecision | "busy" | "unsupported";
+    try {
+      locked = await withLock(o.locked ?? decideWithLock, false);
+    } catch (error) {
+      // Its decision couldn't be saved (the barrier stays): read only, the next start decides again.
+      useUpdateStore.setState({ halted: reasonOf(error) });
+      locked = "read_only";
+    }
     d = locked === "unsupported" || locked === "busy" ? "read_only" : locked;
   }
   if (d === "reload") {
@@ -490,6 +587,12 @@ export async function updateBootGate(
 }
 
 // ───────────────────────── offer, download, Later (§6) ─────────────────────────
+
+/** An unreadable stored state at an entry point: shown (updates paused), nothing written. */
+function unknownState(): null {
+  useUpdateStore.setState({ state: null, unreadable: true });
+  return null;
+}
 
 /** Whether this page runs a prepared release (its own worker active): only then are updates offered. */
 export async function updatesApply(): Promise<boolean> {
@@ -543,7 +646,8 @@ export async function checkForUpdate(fetcher: typeof fetch = fetch): Promise<Upd
     if (typeof p.descriptor_sha256 !== "string") return null;
     const pointer = { release_id: p.release_id, sha: p.descriptor_sha256 };
     const r = await withLock(async () => {
-      const { state } = await readState();
+      const { state, unreadable } = await readState();
+      if (unreadable) return unknownState();
       if (state.barrier) return state;
       if (pointer.release_id === RELEASE_ID) {
         const idle = {
@@ -596,7 +700,8 @@ export async function downloadCandidate(
   useUpdateStore.setState({ busy: "downloading" });
   try {
     const r = await withLock(async () => {
-      const { state } = await readState();
+      const { state, unreadable } = await readState();
+      if (unreadable) return unknownState();
       const c = state.candidate;
       if (!c?.compatible || state.barrier) return state;
       try {
@@ -661,7 +766,8 @@ export async function downloadCandidate(
 /** "Later": no consent (an earlier one withdrawn); nothing registered, now or at a restart. */
 export async function later(): Promise<void> {
   await withLock(async () => {
-    const { state } = await readState();
+    const { state, unreadable } = await readState();
+    if (unreadable) return void unknownState();
     if (state.barrier) return;
     await writeState({
       ...state,
@@ -705,7 +811,8 @@ function settled(
   });
 }
 
-async function activateWaiting(reg: ServiceWorkerRegistration, target: string): Promise<void> {
+/** Activate `target` (waiting) and wait until it is: `false` when it isn't within ~30 s. */
+async function activateWaiting(reg: ServiceWorkerRegistration, target: string): Promise<boolean> {
   const waiting = reg.waiting;
   if (waiting && releaseOf(waiting, BASE) === target)
     waiting.postMessage({
@@ -715,57 +822,108 @@ async function activateWaiting(reg: ServiceWorkerRegistration, target: string): 
       page_id: PAGE_ID,
     });
   for (let i = 0; i < 300; i++) {
-    if (releaseOf(reg.active, BASE) === target && reg.active?.state === "activated") return;
-    await new Promise((r) => setTimeout(r, 100));
+    if (releaseOf(reg.active, BASE) === target && reg.active?.state === "activated") return true;
+    await new Promise((r) => setTimeout(r, ACTIVATE_POLL_MS));
   }
+  return false;
 }
 
 const sameSet = (a: readonly { client_id: string }[], b: readonly { client_id: string }[]) =>
   JSON.stringify(a.map((c) => c.client_id).sort()) ===
   JSON.stringify(b.map((c) => c.client_id).sort());
 
+type Outcome = { ok: boolean; reasons: readonly Reason[] };
+
 /**
  * "Now" (or the retry of a consent after a restart). `{ok:false, reasons}`: nothing registered,
- * every gate released, play goes on; `{ok:true}`: the page reloads into the new release.
+ * every gate released, play goes on — or, when that can't be saved or a release may already be
+ * registered, the barrier kept and this page halted until a reload; `{ok:true}`: the page reloads
+ * into the new release. Every outcome ends `busy`.
  */
-export async function updateNow(): Promise<{ ok: boolean; reasons: readonly Reason[] }> {
-  if (useUpdateStore.getState().busy === "updating")
-    return { ok: false, reasons: [{ code: "update_busy", detail: "" }] };
+export async function updateNow(): Promise<Outcome> {
+  const ui = useUpdateStore.getState();
+  if (ui.busy === "updating") return { ok: false, reasons: [{ code: "update_busy", detail: "" }] };
+  // A page that must reload (halted, read only, another release in control) never tries again.
+  if (ui.halted || ui.readOnly || ui.needsReload)
+    return { ok: false, reasons: [{ code: "update_reload_required", detail: "" }] };
   useUpdateStore.setState({ busy: "updating", reasons: [] });
-  const r = await withLock(async () => {
-    const { state } = await readState();
-    const target = state.candidate;
-    if (!target || state.phase === "offered" || !target.compatible)
-      return { ok: false, reasons: [{ code: "update_not_downloaded", detail: "" }] };
-    const me = await clientId();
-    if (!me)
-      return { ok: false, reasons: [{ code: "update_unsupported", detail: "no service worker" }] };
-    const requestId = newRequestId();
-    const gating: UpdateState = {
-      ...state,
-      phase: "gating",
-      consent: { release_id: target.release_id, at: Date.now(), request_id: requestId },
-      last_error: null,
-      barrier: {
-        request_id: requestId,
-        owner_client_id: me,
-        target_release: target.release_id,
-        since: Date.now(),
-      },
-    };
+  let out: Outcome = { ok: false, reasons: [UNKNOWN] };
+  try {
+    const r = await withLock(runOwner, true);
+    out =
+      r === "busy"
+        ? { ok: false, reasons: [{ code: "update_busy", detail: "" }] }
+        : r === "unsupported"
+          ? { ok: false, reasons: [{ code: "update_unsupported", detail: "Web Locks" }] }
+          : r;
+  } catch (error) {
+    // Before the barrier (reading the state, the lock itself): nothing was closed or written.
+    out = { ok: false, reasons: [reasonOf(error)] };
+  } finally {
+    useUpdateStore.setState({ busy: null, reasons: out.reasons });
+  }
+  if (out.ok) location.reload();
+  return out;
+}
+
+/** The owner's run, holding the lock. */
+async function runOwner(): Promise<Outcome> {
+  const { state, unreadable } = await readState();
+  if (unreadable) {
+    unknownState();
+    return { ok: false, reasons: [UNKNOWN] };
+  }
+  const target = state.candidate;
+  if (!target || state.phase === "offered" || !target.compatible)
+    return { ok: false, reasons: [{ code: "update_not_downloaded", detail: "" }] };
+  const me = await clientId();
+  if (!me)
+    return { ok: false, reasons: [{ code: "update_unsupported", detail: "no service worker" }] };
+  const requestId = newRequestId();
+  const gating: UpdateState = {
+    ...state,
+    phase: "gating",
+    consent: { release_id: target.release_id, at: Date.now(), request_id: requestId },
+    last_error: null,
+    barrier: {
+      request_id: requestId,
+      owner_client_id: me,
+      target_release: target.release_id,
+      since: Date.now(),
+    },
+  };
+  try {
     await writeState(gating);
-    admission.close("owner", requestId);
-    const abort = async (reasons: Reason[]) => {
+  } catch (error) {
+    // Not saved: no barrier, no consent, nothing closed — the same state as before.
+    return { ok: false, reasons: [reasonOf(error)] };
+  }
+  admission.close("owner", requestId);
+  /** Halt: the barrier stays, this page stays closed until a reload decides by the rule. */
+  const halt = (reasons: Reason[]): Outcome => {
+    admission.close("reload", null);
+    useUpdateStore.setState({ halted: reasons[0] ?? UNKNOWN });
+    return { ok: false, reasons: [...reasons, { code: "update_reload_required", detail: "" }] };
+  };
+  /** Nothing registered: release the barrier, thaw this request, open; if that isn't saved, halt. */
+  const abort = async (reasons: Reason[]): Promise<Outcome> => {
+    try {
       await writeState({
         ...gating,
         phase: "consented",
         last_error: reasons[0] ?? null,
         barrier: null,
       });
-      await send({ type: "thaw", request_id: requestId });
-      admission.open(requestId);
-      return { ok: false, reasons };
-    };
+    } catch (error) {
+      return halt([...reasons, reasonOf(error)]);
+    }
+    // Not delivered: the members queued for the lock decide by the rule when it is released.
+    await send({ type: "thaw", request_id: requestId });
+    admission.open(requestId);
+    return { ok: false, reasons };
+  };
+  let registering = false;
+  try {
     const members = ((await listClients(requestId)) ?? []).filter((c) => c.client_id !== me);
     const answers = new Map<string, Delivered>();
     const memberIds = new Set(members.map((c) => c.client_id));
@@ -800,9 +958,10 @@ export async function updateNow(): Promise<{ ok: boolean; reasons: readonly Reas
     const again = await listClients(requestId);
     if (!again || !sameSet([...members, { client_id: me, path: "" }], again))
       reasons.push({ code: "client_set_changed", detail: "" });
-    if (reasons.length) return abort(reasons);
+    if (reasons.length) return await abort(reasons);
     // Every gate passed: register the agreed release (the only `register()` of another release).
     await writeState({ ...gating, phase: "registering" });
+    registering = true;
     let reg: ServiceWorkerRegistration;
     try {
       reg = await (container() as ServiceWorkerContainer).register(`${BASE}${target.sw}`, {
@@ -810,35 +969,34 @@ export async function updateNow(): Promise<{ ok: boolean; reasons: readonly Reas
         updateViaCache: "none",
       });
     } catch (error) {
-      return abort([{ code: "release_install_failed", detail: String(error) }]);
+      throw coded("release_install_failed", String(error));
     }
-    const s = await settled(reg, target.release_id);
-    if (s === "failed")
-      return abort([{ code: "release_install_failed", detail: target.release_id }]);
+    if ((await settled(reg, target.release_id)) === "failed")
+      throw coded("release_install_failed", target.release_id);
     await writeState({ ...gating, phase: "activating" });
-    await activateWaiting(reg, target.release_id);
+    if (!(await activateWaiting(reg, target.release_id)))
+      throw coded("update_activation_timeout", target.release_id);
     await writeState({ ...gating, phase: "transitioning" });
-    admission.close("reload", null);
-    useUpdateStore.setState({ needsReload: true });
-    await send({ type: "transition", request_id: requestId });
-    return { ok: true, reasons: [] };
-  }, true);
-  const out =
-    r === "busy"
-      ? { ok: false, reasons: [{ code: "update_busy", detail: "" }] }
-      : r === "unsupported"
-        ? { ok: false, reasons: [{ code: "update_unsupported", detail: "Web Locks" }] }
-        : r;
-  useUpdateStore.setState({ busy: null, reasons: out.reasons });
-  if (out.ok) location.reload();
-  return out;
+  } catch (error) {
+    const reason = reasonOf(error);
+    if (!registering) return abort([reason]);
+    // A release may be registered: the same observation as the rule decides. Coherent (nothing of
+    // the target installing, waiting or active): released as before; otherwise halted.
+    const o = await observeRelease().catch(() => null);
+    return o && coherent(o) ? abort([reason]) : halt([reason]);
+  }
+  admission.close("reload", null);
+  useUpdateStore.setState({ needsReload: true });
+  await send({ type: "transition", request_id: requestId });
+  return { ok: true, reasons: [] };
 }
 
 /** After the start: a consent that was interrupted (restart in gating/registering) is tried again. */
 export async function resumeConsented(): Promise<void> {
   // Never next to an update already running (this page's own "Now", or a live owner's barrier).
   if (useUpdateStore.getState().busy) return;
-  const { state } = await readState();
+  const { state, unreadable } = await readState();
+  if (unreadable) return void unknownState();
   useUpdateStore.setState({ state });
   if (state.barrier) return;
   if (
@@ -860,8 +1018,9 @@ export function useUpdate() {
     now: () => updateNow(),
     later: async () => {
       await later();
-      const { state } = await readState();
-      useUpdateStore.setState({ state });
+      const { state, unreadable } = await readState();
+      if (unreadable) unknownState();
+      else useUpdateStore.setState({ state });
     },
   };
 }

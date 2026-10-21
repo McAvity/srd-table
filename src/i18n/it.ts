@@ -1096,6 +1096,10 @@ export const it: Messages = {
   "update.frozen": "Un'altra finestra sta aggiornando l'app: le modifiche sono sospese.",
   "update.readOnly":
     "È stato trovato un aggiornamento non finito. I tuoi dati non cambiano. Chiudi tutte le finestre dell'app e riaprila.",
+  "update.halted":
+    "L'aggiornamento non è potuto finire in sicurezza ({reason}). Le modifiche sono in pausa e nient'altro cambia: ricarica l'app (se si ripete, chiudi tutte le finestre dell'app e riaprila).",
+  "update.unreadable":
+    "Il registro dell'aggiornamento salvato è di un'altra versione o danneggiato: resta com'è e qui gli aggiornamenti sono in pausa.",
   "update.reload": "Ricarica",
   "update.dismissRolls": "Chiudi le finestre dei tiri aperte",
   "update.none": "Questa è la versione più recente offerta dal server.",
@@ -1129,5 +1133,8 @@ export const it: Messages = {
   "update.reason.release_asset_hash": "un file della nuova versione è danneggiato",
   "update.reason.release_asset_http": "un file della nuova versione non si è potuto scaricare",
   "update.reason.storage_quota": "spazio insufficiente su questo dispositivo",
+  "update.reason.update_metadata_failed": "il registro dell'aggiornamento non è stato salvato",
+  "update.reason.update_activation_timeout": "la nuova versione non è subentrata in tempo",
+  "update.reason.update_reload_required": "ricarica l'app prima di riprovare",
   "about.version": "Versione {id}",
 };

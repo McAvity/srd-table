@@ -93,17 +93,29 @@ export const useSettings = create<SettingsState>()((set) => ({
     if (!admission.allowed()) return;
     set({ settings });
   },
-  async setContent(packs, sources) {
-    if (!admission.allowed()) return;
-    // kenli F-007 T04: other settings leave a prepared context unused (never "the latest
-    // installed"); the same settings again use it again.
-    await configureCampaign({ packs, sources });
-    set((s) => ({ settings: { ...s.settings, packs, sources } }));
+  // The asynchronous changes are admitted operations as a whole (counted until their `set`, so
+  // `savedReasons()` waits for them before it flushes); refused at once while the gate is closed.
+  setContent(packs, sources) {
+    return admission.guard(
+      "settings.setContent",
+      async () => {
+        // kenli F-007 T04: other settings leave a prepared context unused (never "the latest
+        // installed"); the same settings again use it again.
+        await configureCampaign({ packs, sources });
+        set((s) => ({ settings: { ...s.settings, packs, sources } }));
+      },
+      () => undefined,
+    );
   },
-  async setDevSeed(seed) {
-    if (!admission.allowed()) return;
-    await engine().setSeed(seed);
-    set((s) => ({ settings: { ...s.settings, dev_seed: seed } }));
+  setDevSeed(seed) {
+    return admission.guard(
+      "settings.setDevSeed",
+      async () => {
+        await engine().setSeed(seed);
+        set((s) => ({ settings: { ...s.settings, dev_seed: seed } }));
+      },
+      () => undefined,
+    );
   },
 }));
 

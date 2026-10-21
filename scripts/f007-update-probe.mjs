@@ -28,6 +28,13 @@
  *  U6 another profile: an update owner holding the lock with a stored barrier — a new window
  *     waits (no editable game, no writes); the owner window closes → the barrier is cleared
  *     (owner_lost) and the game opens on A.
+ *  U9 (T05 r11) another profile: the update's own record can't be saved at `registering` (a
+ *     QuotaExceededError injected into this page's IndexedDB writes of that phase) → Now ends with
+ *     storage_quota, nothing registered, the barrier released, not busy, play goes on in the same
+ *     page; the retry updates to B. Then an unreadable record (another schema, with a barrier):
+ *     read only at two starts, the record byte-for-byte as stored; a malformed one without a
+ *     barrier: the game opens, Settings says updates are paused, the start's own check and resume
+ *     leave the record as stored; the valid record back → the game as before.
  */
 
 import { createHash } from "node:crypto";
@@ -927,7 +934,153 @@ async function u8() {
   await h.stop();
 }
 
+/** Damage in the page as it is (a same-document route change, no reload). */
+async function damageInPlace(page, n) {
+  await page.evaluate((id) => {
+    location.hash = `#/characters/${id}/sheet`;
+  }, CHAR);
+  const hp = page.getByRole("region", { name: "Hit Points" });
+  await hp.waitFor({ timeout: 60_000 });
+  const before = (await dumpDb(page)).history.length;
+  await hp.getByPlaceholder("Amount").fill(String(n));
+  await hp.getByRole("button", { name: "Damage" }).click();
+  await until(
+    async () => (await dumpDb(page)).history.length === before + 1,
+    20_000,
+    "damage saved in place",
+  );
+  await page.waitForTimeout(400);
+}
+
+async function u9() {
+  const h = host("fail");
+  publish(h, rel.a);
+  await h.start();
+  const ctx = await launch("profile-fail");
+  const p = await tab(ctx, h);
+  await putRows(p, seedRows);
+  await prepare(p, h);
+  publish(h, rel.b);
+  check("U9.b-downloaded", (await checkAndDownload(p, h)) === "downloaded");
+  // R06-03: this page's write of the `registering` record fails as on a full metadata store.
+  await p.evaluate(() => {
+    const original = IDBObjectStore.prototype.put;
+    window.__f007Put = original;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (this.name === "settings" && value && value.phase === "registering")
+        throw new DOMException("metadata full (probe)", "QuotaExceededError");
+      return original.call(this, value, key);
+    };
+  });
+  await clickNow(p);
+  const reasons = p.getByTestId("update-reasons").first();
+  await reasons.waitFor({ timeout: 60_000 });
+  const codes = await reasons.locator("li").evaluateAll((els) => els.map((e) => e.dataset.code));
+  const s1 = await updateState(p);
+  const r1 = await reg(p);
+  check("U9.quota-reported", codes.includes("storage_quota"), codes);
+  check(
+    "U9.quota-nothing-registered-barrier-released",
+    s1.phase === "consented" &&
+      s1.barrier === null &&
+      s1.consent?.release_id === rel.b.id &&
+      s1.last_error?.code === "storage_quota" &&
+      r1.active === swOf(rel.a.id) &&
+      !r1.waiting &&
+      !r1.installing,
+    { s1, r1 },
+  );
+  check(
+    "U9.quota-not-busy",
+    await p
+      .getByTestId("update-offer")
+      .first()
+      .getByRole("button", { name: "Try again" })
+      .isEnabled(),
+  );
+  await damageInPlace(p, 1); // the gate is open: play goes on in this very page
+  check("U9.quota-play-goes-on", true);
+  const g = game(await dumpDb(p));
+  await p.evaluate(() => {
+    IDBObjectStore.prototype.put = window.__f007Put;
+  });
+  await p.evaluate(() => {
+    location.hash = "#/settings";
+  });
+  await clickNow(p);
+  await until(
+    async () =>
+      (await reg(p)).controller === swOf(rel.b.id) && (await updateState(p))?.phase === "idle",
+    90_000,
+    "retry updated to B",
+  );
+  const r2 = await reg(p);
+  check("U9.retry-updates-B", r2.active === swOf(rel.b.id) && !r2.waiting && !r2.installing, r2);
+  check("U9.retry-same-data", game(await dumpDb(p)) === g);
+
+  // R06-02: an unreadable record with a barrier — read only, never written over.
+  await reopen(p, h, "characters");
+  const valid = await updateState(p);
+  const future = {
+    schema: "future-update/2",
+    barrier: { request_id: "u-future", target_release: rel.c.id, owner: { n: [1, 2] } },
+    consent: { release_id: rel.c.id, extra: true },
+    opaque: "preserve",
+  };
+  await putRows(p, [{ store: "settings", key: "offline.update.v1", value: future }]);
+  const readOnlyStart = async () => {
+    await p.reload();
+    await until(
+      async () => (await p.locator("body").innerText()).includes("An unfinished update was found"),
+      30_000,
+      "read-only start",
+    );
+    await p.waitForTimeout(1000);
+    return (await p.locator("body").innerText()).includes("Una");
+  };
+  const shown1 = await readOnlyStart();
+  const after1 = await updateState(p);
+  const shown2 = await readOnlyStart();
+  const after2 = await updateState(p);
+  check(
+    "U9.unreadable-barrier-read-only-twice",
+    !shown1 && !shown2 && jcs(after1) === jcs(future) && jcs(after2) === jcs(future),
+    { after1, after2 },
+  );
+  // A malformed record without a barrier: the game opens, updates paused, the record kept.
+  const malformed = { schema: "srd-table.update-state/1", phase: 42, barrier: null, extra: "keep" };
+  await putRows(p, [{ store: "settings", key: "offline.update.v1", value: malformed }]);
+  await reopen(p, h, "settings");
+  await p.getByTestId("update-unreadable").waitFor({ timeout: 30_000 });
+  check(
+    "U9.unreadable-no-barrier-open-paused",
+    (await p.getByRole("button", { name: "Check for an update" }).isDisabled()) &&
+      (await p.getByTestId("update-offer").count()) === 0,
+  );
+  await p.waitForTimeout(6500); // the start's own pointer check and resume (after 5 s)
+  check("U9.unreadable-no-barrier-kept", jcs(await updateState(p)) === jcs(malformed));
+  await putRows(p, [{ store: "settings", key: "offline.update.v1", value: valid }]);
+  await reopen(p, h, "characters");
+  const back = {
+    una: await until(
+      async () => (await p.locator("body").innerText()).includes("Una"),
+      30_000,
+      "game back",
+    ).catch(() => false),
+    state: await updateState(p),
+    reg: await reg(p),
+  };
+  check(
+    "U9.valid-record-back",
+    back.una && jcs(back.state) === jcs(valid) && back.reg.active === swOf(rel.b.id),
+    { back, valid },
+  );
+  await ctx.close();
+  await h.stop();
+}
+
 try {
+  if (!args.only || args.only.includes("fail")) await u9();
   if (!args.only || args.only.includes("late")) await u8();
   if (!args.only || args.only.includes("main")) await u1to4();
   if (!args.only || args.only.includes("resume")) await u7();

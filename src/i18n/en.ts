@@ -1065,6 +1065,10 @@ export const en = {
   "update.frozen": "Another window is updating the app: changes are paused.",
   "update.readOnly":
     "An unfinished update was found. Your data isn't changed. Close every window of the app and open it again.",
+  "update.halted":
+    "The update couldn't finish safely ({reason}). Changes are paused and nothing else is changed: reload the app (if this comes back, close every window of the app and open it again).",
+  "update.unreadable":
+    "The stored update record is from another version or damaged: it is kept as it is and updates are paused here.",
   "update.reload": "Reload",
   "update.dismissRolls": "Close the open roll windows",
   "update.none": "This is the newest version the server offers.",
@@ -1098,5 +1102,8 @@ export const en = {
   "update.reason.release_asset_hash": "a file of the new version is damaged",
   "update.reason.release_asset_http": "a file of the new version couldn't be downloaded",
   "update.reason.storage_quota": "not enough storage on this device",
+  "update.reason.update_metadata_failed": "the update's own record couldn't be saved",
+  "update.reason.update_activation_timeout": "the new version didn't take over in time",
+  "update.reason.update_reload_required": "reload the app before trying again",
   "about.version": "Version {id}",
 } as const;

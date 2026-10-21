@@ -124,9 +124,18 @@ export function UpdatePanel() {
       <p className="mb-2 text-sm text-ink-muted" data-testid="update-current">
         {t("update.current", { id: RELEASE_ID })}
       </p>
+      {u.unreadable ? (
+        <p className="text-sm" data-testid="update-unreadable">
+          {t("update.unreadable")}
+        </p>
+      ) : null}
       <UpdateControls />
       <div className="mt-2">
-        <Button size="sm" disabled={u.busy !== null} onClick={() => void u.check()}>
+        <Button
+          size="sm"
+          disabled={u.busy !== null || u.unreadable || u.halted !== null}
+          onClick={() => void u.check()}
+        >
           {u.busy === "checking" ? t("update.checking") : t("update.check")}
         </Button>
       </div>
@@ -137,13 +146,15 @@ export function UpdatePanel() {
 /** A thin banner on every screen: paused, reload needed, read only, or an offer. */
 export function UpdateBanner() {
   const u = useUpdate();
-  const message = u.readOnly
-    ? t("update.readOnly")
-    : u.needsReload
-      ? t("update.needsReload")
-      : u.frozen
-        ? t("update.frozen")
-        : null;
+  const message = u.halted
+    ? t("update.halted", { reason: reasonText(u.halted) })
+    : u.readOnly
+      ? t("update.readOnly")
+      : u.needsReload
+        ? t("update.needsReload")
+        : u.frozen
+          ? t("update.frozen")
+          : null;
   if (message)
     return (
       <div
@@ -152,7 +163,7 @@ export function UpdateBanner() {
         data-testid="update-banner"
       >
         {message}{" "}
-        {(u.needsReload || u.readOnly) && (
+        {(u.needsReload || u.readOnly || u.halted) && (
           <Button size="sm" onClick={() => location.reload()}>
             {t("update.reload")}
           </Button>

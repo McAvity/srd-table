@@ -99,6 +99,15 @@ data and asks you to close every window of the app and open it again. A version 
 this one can't hand over safely is not offered. A damaged or failed download leaves the current
 version and its data as they are.
 
+When the update can't save its own progress (full storage) or the browser fails it before the
+new version is installed, nothing is installed: the windows go on and the panel says why (free
+space, then **Try again**). When that happens once the new version may already be installed, or
+the app can't even undo its own start, it doesn't pretend to go back: changes stay paused and the
+banner asks you to reload — the next start finishes the update or releases it. An update record
+stored by another version (or damaged) is never rewritten: if it may belong to an unfinished
+update the app opens without changing data; otherwise the game opens and Settings says updates
+are paused.
+
 ## Checks (developers)
 
 ```bash
