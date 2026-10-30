@@ -151,4 +151,56 @@ describe("custom items in the app", () => {
     const imported = Object.values(docs().characters)[0]?.state;
     expect(json(imported)).toBe(json(exported));
   });
+
+  // review03 R03-01: a custom line with an unknown key is refused by the engine's reader, so the
+  // app never stores it with the key silently dropped; a catalog line reads as before.
+  it("importing a state whose custom line has an unknown key is refused; nothing is written", async () => {
+    const { id } = await aFighter();
+    await docs().playAction(id, {
+      type: "add_custom_item",
+      name: "Idol",
+      description: "",
+      weight_lb: null,
+    });
+    const record = docs().characters[id];
+    if (!record) throw new Error("no record");
+    const state = JSON.parse(json(record.state)) as CharacterState & {
+      inventory: Record<string, unknown>[];
+    };
+    const before = Object.keys(docs().characters).length;
+    for (const tamper of [
+      (l: Record<string, unknown>) => ({ ...l, extra: "must not disappear" }),
+      (l: Record<string, unknown>) => ({
+        ...l,
+        custom: { ...(l.custom as object), url: "https://example.invalid" },
+      }),
+    ]) {
+      const bad = {
+        ...state,
+        inventory: state.inventory.map((l) => (l.item === null ? tamper(l) : l)),
+      };
+      const r = await docs().importCharacter(JSON.parse(json(record.build)), bad as CharacterState);
+      expect(r.ok).toBe(false);
+      // Refused by the engine's own reader (not only by the app's dropped-field check).
+      if (!r.ok) expect(r.reasons.join(" ")).toMatch(/Unrecognized key/);
+      expect(Object.keys(docs().characters)).toHaveLength(before);
+    }
+    const legacy = {
+      ...state,
+      inventory: state.inventory
+        .filter((l) => l.item !== null)
+        .map((l, n) => (n === 0 ? { ...l, extra: 1 } : l)),
+    };
+    // A catalog line: the engine still reads it with the key dropped (as before); the app's
+    // existing F-008 check then refuses the import because a field would be lost.
+    const legacyRead = await engine.parseState(legacy);
+    expect(legacyRead.ok).toBe(true);
+    const viaApp = await docs().importCharacter(
+      JSON.parse(json(record.build)),
+      legacy as CharacterState,
+    );
+    expect(viaApp.ok).toBe(false);
+    if (!viaApp.ok) expect(viaApp.reasons.join(" ")).not.toMatch(/Unrecognized key/);
+    expect(Object.keys(docs().characters)).toHaveLength(before);
+  });
 });
