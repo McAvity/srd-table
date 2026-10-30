@@ -32,7 +32,7 @@ import { titleCase } from "@/lib/format";
 import { useActionCheck, useAreaPreview, useEntry, usePlayView, useSquaresWithin } from "@/queries";
 import { useDocuments } from "@/store/documents";
 import type { PlayWay } from "@/store/settings";
-import { byHandReasons, playedAs } from "./manual";
+import { byHandReasons, incompleteRefusal, playedAs } from "./manual";
 import { useTableUi } from "./tableUi";
 
 type Mode = "normal" | "advantage" | "disadvantage";
@@ -57,6 +57,9 @@ const COMPOSED: ReadonlySet<EncounterAction["type"]> = new Set([
 export function needsComposer(entry: OptionEntry): boolean {
   if (entry.targets && entry.targets.kind !== "self") return true;
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
+  // kenli F-011 (review03 R03-02): a leveled spell's slot is the player's choice — every legal level,
+  // spent ones included — so it's picked in the form, never assumed.
+  if (entry.action.type === "cast" && (entry.action.slot_level ?? 0) > 0) return true;
   return COMPOSED.has(entry.action.type);
 }
 
@@ -142,6 +145,13 @@ export function ActionComposer({
 
   // Riders and Versatile damage come from the character's attack line.
   const play = usePlayView(actor?.character ?? undefined);
+  // kenli F-011 §5.3 (review03 R03-02): every slot level the spell can legally use, those with none
+  // left included (the engine's play sheet lists them with their reason); casting with one is the
+  // player's attempt, refused and journaled. A monster has no sheet: the option's own levels.
+  const slotChoices =
+    base.type === "cast"
+      ? (play.data?.sheet.spells.find((s) => s.id === base.spell)?.slots ?? null)
+      : null;
   const line =
     base.type === "attack"
       ? play.data?.sheet.attacks.find((a) => a.name === base.attack)
@@ -252,12 +262,9 @@ export function ActionComposer({
   const played = playedAs(action, as, entry.rollable);
   const check = useActionCheck(encounterId, played);
   const refused = check.data?.ok === false;
-  // kenli F-011 §5.3: refused only for a resource with none left — Send stays the player's attempt.
-  const resourceCodes = new Set(
-    entry.reasons.filter((r) => r.category === "resource").map((r) => r.code as string),
-  );
-  const attemptOnly =
-    refused && !!check.data?.codes.length && check.data.codes.every((c) => resourceCodes.has(c));
+  // kenli F-011 §5.3 (review03 R03-02): Send waits only for what the player still has to say (a
+  // target, a missing choice); a complete command the rules refuse is sent as the player's attempt.
+  const incomplete = refused && incompleteRefusal(check.data?.codes ?? []);
   // A roll by hand is free; its costs are paid with `spend`, which `force` overrides instead.
   const forced = useActionCheck(
     encounterId,
@@ -491,7 +498,7 @@ export function ActionComposer({
           </div>
         )}
 
-        {(entry.slot_levels.length > 0 || entry.pact_slot !== null) && (
+        {(slotChoices?.length || entry.slot_levels.length > 0 || entry.pact_slot !== null) && (
           <label className="flex flex-col gap-1 text-sm">
             {t("table.slotLevel")}
             <select
@@ -499,13 +506,26 @@ export function ActionComposer({
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
             >
-              {entry.slot_levels.map((l) => (
-                <option key={l} value={String(l)}>
-                  {t("sheet.slotLevel", { level: l })}
-                </option>
-              ))}
-              {entry.pact_slot !== null && (
-                <option value="pact">{t("table.pactSlot", { level: entry.pact_slot })}</option>
+              {slotChoices?.length ? (
+                slotChoices.map((x) => (
+                  <option key={`${x.pact}:${x.level}`} value={x.pact ? "pact" : String(x.level)}>
+                    {x.pact
+                      ? t("table.pactSlot", { level: x.level })
+                      : t("sheet.slotLevel", { level: x.level })}
+                    {x.reason ? ` · ${x.reason.text}` : ""}
+                  </option>
+                ))
+              ) : (
+                <>
+                  {entry.slot_levels.map((l) => (
+                    <option key={l} value={String(l)}>
+                      {t("sheet.slotLevel", { level: l })}
+                    </option>
+                  ))}
+                  {entry.pact_slot !== null && (
+                    <option value="pact">{t("table.pactSlot", { level: entry.pact_slot })}</option>
+                  )}
+                </>
               )}
             </select>
           </label>
@@ -755,7 +775,7 @@ export function ActionComposer({
         <Button
           variant="primary"
           icon="d20"
-          disabled={busy || (check.data?.ok === false && !attemptOnly)}
+          disabled={busy || incomplete}
           onClick={() => void go(as)}
         >
           {byHand ? t("table.sendManual") : t("table.send")}

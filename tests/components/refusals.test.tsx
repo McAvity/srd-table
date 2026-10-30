@@ -96,40 +96,58 @@ describe("Spells: Cast with every slot spent", () => {
   });
 });
 
-describe("Encounter: a tile refused only for a resource is the player's attempt", () => {
-  it("Second Wind with no use left: the tile sends one command, one entry; a tile refused for the economy stays inert", async () => {
+/** An encounter with one character (its record), started, the player's view of it. */
+async function encounterOf(characterId: string, combatant: string, manual = false, foe = true) {
+  const record = docs().characters[characterId];
+  if (!record) throw new Error("no record");
+  const party = { [characterId]: { build: record.build, state: record.state } };
+  const r = await fx.engine.applyEncounterAction(await fx.engine.newEncounter(), party, [
+    { type: "add_character", character: characterId },
+    ...(foe
+      ? ([
+          { type: "add_monster", monster: "goblin-warrior" },
+          { type: "set_initiative", id: "goblin-warrior", value: 5 },
+        ] as const)
+      : []),
+    { type: "set_initiative", id: combatant, value: 20 },
+    { type: "start" },
+  ]);
+  if (!r.ok) throw new Error(r.reasons.join("; "));
+  const id = newId("e");
+  useDocuments.setState((st) => ({
+    encounters: {
+      ...st.encounters,
+      [id]: { id, name: "T03", encounter: r.encounter, log: [], created: 0, updated: 0 },
+    },
+    revs: { ...st.revs, [id]: 1 },
+  }));
+  if (manual) await docs().setPlayMode(id, combatant, "manual");
+  useUi.setState({ role: { kind: "player", character: characterId } });
+  return id;
+}
+/** Every encounter request the store sends to the engine (not the composer's dry-run checks). */
+function spyEncounter() {
+  const sent: unknown[] = [];
+  const apply = fx.engine.applyEncounterAction;
+  fx.engine.applyEncounterAction = (encounter, p, action, world) => {
+    sent.push(action);
+    return apply(encounter, p, action, world);
+  };
+  return { sent, restore: () => (fx.engine.applyEncounterAction = apply) };
+}
+const SENTINEL = [17, 17, 17, 17];
+const queueDice = () => fx.dice.splice(0, fx.dice.length, ...SENTINEL);
+
+describe("Encounter: a complete command the rules refuse is the player's attempt (review03 R03-02)", () => {
+  it("Second Wind with no use left, then Dash after the action is spent: each tile sends one command and journals one refusal", async () => {
     const aerin = ok(await docs().importCharacter(await fighter(fx.engine, 3)));
     for (let i = 0; i < 5; i++)
       if (
         !(await docs().playAction(aerin.id, { type: "use_feature", key: "fighter:second-wind" })).ok
       )
         break;
-    const record = docs().characters[aerin.id];
-    if (!record) throw new Error("no record");
-    const party = { [aerin.id]: { build: record.build, state: record.state } };
-    const r = await fx.engine.applyEncounterAction(await fx.engine.newEncounter(), party, [
-      { type: "add_character", character: aerin.id },
-      { type: "add_monster", monster: "goblin-warrior" },
-      { type: "set_initiative", id: "aerin", value: 20 },
-      { type: "set_initiative", id: "goblin-warrior", value: 5 },
-      { type: "start" },
-    ]);
-    if (!r.ok) throw new Error(r.reasons.join("; "));
-    const id = newId("e");
-    useDocuments.setState((st) => ({
-      encounters: {
-        ...st.encounters,
-        [id]: { id, name: "T03", encounter: r.encounter, log: [], created: 0, updated: 0 },
-      },
-      revs: { ...st.revs, [id]: 1 },
-    }));
-    useUi.setState({ role: { kind: "player", character: aerin.id } });
-    const sent: unknown[] = [];
-    const apply = fx.engine.applyEncounterAction;
-    fx.engine.applyEncounterAction = (encounter, p, action, world) => {
-      sent.push(action);
-      return apply(encounter, p, action, world);
-    };
+    const id = await encounterOf(aerin.id, "aerin");
+    const spy = spyEncounter();
     try {
       await renderApp(`/encounters/${id}`);
       const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
@@ -139,23 +157,165 @@ describe("Encounter: a tile refused only for a resource is the player's attempt"
       expect(wind).toHaveAccessibleDescription(/.+/);
       await userEvent.click(wind);
       await waitFor(() => expect(refused(aerin.id)).toHaveLength(1));
-      expect(sent).toHaveLength(1);
+      expect(spy.sent).toHaveLength(1);
       expect(refused(aerin.id)[0]).toMatchObject({
         refusal: { command: "encounter_action", label: expect.stringMatching(/Second Wind/) },
-        context: { source: "encounter", encounter_id: id },
+        context: { source: "encounter", encounter_id: id, round: 1 },
       });
-      // The action used (Dodge), then an Action tile is refused for the economy: inert, nothing sent.
+      // The action spent (Dodge), Dash is refused for the economy: still a complete command.
       await userEvent.click(within(options).getByRole("tab", { name: /^Action/ }));
       await userEvent.click(within(options).getByRole("button", { name: /^Dodge/ }));
-      await waitFor(() => expect(sent).toHaveLength(2));
+      await waitFor(() => expect(spy.sent).toHaveLength(2));
       const dash = await within(options).findByRole("button", { name: /^Dash/ });
       await waitFor(() => expect(dash).toHaveAttribute("aria-disabled", "true"));
-      await userEvent.click(dash);
-      expect(sent).toHaveLength(2);
-      expect(refused(aerin.id)).toHaveLength(1);
+      const encounter = docs().encounters[id]?.encounter;
+      dash.focus();
+      await userEvent.keyboard("{Enter}");
+      await waitFor(() => expect(refused(aerin.id)).toHaveLength(2));
+      expect(spy.sent).toHaveLength(3);
+      expect(refused(aerin.id)[1]?.refusal?.label).toMatch(/Dash/);
+      expect(docs().encounters[id]?.encounter).toBe(encounter);
     } finally {
-      fx.engine.applyEncounterAction = apply;
+      spy.restore();
     }
+  });
+
+  it("a slot spent at level 1, level 2 left: the form offers both; level 1 sent is refused before the dice, one entry", async () => {
+    const r = ok(await docs().importCharacter(await wizard(fx.engine, 3)));
+    ok(await docs().playAction(r.id, Array(4).fill({ type: "spend_slot", level: 1 })));
+    const id = await encounterOf(r.id, "lirael");
+    const spy = spyEncounter();
+    try {
+      await renderApp(`/encounters/${id}`);
+      const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+      await userEvent.click(await within(options).findByRole("button", { name: /^Chromatic Orb/ }));
+      const form = await screen.findByRole("region", { name: /^Chromatic Orb/ });
+      expect(refused(r.id)).toHaveLength(0);
+      const slot = within(form).getByRole("combobox", { name: /Slot level/ });
+      const levels = within(slot)
+        .getAllByRole("option")
+        .map((o) => o.textContent);
+      expect(levels[0]).toMatch(/^Level 1 · No level 1 spell slots left/);
+      expect(levels[1]).toMatch(/^Level 2$/);
+      await userEvent.selectOptions(slot, "1");
+      expect(spy.sent).toHaveLength(0);
+      const send = within(form).getByRole("button", { name: /^Do it$/ });
+      await waitFor(() => expect(send).toBeEnabled());
+      queueDice();
+      const before = docs().characters[r.id];
+      await userEvent.click(send);
+      await waitFor(() => expect(refused(r.id)).toHaveLength(1));
+      expect(spy.sent.at(-1)).toMatchObject({
+        type: "cast",
+        spell: "chromatic-orb",
+        slot_level: 1,
+      });
+      expect(fx.dice).toEqual(SENTINEL);
+      expect(docs().characters[r.id]).toBe(before);
+      expect(refused(r.id)[0]).toMatchObject({
+        refusal: { command: "encounter_action", label: expect.stringMatching(/Chromatic Orb/) },
+        context: { source: "encounter", encounter_id: id, round: 1 },
+      });
+    } finally {
+      spy.restore();
+    }
+  });
+
+  it("an attack without its target isn't complete: Do it stays locked, nothing sent; picking one sends it", async () => {
+    const aerin = ok(await docs().importCharacter(await fighter(fx.engine, 3)));
+    // Nobody else in the fight: the engine names no target for the attack.
+    const id = await encounterOf(aerin.id, "aerin", false, false);
+    const spy = spyEncounter();
+    try {
+      await renderApp(`/encounters/${id}`);
+      const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+      await userEvent.click(await within(options).findByRole("button", { name: /^Greatsword/ }));
+      const form = await screen.findByRole("region", { name: /^Greatsword/ });
+      const send = within(form).getByRole("button", { name: /^Do it$/ });
+      await waitFor(() => expect(send).toBeDisabled());
+      await userEvent.click(send);
+      expect(spy.sent).toHaveLength(0);
+      expect(refused(aerin.id)).toHaveLength(0);
+      await userEvent.click(within(form).getByRole("button", { name: /Aerin/, pressed: false }));
+      await waitFor(() => expect(send).toBeEnabled());
+    } finally {
+      spy.restore();
+    }
+  });
+
+  it("every slot spent: the form defaults to level 1; by hand, Do it by hand from the keyboard: one refusal, no die", async () => {
+    const r = ok(await docs().importCharacter(await wizard(fx.engine, 3)));
+    ok(
+      await docs().playAction(r.id, [
+        ...Array(4).fill({ type: "spend_slot", level: 1 }),
+        ...Array(2).fill({ type: "spend_slot", level: 2 }),
+      ]),
+    );
+    const id = await encounterOf(r.id, "lirael", true);
+    await renderApp(`/encounters/${id}`);
+    const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+    await userEvent.click(await within(options).findByRole("button", { name: /^Chromatic Orb/ }));
+    const form = await screen.findByRole("region", { name: /^Chromatic Orb/ });
+    expect(within(form).getByRole("combobox", { name: /Slot level/ })).toHaveValue("1");
+    expect(refused(r.id)).toHaveLength(0);
+    queueDice();
+    within(form)
+      .getByRole("button", { name: /^Do it by hand$/ })
+      .focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => expect(refused(r.id)).toHaveLength(1));
+    expect(refused(r.id)[0]?.refusal?.command).toBe("encounter_roll");
+    expect(fx.dice).toEqual(SENTINEL);
+  });
+});
+
+describe("Encounter by hand: the quick roll that falls back to the form (review03 R03-03)", () => {
+  it("Wizard 1, no slot, By hand, Chromatic Orb: the form opens with nothing journaled; Cancel: still nothing; Do it by hand: one", async () => {
+    const r = ok(await docs().importCharacter(await wizard(fx.engine, 1)));
+    ok(await docs().playAction(r.id, Array(2).fill({ type: "spend_slot", level: 1 })));
+    const id = await encounterOf(r.id, "lirael", true);
+    const spy = spyEncounter();
+    try {
+      await renderApp(`/encounters/${id}`);
+      const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+      const orb = await within(options).findByRole("button", { name: /^Chromatic Orb/ });
+      await userEvent.click(orb);
+      let form = await screen.findByRole("region", { name: /^Chromatic Orb/ });
+      expect(refused(r.id)).toHaveLength(0);
+      await userEvent.click(
+        within(form).getAllByRole("button", { name: /^Cancel$/ })[0] as HTMLElement,
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole("region", { name: /^Chromatic Orb/ })).toBeNull(),
+      );
+      expect(refused(r.id)).toHaveLength(0);
+      // The quick bar is drawn again once the form is closed: look it up again.
+      const bar = await screen.findByRole("region", { name: "Options" });
+      await userEvent.click(await within(bar).findByRole("button", { name: /^Chromatic Orb/ }));
+      form = await screen.findByRole("region", { name: /^Chromatic Orb/ });
+      expect(refused(r.id)).toHaveLength(0);
+      queueDice();
+      await userEvent.click(within(form).getByRole("button", { name: /^Do it by hand$/ }));
+      await waitFor(() => expect(refused(r.id)).toHaveLength(1));
+      expect(refused(r.id)[0]?.refusal?.command).toBe("encounter_roll");
+      expect(fx.dice).toEqual(SENTINEL);
+    } finally {
+      spy.restore();
+    }
+  });
+
+  it("a quick roll by hand that succeeds is still immediate: no form, no refusal", async () => {
+    const aerin = ok(await docs().importCharacter(await fighter(fx.engine, 3)));
+    const id = await encounterOf(aerin.id, "aerin", true);
+    await renderApp(`/encounters/${id}`);
+    const options = await screen.findByRole("region", { name: "Options" }, { timeout: 15_000 });
+    await userEvent.click(within(options).getByRole("tab", { name: /Bonus Action/ }));
+    const before = docs().encounters[id]?.encounter;
+    fx.dice.push(4);
+    await userEvent.click(await within(options).findByRole("button", { name: /^Second Wind/ }));
+    await waitFor(() => expect(docs().encounters[id]?.encounter).not.toBe(before));
+    expect(screen.queryByRole("region", { name: /^Second Wind/ })).toBeNull();
+    expect(refused(aerin.id)).toHaveLength(0);
   });
 });
 
@@ -259,9 +419,117 @@ describe("History: results at a glance next to refusals", () => {
     );
     const panel = await screen.findByRole("dialog", { name: "History" });
     const [line] = await within(panel).findAllByTestId("history-entry", {}, { timeout: 10_000 });
+    // review03 R03-04: what was asked (3 damage) and what it did (HP from its maximum to the
+    // stored value), both without opening details; no roll, so no outcome is made up.
+    expect(within(line as HTMLElement).getByTestId("history-request")).toHaveTextContent(
+      "Takes 3 damage",
+    );
     expect(within(line as HTMLElement).getByTestId("history-applied")).toHaveTextContent(
-      /Applied: hp\.current: — → \d+/,
+      /Applied: HP: max → \d+/,
     );
     expect(within(line as HTMLElement).queryByTestId("history-outcome")).toBeNull();
+  });
+});
+
+describe("History: a readable result without opening details (review03 R03-04)", () => {
+  const openPanel = async () => {
+    await userEvent.click(
+      await screen.findByRole(
+        "button",
+        { name: "History: what this character played" },
+        { timeout: 15_000 },
+      ),
+    );
+    return screen.findByRole("dialog", { name: "History" });
+  };
+  /** An entry's text as shown collapsed (its details element left out). */
+  const collapsed = (line: HTMLElement) => {
+    const clone = line.cloneNode(true) as HTMLElement;
+    for (const d of clone.querySelectorAll("details")) d.remove();
+    return clone.textContent ?? "";
+  };
+
+  it("a check rolled on the sheet: the entry says the dice, bonus and total the tray showed", async () => {
+    const r = ok(await docs().importCharacter(await wizard(fx.engine, 3)));
+    await renderApp(`/characters/${r.id}/sheet`);
+    fx.dice.push(6);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /^Arcana \+\d+: / }, { timeout: 10_000 }),
+    );
+    const [tray] = await screen.findAllByRole("region", { name: "Dice results" });
+    const test = sessionEntries(r.id).at(-1)?.result as { total: number; bonus: number };
+    expect(tray).toHaveTextContent(String(test.total));
+    const panel = await openPanel();
+    const [line] = await within(panel).findAllByTestId("history-entry", {}, { timeout: 10_000 });
+    const dice = within(line as HTMLElement).getByTestId("history-dice");
+    expect(dice).toHaveTextContent(`[6] +${test.bonus} = ${test.total}`);
+    expect(tray).toHaveTextContent("6");
+    // No DC was asked: nothing says success or failure.
+    expect(collapsed(line as HTMLElement)).not.toMatch(/Success|Failure/);
+  });
+
+  it("a reroll changes the group's current dice; Undo and Redo bring them back; the root off the page", async () => {
+    const content = await testContext(fx.engine);
+    const build = await humanWizard(fx.engine);
+    let state = await fx.engine.createState(build, content);
+    state = ok(
+      await fx.engine.applyPlayAction(
+        build,
+        state,
+        { type: "set_inspiration", value: true },
+        content,
+      ),
+    ).state;
+    const id = await storeCharacter(fx.engine, build, content, state);
+    fx.dice.push(9, 2, 3);
+    ok(await docs().rollByHand(id, { type: "cast", spell: "ray-of-sickness" }));
+    fx.dice.push(7);
+    ok(await docs().heroicReroll(id, { kind: "damage", attack: 0, part: 0, die: 0 }));
+    for (let i = 0; i < 49; i++) {
+      fx.dice.push(10);
+      ok(await docs().rollTest(id, { skill: "arcana" }));
+    }
+    await renderApp(`/characters/${id}/sheet`);
+    const panel = await openPanel();
+    const current = () =>
+      within(panel)
+        .getAllByTestId("history-group")
+        .map((g) => within(g).queryByTestId("history-current"))
+        .find(Boolean) as HTMLElement;
+    await waitFor(() => expect(current()).toBeTruthy());
+    expect(current()).toHaveTextContent("damage 10");
+    expect(current()).toHaveTextContent("[7, 3]");
+    // The roll's own line keeps what was rolled first.
+    const root = within(panel)
+      .getAllByTestId("history-entry")
+      .find((l) => l.dataset.kind === "sheet_roll") as HTMLElement;
+    expect(within(root).getByTestId("history-dice")).toHaveTextContent("[2, 3]");
+    await act(() => docs().undo(id));
+    await waitFor(() => expect(current()).toHaveTextContent("[2, 3]"));
+    expect(current()).toHaveTextContent("damage 5");
+    await act(() => docs().redo(id));
+    await waitFor(() => expect(current()).toHaveTextContent("[7, 3]"));
+  });
+
+  it("healing and a use: what was asked and what it did, nothing rolled or made up", async () => {
+    const content = await testContext(fx.engine);
+    const id = await storeCharacter(fx.engine, await bard(fx.engine, 5), content);
+    ok(await docs().playAction(id, { type: "damage", amount: 5, damage_type: "fire" }));
+    ok(await docs().playAction(id, { type: "heal", amount: 2 }));
+    ok(await docs().playAction(id, { type: "use", key: BI }));
+    await renderApp(`/characters/${id}/sheet`);
+    const panel = await openPanel();
+    const lines = await within(panel).findAllByTestId("history-entry", {}, { timeout: 10_000 });
+    const [use, heal, damage] = lines as HTMLElement[];
+    expect(collapsed(damage as HTMLElement)).toMatch(/Takes 5 fire damage/);
+    expect(collapsed(damage as HTMLElement)).toMatch(/Applied: HP: max → \d+/);
+    expect(collapsed(heal as HTMLElement)).toMatch(/Heals 2 HP/);
+    expect(collapsed(heal as HTMLElement)).toMatch(/Applied: HP: \d+ → \d+/);
+    expect(collapsed(use as HTMLElement)).toMatch(/Uses Bardic Inspiration/);
+    expect(collapsed(use as HTMLElement)).toMatch(/Bardic Inspiration used: — → 1/);
+    for (const l of [use, heal, damage]) {
+      expect(within(l as HTMLElement).queryByTestId("history-outcome")).toBeNull();
+      expect(within(l as HTMLElement).queryByTestId("history-dice")).toBeNull();
+    }
   });
 });

@@ -440,7 +440,7 @@ function checkRefusal(x: Record<string, unknown>, at: string): void {
     if (Object.hasOwn(x, k)) refuse(R, `${at}.${k}`);
   const eff = x.effect as { mode: string; replaces_op: unknown; state_delta: unknown[] };
   const links = x.links as { follows: unknown; continues: unknown };
-  const ctx = x.context as { source: string; encounter_id: unknown };
+  const ctx = x.context as { source: string; encounter_id: unknown; round: unknown };
   const command = (refusal as { command: string }).command;
   const encounter = command.startsWith("encounter_");
   const followUp = command === "late_advantage" || command === "heroic_reroll";
@@ -464,7 +464,10 @@ function checkRefusal(x: Record<string, unknown>, at: string): void {
     links.continues !== null ||
     followUp !== (links.follows !== null) ||
     ctx.source !== (encounter ? "encounter" : "sheet") ||
-    encounter !== (ctx.encounter_id !== null)
+    encounter !== (ctx.encounter_id !== null) ||
+    // review03 R03-05: an encounter command has its round (0 before the fight starts), a sheet
+    // command none — the context is exact, never half filled.
+    (encounter ? !Number.isSafeInteger(ctx.round) || (ctx.round as number) < 0 : ctx.round !== null)
   )
     refuse(R, `${at}: a refusal changes, pays and rolls nothing`);
   const ps = x.participants as { record_id: string }[];

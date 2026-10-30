@@ -514,3 +514,39 @@ describe("persistence: mixed journal, days, Long Rests, conflicts", () => {
     expect(record(id)?.state).toBe(s);
   });
 });
+
+describe("the refusal's exact context (review03 R03-05)", () => {
+  it("encounter: a round is required (0 and 1 accepted, null refused); sheet: no encounter, no round; /1 entries read as before", async () => {
+    const { id, spell } = await emptyWizard();
+    ok(await docs().playAction(id, { type: "damage", amount: 1 }));
+    await docs().rollByHand(
+      id,
+      { type: "cast", spell: spell.id, slot_level: 1 } as RollWhat,
+      undefined,
+      { command: "sheet_cast", label: spell.name },
+    );
+    const sheet = refusals(id)[0] as HistoryEntry;
+    expect(() => checkEntry(sheet, "e")).not.toThrow();
+    const encounter = (round: unknown, extra: Record<string, unknown> = {}) => ({
+      ...structuredClone(sheet),
+      refusal: { command: "encounter_roll", label: spell.name },
+      context: { ...sheet.context, source: "encounter", encounter_id: "e-valid", round, ...extra },
+    });
+    expect(() => checkEntry(encounter(0), "e")).not.toThrow();
+    expect(() => checkEntry(encounter(1), "e")).not.toThrow();
+    expect(() => checkEntry(encounter(null), "e")).toThrow(/refusal/);
+    expect(() => checkEntry(encounter(-1), "e")).toThrow();
+    expect(() => checkEntry(encounter(1.5), "e")).toThrow();
+    expect(() => checkEntry(encounter(1, { encounter_id: null }), "e")).toThrow(/refusal/);
+    const sheetWithRound = { ...structuredClone(sheet), context: { ...sheet.context, round: 1 } };
+    expect(() => checkEntry(sheetWithRound, "e")).toThrow(/refusal/);
+    const sheetInEncounter = {
+      ...structuredClone(sheet),
+      context: { ...sheet.context, encounter_id: "e-valid" },
+    };
+    expect(() => checkEntry(sheetInEncounter, "e")).toThrow(/refusal/);
+    // An ordinary /1 entry (the damage taken on the sheet) reads as before.
+    const v1 = sessionEntries(id).find((e) => e.schema === "kenli.history/1") as HistoryEntry;
+    expect(() => checkEntry(v1, "e")).not.toThrow();
+  });
+});

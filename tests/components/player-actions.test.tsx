@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocuments } from "../../src/store/documents";
+import { sessionEntries } from "../../src/store/history";
 import { useRollAdditions, useRolls } from "../../src/store/rolls";
 import { useUi } from "../../src/store/ui";
 import { fighter } from "../fixtures/characters";
@@ -499,7 +500,7 @@ describe("the last roll on the sheet (review 04)", () => {
     expect(await screen.findByRole("region", { name: "Last roll" })).toBeInTheDocument();
   });
 
-  it("a spell blocked by armour without training: the engine's reason shown, Roll disabled", async () => {
+  it("a spell blocked by armour without training: the engine's reason shown; Roll is the attempt, refused and journaled (kenli F-011 review03 R03-02)", async () => {
     const build = await humanWizard(engine);
     const content = await testContext(engine);
     const fresh = await engine.createState(build, content);
@@ -527,6 +528,14 @@ describe("the last roll on the sheet (review 04)", () => {
       await screen.findAllByText("Ray of Sickness", {}, { timeout: 10_000 })
     )[0]?.closest("li") as HTMLElement;
     expect(within(row).getByText(blocked as string)).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Roll" })).toBeDisabled();
+    const roll = within(row).getByRole("button", { name: "Roll" });
+    expect(roll).toBeEnabled();
+    const before = useDocuments.getState().characters[id];
+    await userEvent.click(roll);
+    await waitFor(() =>
+      expect(sessionEntries(id).filter((e) => e.kind === "refused")).toHaveLength(1),
+    );
+    expect(useDocuments.getState().characters[id]).toBe(before);
+    expect(sessionEntries(id).find((e) => e.kind === "refused")?.messages[0]?.text).toBe(blocked);
   });
 });

@@ -233,10 +233,10 @@ function RollSpell({
   // Blocking: the spell can't be cast at all now (`blocked`), or something only the player can say
   // is missing (which spellcasting, a way to pay). A slot or free use with none left is a warning
   // next to Cast, not a lock: Cast sends the attempt (kenli F-011 §5.3).
+  // review03 R03-02: `blocked` (untrained armor, Rage…) is a rule, not a missing choice: a warning
+  // next to Cast, and Cast sends the attempt the engine refuses.
   let blocking: string | null = null;
-  if (spell.blocked) blocking = spell.blocked.text;
-  else if (leveled && pay === null)
-    blocking = spell.slots[0]?.reason?.text ?? t("sheet.chooseSlot");
+  if (leveled && pay === null) blocking = spell.slots[0]?.reason?.text ?? t("sheet.chooseSlot");
   else if (pickSource) blocking = t("sheet.chooseSpellcasting");
   const picked0 =
     pay?.kind === "slot"
@@ -245,9 +245,13 @@ function RollSpell({
         ? spell.free.find((f) => f.use === pay.use)
         : null;
   const warning =
-    blocking === null && picked0 && !picked0.available
-      ? (picked0.reason?.text ?? slotReason)
-      : null;
+    blocking !== null
+      ? null
+      : spell.blocked
+        ? spell.blocked.text
+        : picked0 && !picked0.available
+          ? (picked0.reason?.text ?? slotReason)
+          : null;
   const reason = blocking ?? warning;
   const reasonId = `cast-${spell.id}-${spell.source}`;
   return (

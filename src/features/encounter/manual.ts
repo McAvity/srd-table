@@ -34,12 +34,18 @@ export function byHandReasons(entry: Pick<OptionEntry, "reasons">): readonly Opt
 }
 
 /**
- * kenli F-011 §5.3: refused only for a resource with none left (a slot, a use): the option is still
- * the player's attempt — sent, refused by the engine and journaled, nothing spent or rolled.
- * Anything else (turn, economy, target, input…) keeps it unavailable.
+ * kenli F-011 §5.3 (review03 R03-02): the refusal codes that mean the command isn't complete yet —
+ * something only the player can still say (a target, an unknown or missing choice). A complete
+ * command the rules refuse (a resource, the turn, the economy, range…) stays the player's attempt:
+ * sent, refused by the engine and journaled, nothing spent or rolled.
  */
-export function onlyResourceRefused(reasons: readonly OptionReason[]): boolean {
-  return reasons.length > 0 && reasons.every((r) => r.category === "resource");
+export const INCOMPLETE_CODES: ReadonlySet<string> = new Set([
+  "incomplete",
+  "unknown",
+  "no_target",
+]);
+export function incompleteRefusal(codes: readonly string[]): boolean {
+  return codes.some((c) => INCOMPLETE_CODES.has(c));
 }
 
 /**
@@ -116,6 +122,9 @@ export function playedAs(
  */
 export function needsComposerByHand(entry: OptionEntry, sheet: PlaySheet | null): boolean {
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
+  // kenli F-011 (review03 R03-02): a leveled spell's slot — spent levels included — is chosen in
+  // the form, by hand as in automatic play.
+  if (entry.action.type === "cast" && (entry.action.slot_level ?? 0) > 0) return true;
   if (entry.strikes.length > 0) return true;
   const a = entry.action;
   if (a.type !== "attack" || !sheet) return false;

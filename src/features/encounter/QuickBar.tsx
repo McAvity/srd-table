@@ -21,7 +21,7 @@ import { t, tn } from "@/i18n";
 import { useDocuments } from "@/store/documents";
 import { type PlayWay, useSettings } from "@/store/settings";
 import { oddsText } from "./ActionComposer";
-import { byHandReasons, onlyResourceRefused, playedAs } from "./manual";
+import { byHandReasons, incompleteRefusal, playedAs } from "./manual";
 
 /** A stable empty list: a store selector must not return a new array each time. */
 const NO_FAVORITES: readonly string[] = [];
@@ -147,10 +147,15 @@ export function QuickBar({
     setReasons(null);
     if (needsComposer(tile.entry, way)) return onCompose(tile.entry, way);
     const played = playedAs(tile.entry.action, way, tile.entry.rollable);
-    const attempt = {
-      command: played.type === "roll" ? ("encounter_roll" as const) : ("encounter_action" as const),
-      label: tile.entry.label,
-    };
+    // Rolled by hand, a refusal opens the form instead (review03 R03-03): that first step isn't the
+    // player's final command, so nothing is journaled until Send there.
+    const attempt = byHand(tile)
+      ? null
+      : {
+          command:
+            played.type === "roll" ? ("encounter_roll" as const) : ("encounter_action" as const),
+          label: tile.entry.label,
+        };
     const result = await (played.type === "roll"
       ? rollAndPay(encounterId, played, false, attempt)
       : send(encounterId, played, attempt));
@@ -240,11 +245,15 @@ export function QuickBar({
                 onUnavailable={
                   gm
                     ? () => onCompose(tile.entry, way)
-                    : onlyResourceRefused(
-                          byHand(tile) ? byHandReasons(tile.entry) : tile.entry.reasons,
-                        )
-                      ? () => void use(tile)
-                      : undefined
+                    : needsComposer(tile.entry, way)
+                      ? () => onCompose(tile.entry, way)
+                      : incompleteRefusal(
+                            (byHand(tile) ? byHandReasons(tile.entry) : tile.entry.reasons).map(
+                              (r) => r.code,
+                            ),
+                          )
+                        ? undefined
+                        : () => void use(tile)
                 }
                 detail={[
                   t(`table.cost.${tile.entry.cost}`),

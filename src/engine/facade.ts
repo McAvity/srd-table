@@ -838,6 +838,15 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           const combatant = combatantFromCharacter(build, state, catalog);
           // kenli F-011 §5.3: the costs are checked on fixed dice first, so a roll it can't pay for
           // is refused before the session's dice are touched (what it costs never depends on them).
+          // review03 R03-02: a spell the rules don't let it cast now (the play sheet's `blocked`:
+          // untrained armor, Rage…) is refused here, as the engine's encounter does — a roll by hand
+          // doesn't check it itself. Forced (the GM), it goes on.
+          if (what.type === "cast" && !force) {
+            const line = computePlaySheet(build, state, catalog).spells.find(
+              (s) => s.id === what.spell,
+            );
+            if (line?.blocked) throw new PlayError([line.blocked.message]);
+          }
           const probe = rollByHand(combatant, what, { catalog, character, rng: FIXED_DICE });
           const checked = checkCosts(probe.costs, { catalog, name: combatant.name, character });
           const owed = checked.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));

@@ -42,11 +42,13 @@ import {
   changeText,
   costText,
   dayName,
+  diceLines,
   field,
   label,
   messagesOf,
   outcomeText,
   plain,
+  requestText,
   titleOf,
 } from "./format";
 
@@ -333,7 +335,9 @@ function currentText(entries: readonly HistoryEntry[], root: HistoryEntry): stri
     const current = projection(entries, root.group_id);
     if (!current) return null;
     const values = outcomeOf(root.kind, current, { label: label(field(root.request, "label")) });
-    return `${t("history.current")}: ${values.map(outcomeText).join(" | ")}`;
+    // review03 R03-04: the current dice too (after rerolls, a late Advantage, a Critical Hit).
+    const dice = diceLines(root.kind, current);
+    return `${t("history.current")}: ${values.map(outcomeText).join(" | ")}${dice.length ? ` — ${dice.join("; ")}` : ""}`;
   } catch {
     return t("history.currentAsRecorded");
   }
@@ -512,10 +516,22 @@ function EntryLine({
           {t("history.refusedBecause", { reason: rendered?.[0]?.[0] || e.messages[0].text })}
         </p>
       )}
+      {!refused && requestText(e, nameOfUse) && (
+        <p data-testid="history-request">{requestText(e, nameOfUse)}</p>
+      )}
       {e.outcome.length > 0 && (
         <p data-testid="history-outcome">{e.outcome.map(outcomeText).join(" | ")}</p>
       )}
-      {!refused && appliedText(e) && <p data-testid="history-applied">{appliedText(e)}</p>}
+      {!refused && diceLines(e.kind, e.result).length > 0 && (
+        <ul className="text-[13px] tabular-nums" data-testid="history-dice">
+          {diceLines(e.kind, e.result).map((l, i) => (
+            <li key={`${i}:${l}`}>{l}</li>
+          ))}
+        </ul>
+      )}
+      {!refused && appliedText(e, nameOfUse) && (
+        <p data-testid="history-applied">{appliedText(e, nameOfUse)}</p>
+      )}
       {e.rest && e.rest.dice.length > 0 && (
         <p>
           {t("history.restDice", {
