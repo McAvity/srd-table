@@ -52,7 +52,8 @@ export function InventoryTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
         ) : (
           <ul className="space-y-1.5">
             {play.inventory.map((item) => {
-              const def = magicById.get(item.item);
+              // kenli F-011: a custom item has no catalog id (`item: null`), so no magic either.
+              const def = item.item === null ? undefined : magicById.get(item.item);
               const stored = item.location === "stored";
               // A stored item can only be taken back, sold or removed (the engine refuses the rest).
               const usable = !stored && (item.charges !== null || def?.consumable === true);

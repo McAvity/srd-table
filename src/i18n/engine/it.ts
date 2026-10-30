@@ -868,6 +868,13 @@ export const ENGINE_IT = {
   "play.item_retrieved": "{item} ripreso (trasportato).",
   "refusal.item_stored": "{item} è riposto: riprendilo prima",
   "refusal.unequip_first": "Togli {item} prima di metterlo da parte",
+  "play.custom_item_added": "{item} aggiunto ({qty}).",
+  "refusal.custom_item_not_usable":
+    "{item} è un oggetto personalizzato: non può essere {what, select, equip {indossato o impugnato} attune {sintonizzato} use {usato} charges {caricato} sell {venduto} other {usato}}",
+  "refusal.custom_item_name": "Il nome di un oggetto personalizzato ha da 1 a {max} caratteri",
+  "refusal.custom_item_description":
+    "La descrizione di un oggetto personalizzato ha al massimo {max} caratteri",
+  "refusal.custom_item_weight": "Il peso è un numero di libbre, 0 o più, oppure sconosciuto",
   "state.stored_equipped": "{item} è riposto ma segnato come indossato",
 } as const satisfies Record<MessageCode, string>;
 
