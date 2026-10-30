@@ -144,6 +144,33 @@ describe("the portrait in a copy: exact bytes, or none", () => {
   }, 60_000);
 });
 
+describe("state v3 with custom items, exactly", () => {
+  it("custom lines (and the state's version 3) survive export, import and a reload byte for byte; journaled", async () => {
+    const id = await source("V1");
+    ok(
+      await docs().playAction(id, {
+        type: "add_custom_item",
+        name: "Sealed letter",
+        description: "For the abbess.",
+        weight_lb: 0.5,
+      }),
+    );
+    await flushNow();
+    const state = docs().characters[id]?.state as Loose;
+    expect(state.version).toBe(3);
+    expect(JSON.stringify(state)).toMatch(/Sealed letter/);
+    const x = await exported(id);
+    expect(x.copy.payload.character.state).toEqual(state);
+    const { r } = await importInto("V2", x.bytes);
+    expect(docs().characters[r.recordId]?.state).toEqual(state);
+    expect(
+      (await rowsOf(r.recordId)).some((e) => JSON.stringify(e.request).includes("add_custom_item")),
+    ).toBe(true);
+    await inst.reload();
+    expect(JSON.stringify((await row(r.recordId))?.state)).toBe(JSON.stringify(state));
+  }, 60_000);
+});
+
 describe("portrait refusals before any write", () => {
   it("MIME, SVG, bytes, base64, extra fields, limits and a decode that disagrees: refused with their code; nothing written", async () => {
     const id = await source("R1", png(10, 10));
