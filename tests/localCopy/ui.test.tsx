@@ -1,6 +1,6 @@
 /**
- * kenli F-007 T03 in the app: the Characters page's "Local copy with state and history" (preview,
- * then the file), "Load local copy" (whole-file check, preview, Create; the same copy again only as
+ * kenli F-007 T03 in the app: the Characters page's "Export character" (preview,
+ * then the file), "Import character" (whole-file check, preview, Create; the same copy again only as
  * an explicit separate copy; a refusal shown as text, nothing written), the session's Undo of the
  * import, the History panel on a copy (messages as plain text, references outside the copy named
  * and marked, a historical pending decision), and F-008's import pointing a local copy to its own.
@@ -110,9 +110,7 @@ describe("Characters page: local copy", () => {
     const before = await dumpDb();
     const user = userEvent.setup();
     await renderApp("/characters");
-    await user.click(
-      await screen.findByRole("button", { name: "Local copy with state and history" }),
-    );
+    await user.click(await screen.findByRole("button", { name: "Export character" }));
     const summary = await screen.findByTestId("local-copy-export-summary", {}, { timeout: 20_000 });
     expect(summary.textContent).toMatch(/595 history entries \(4 undone\), 6 days/);
     expect(screen.getByText(/A copy of this moment, not a sync/)).toBeInTheDocument();
@@ -130,7 +128,7 @@ describe("Characters page: local copy", () => {
     await inst.open("UI3");
     const user = userEvent.setup();
     await renderApp("/characters");
-    await user.click(await screen.findByRole("button", { name: "Load local copy" }));
+    await user.click(await screen.findByRole("button", { name: "Import character" }));
     await user.upload(screen.getByTestId("local-copy-file"), file);
     const preview = await screen.findByTestId("local-copy-preview", {}, { timeout: 20_000 });
     expect(within(preview).getByTestId("local-copy-entries").textContent).toBe(
@@ -148,7 +146,7 @@ describe("Characters page: local copy", () => {
     // after Create the app opens the copy's sheet; back to the list, the same file again
     cleanup();
     await renderApp("/characters");
-    await user.click(await screen.findByRole("button", { name: "Load local copy" }));
+    await user.click(await screen.findByRole("button", { name: "Import character" }));
     await user.upload(screen.getByTestId("local-copy-file"), file);
     expect(
       await screen.findByTestId("local-copy-already", {}, { timeout: 20_000 }),
@@ -176,14 +174,14 @@ describe("Characters page: local copy", () => {
     expect(Object.keys(docs().characters)).toEqual([id]);
   }, 90_000);
 
-  it("a malformed file: the refusal as text, nothing written; F-008's import points a local copy to its own", async () => {
+  it("a malformed file: the refusal as text, nothing written; the encounter import refuses a copy as a root", async () => {
     await inst.open("UI4");
     const before = await dumpDb();
     const user = userEvent.setup();
     await renderApp("/characters");
-    await user.click(await screen.findByRole("button", { name: "Load local copy" }));
+    await user.click(await screen.findByRole("button", { name: "Import character" }));
     const bad = new File(
-      ['{"format":"srd-table.local-copy/1","payload_sha256":"<b>x</b>","payload":{}}'],
+      ['{"format":"srd-table.local-copy/2","payload_sha256":"<b>x</b>","payload":{}}'],
       "bad.json",
     );
     await user.upload(screen.getByTestId("local-copy-file"), bad);
@@ -192,14 +190,17 @@ describe("Characters page: local copy", () => {
     expect(problem.querySelector("b")).toBeNull();
     expect(await dumpDb()).toBe(before);
     cleanup();
-    await renderApp("/characters");
+    // F-011 §8: Encounters imports an encounter only; a copy (any version) is refused as a root.
+    await renderApp("/encounters");
     await user.click(await screen.findByRole("button", { name: "Import…" }));
     await user.upload(
       screen.getByLabelText("Choose files"),
-      new File(['{"format":"srd-table.local-copy/1"}'], "copy.local-copy.json"),
+      new File(['{"format":"srd-table.local-copy/2"}'], "copy.local-copy.json"),
     );
     expect(
-      await screen.findByText(/A local copy with history: open it with “Load local copy”/),
+      await screen.findByText(
+        /This entrance doesn't import that: characters come in with “Import character”/,
+      ),
     ).toBeInTheDocument();
     expect(await dumpDb()).toBe(before);
   }, 30_000);

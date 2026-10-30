@@ -47,7 +47,10 @@ const file = (name: string, x: unknown) => ({
   bytes: new TextEncoder().encode(JSON.stringify(x)),
 });
 async function importFiles(files: Source) {
-  const p = await previewImport(files, { signal: new AbortController().signal });
+  const p = await previewImport(files, {
+    allowed: "encounter",
+    signal: new AbortController().signal,
+  });
   if (!p.ok) throw new Error(`${p.problem.code}: ${p.problem.detail}`);
   const r = await commitPlan(p.plan, { characters: {} });
   if (!r.ok) throw new Error(JSON.stringify(r.problems));
@@ -108,7 +111,9 @@ describe("stored items in the app", () => {
     expect(docs().characters[id]).toBe(after);
   });
 
-  it("a character transfer keeps location and version 2: exported, imported elsewhere, the same state", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("a character transfer keeps location and version 2: exported, imported elsewhere, the same state", async () => {
     const { id, sword } = await aFighter();
     await docs().playAction(id, { type: "store", id: sword, stored: true });
     const record = docs().characters[id];

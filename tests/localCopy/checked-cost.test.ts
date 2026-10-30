@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateLocalCopy } from "@/import/localCopy/format";
 import { contentSha } from "@/lib/canonical";
+import { asCopyV2 } from "./v2";
 
 // Synthetic historical JSON; actual engine/state integration is exercised by the Kenli7 smoke.
 const fixture = readFileSync(
@@ -17,7 +18,7 @@ const reason = {
   message: { code: "resource_empty", params: {}, text: "No slot" },
 };
 async function check(cost: unknown) {
-  const copy = JSON.parse(fixture);
+  const copy = await asCopyV2(JSON.parse(fixture));
   copy.payload.history.entries[0].costs = [cost];
   copy.payload_sha256 = await contentSha(copy.payload);
   return validateLocalCopy(new TextEncoder().encode(JSON.stringify(copy)), { engine: false });

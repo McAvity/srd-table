@@ -18,12 +18,14 @@ import {
   validateLocalCopy,
 } from "../../src/import/localCopy/format";
 import { mapLocalCopy } from "../../src/import/localCopy/map";
-import { contentSha } from "../../src/lib/canonical";
+import { contentSha, sha256Hex } from "../../src/lib/canonical";
+import { asCopyV2Text } from "./v2";
 
 const FIX = join(dirname(fileURLToPath(import.meta.url)), "fixtures");
 const read = (name: string) => readFileSync(join(FIX, name), "utf8");
-const LONG = read("long-pinned.local-copy.fixture");
-const EMPTY = read("empty-legacy.local-copy.fixture");
+// F-011 T04: the F-007 fixtures as `/2` (tests/localCopy/v2.ts); same data, new container.
+const LONG = await asCopyV2Text(read("long-pinned.local-copy.fixture"));
+const EMPTY = await asCopyV2Text(read("empty-legacy.local-copy.fixture"));
 const long = () => JSON.parse(LONG) as Mutable;
 const empty = () => JSON.parse(EMPTY) as Mutable;
 // biome-ignore lint/suspicious/noExplicitAny: test mutations reach anywhere in the file.
@@ -42,14 +44,13 @@ describe("valid examples", () => {
     expect(a.ok).toBe(true);
     if (a.ok) {
       expect(a.copy.payload.history.entries).toHaveLength(595);
-      expect(a.bytes_sha256).toBe(
-        "676712ef6fbbe3b31100106cb83e7015655f11f664352d7f219ffc406ff66b8f",
-      );
+      // F-011: the file's own bytes (the `/2` text the test made), not the F-007 fixture's.
+      expect(a.bytes_sha256).toBe(await sha256Hex(enc(LONG)));
     }
     const b = await validateLocalCopy(enc(EMPTY), { engine: false });
     expect(b.ok).toBe(true);
     if (b.ok) expect(b.copy.payload.history.meta).toBeNull();
-    expect(LOCAL_COPY_FORMAT).toBe("srd-table.local-copy/1");
+    expect(LOCAL_COPY_FORMAT).toBe("srd-table.local-copy/2");
     expect(LOCAL_COPY_LIMITS).toMatchObject({
       copyBytes: 20 * 1024 * 1024,
       jsonDepth: 64,
@@ -140,7 +141,8 @@ const MUTATIONS: Record<string, (c: Mutable) => Promise<Mutable> | Mutable> = {
     c.payload.history.entries[10].status = "undone";
     return c;
   },
-  format_newer: (c) => ({ ...c, format: "srd-table.local-copy/2" }),
+  // F-011: `/2` is this app's format now; the next one is newer.
+  format_newer: (c) => ({ ...c, format: "srd-table.local-copy/3" }),
   format_transfer: (c) => ({ ...c, format: "srd-table.transfer/1" }),
   unknown_top_field: (c) => ({ ...c, extra: 1 }),
   unknown_entry_field: (c) => {

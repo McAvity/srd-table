@@ -131,7 +131,8 @@ export function mapLocalCopy(copy: LocalCopy, o: MapOptions): MappedCopy {
       bytes_sha256: o.bytesSha,
       source: { file: o.fileName },
       imported_at: o.now,
-      state_origin: "exported",
+      // kenli F-011 §2.3: how the state came to be, as the copy says (exported, a new session…).
+      state_origin: p.character.state_origin.kind,
       extensions: { local_copy: localCopy },
     },
   };

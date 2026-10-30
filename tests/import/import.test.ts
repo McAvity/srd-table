@@ -25,6 +25,7 @@ import { useUi } from "../../src/store/ui";
 import { resetStores } from "../helpers/app";
 import {
   engineWithDice,
+  entranceFor,
   fileOf,
   fixtureJson,
   LIB,
@@ -53,6 +54,7 @@ async function preview(
   over: Parameters<typeof previewImport>[1] extends infer O ? Partial<O> : never = {},
 ) {
   const p = await previewImport(source, {
+    allowed: entranceFor(source),
     signal: new AbortController().signal,
     fetch: libraryFetch(),
     ...over,
@@ -127,7 +129,7 @@ describe("Q-01: an encounter and everything it needs, after one confirmation", (
   it("the same graph from files, matched by hash: party missing → refused, nothing written", async () => {
     const p = await previewImport(
       { files: [fileOf("encounters/mixed-duel.transfer.json")] },
-      { signal: new AbortController().signal },
+      { allowed: "encounter", signal: new AbortController().signal },
     );
     expect(p.ok ? "ok" : p.problem.code).toBe("dependency_missing");
     const files = [
@@ -237,11 +239,13 @@ describe("Q-02: versions side by side, each document on its own", () => {
     expect(docs().characters[ids.Sable as string]?.state.spell_slots_spent).toEqual([2]);
   });
 
-  it("same id and version with other bytes is a conflict; a new version installs next to the old", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("same id and version with other bytes is a conflict; a new version installs next to the old", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const p = await previewImport(
       { files: [fileOf("negative/pack-same-version-other-bytes.transfer.json")] },
-      { signal: new AbortController().signal },
+      { allowed: "encounter", signal: new AbortController().signal },
     );
     expect(p.ok ? "ok" : p.problem.code).toBe("pack_identity_conflict");
     const r = await commitPlan(
@@ -258,7 +262,9 @@ describe("Q-02: versions side by side, each document on its own", () => {
 });
 
 describe("Q-03 and F-004: what's imported arrives whole, or not at all", () => {
-  it("a build without a state: only a new character, only after ticking its initialization", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("a build without a state: only a new character, only after ticking its initialization", async () => {
     const plan = await preview({ url: `${LIB}s/${await buildOnlyBytes()}.json` }).catch(() => null);
     const filePlan =
       plan ??
@@ -291,7 +297,9 @@ describe("Q-03 and F-004: what's imported arrives whole, or not at all", () => {
     expect(wren?.origin).toMatchObject({ state_origin: "initialized-on-import" });
   });
 
-  it("refuses dropped fields, a state the content would change, and raw files on the wrong content", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("refuses dropped fields, a state the content would change, and raw files on the wrong content", async () => {
     const dropped = await preview({
       files: [
         "negative/build-dropped-field.transfer.json",
@@ -328,7 +336,9 @@ describe("Q-03 and F-004: what's imported arrives whole, or not at all", () => {
 });
 
 describe("duplicates, replacements, compare-and-set", () => {
-  it("an identical re-import is recognised; after play it's 'changed here'; an older one is older", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("an identical re-import is recognised; after play it's 'changed here'; an older one is older", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const again = await preview({ url: snapshot("wren") });
     expect(again.characters[0]?.candidates[0]?.relation).toBe("unchanged");
@@ -347,7 +357,9 @@ describe("duplicates, replacements, compare-and-set", () => {
     expect(older.characters[0]?.candidates[0]?.relation).toBe("older");
   });
 
-  it("replace: only the record picked, checked against its revision; undo brings the old one back", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("replace: only the record picked, checked against its revision; undo brings the old one back", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const id = byName("Wren")?.id as string;
     await docs().playAction(id, { type: "damage", amount: 1 });
@@ -387,7 +399,9 @@ describe("the commit: all or nothing, and actions racing it", () => {
     expect(Object.keys(docs().characters)).toHaveLength(0);
   });
 
-  it("an action asked for during a replacement runs after it and is refused, not lost; after a failed one it applies", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("an action asked for during a replacement runs after it and is refused, not lost; after a failed one it applies", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const id = byName("Wren")?.id as string;
     await docs().playAction(id, { type: "damage", amount: 2 });
@@ -414,7 +428,9 @@ describe("the commit: all or nothing, and actions racing it", () => {
     expect(docs().characters[id]?.state.hp.current).toBe(4);
   });
 
-  it("a delete asked for during a replacement is refused too; a duplicate says where it came from", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("a delete asked for during a replacement is refused too; a duplicate says where it came from", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const id = byName("Wren")?.id as string;
     await docs().playAction(id, { type: "damage", amount: 2 });
@@ -493,7 +509,9 @@ describe("storage upgrade and local export", () => {
     expect(stored?.build).toEqual(record.build);
   });
 
-  it("an installed pack exports as the same transfer identity, its SRD by exact ref", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("an installed pack exports as the same transfer identity, its SRD by exact ref", async () => {
     await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
     const key = (await (await db()).getAllKeys("packs"))[0] as string;
     const env = await exportInstalledPack(key, installationId());

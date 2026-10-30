@@ -25,7 +25,9 @@ const asFile = (rel: string) => {
 };
 
 describe("import dialog", () => {
-  it("a library URL: preview, then Import writes the character with its content", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("a library URL: preview, then Import writes the character with its content", async () => {
     const user = userEvent.setup();
     await renderApp("/characters");
     await user.click(await screen.findByRole("button", { name: "Import…" }));
@@ -41,7 +43,9 @@ describe("import dialog", () => {
     expect(wren?.state.hp.current).toBe(5);
   });
 
-  it("files: a build without a state waits for its initialization to be ticked", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("files: a build without a state waits for its initialization to be ticked", async () => {
     const user = userEvent.setup();
     await renderApp("/characters");
     await user.click(await screen.findByRole("button", { name: "Import…" }));

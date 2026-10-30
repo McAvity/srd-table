@@ -25,20 +25,18 @@ async function press(target: Locator) {
   else await target.click();
 }
 
+/** kenli F-011 T04: each character as its full copy, through "Import character" (one file each). */
 async function importBuilds(page: Page, names: string[]) {
-  await page.goto("/#/characters");
-  await button(page, "Import…").click();
-  await page
-    .getByLabel("Choose files")
-    .setInputFiles(names.map((n) => fixture(`${n.toLowerCase()}.json`)));
-  await page.getByRole("combobox", { name: "Content for these files" }).selectOption("campaign");
   for (const name of names) {
-    const card = page.getByTestId(`import-character-${name}`);
-    await card.getByRole("combobox").selectOption("new");
-    await card.getByRole("checkbox").check();
+    await page.goto("/#/characters");
+    await button(page, "Import character").click();
+    await page
+      .getByTestId("local-copy-file")
+      .setInputFiles(fixture(`${name.toLowerCase()}.local-copy.json`));
+    await expect(page.getByTestId("local-copy-preview")).toBeVisible({ timeout: 60_000 });
+    await button(page, /^Create (the|another separate) copy$/).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
-  await button(page, "Import").click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
 }
 
 async function openSheet(page: Page, name: string) {
@@ -368,7 +366,9 @@ test("more than 500 saved entries: all there after a reload, paged to the first"
   expect((await rowsOf(page, "history")).length).toBe(520);
 });
 
-test("an import replacing a character: its boundary, Undo and Redo, a reload; a copy starts empty; exports and deletion say what happens", async ({
+// kenli F-011 §8 (T04): superseded — a character transfer is no import root any more, so no
+// import replaces a character (a full copy is always a new one: e2e/portrait.spec.ts); kept, not run.
+test.skip("an import replacing a character: its boundary, Undo and Redo, a reload; a copy starts empty; exports and deletion say what happens", async ({
   page,
 }) => {
   await page.goto("/#/characters");

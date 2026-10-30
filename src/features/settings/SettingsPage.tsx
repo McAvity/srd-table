@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { Button, PageTitle, Reasons, Section } from "@/components/ui";
+import { ImportDialog } from "@/features/import/ImportDialog";
 import { LOCALES, t } from "@/i18n";
 import { exportInstalledPack } from "@/import/export";
 import { downloadJson } from "@/lib/files";
@@ -205,11 +206,13 @@ export function SettingsPage() {
 
 /**
  * Packs imported with documents (kenli F-008): each version kept apart, by its exact hash, used by
- * the documents pinned to it (not by the campaign's packs above). Exported as a transfer.
+ * the documents pinned to it (not by the campaign's packs above). Exported as a transfer. kenli
+ * F-011 §8: "Import pack" is the packs' own entrance (a pack transfer and its pack dependencies).
  */
 function InstalledPacks() {
   const { data } = useInstalledPacks();
   const [error, setError] = useState<string[] | null>(null);
+  const [importing, setImporting] = useState(false);
   async function onExport(key: string) {
     const env = await exportInstalledPack(key, installationId());
     if (!env) return;
@@ -241,6 +244,10 @@ function InstalledPacks() {
         <p className="mt-2 text-sm text-ink-muted">{t("settings.noInstalledPacks")}</p>
       )}
       <Reasons reasons={error} className="mt-2" />
+      <Button className="mt-2" icon="upload" onClick={() => setImporting(true)}>
+        {t("settings.importPack")}
+      </Button>
+      <ImportDialog open={importing} onOpenChange={setImporting} allowedRootKind="pack" />
     </Section>
   );
 }

@@ -142,7 +142,7 @@ describe("export → separate installation → import as a new character", () =>
     await liveEncounter("e-src77", "Something else in I2");
     const before = await dumpDb();
     const { result, copy, plan } = await importBytes(x.bytes);
-    expect(plan.summary.entries).toEqual({ total: 595, done: 591, undone: 4 });
+    expect(plan.summary.entries).toEqual({ total: 595, done: 591, undone: 4, refused: 0 });
     expect(plan.summary.days).toHaveLength(6);
     expect(plan.packs.present.map((p) => p.id)).toEqual(["srd-5.2.1", "test-actions"]);
     const { recordId } = ok(result);
@@ -285,7 +285,7 @@ describe("export → separate installation → import as a new character", () =>
     const x = await exportBytes(id);
     expect(await dumpDb()).toBe(before);
     expect(x.copy.payload.history).toEqual({
-      schema: "kenli.history/1",
+      schema: "kenli.history/2", // F-011: the container (its entries keep their own schema)
       entry_count: 0,
       meta: null,
       entries: [],

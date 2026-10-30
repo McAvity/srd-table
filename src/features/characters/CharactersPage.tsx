@@ -1,7 +1,9 @@
 /**
- * Characters: the list, create, import (files or a URL, kenli F-008) and export (the documents'
- * JSON, or a transfer with their content's identity), duplicate, delete. kenli F-007 T03: a local
- * copy with state and whole history (its own format, its own import; F-008's stay without history).
+ * Characters: the list, create, duplicate, delete. kenli F-011 T04 (AC-01): ONE export — the full
+ * copy (`srd-table.local-copy/2`: build, state, whole journal, exact packs, portrait) — and ONE
+ * import, of such a copy, from a file or a URL; it always makes a new character. The old raw
+ * build/state and character transfer exports and imports are gone (packs: Settings; encounters with
+ * their party: Encounters).
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -9,17 +11,11 @@ import { useState } from "react";
 import { Icon } from "@/components/Icon";
 import { Portrait } from "@/components/Portrait";
 import { Button, Dialog, Empty, HpBar, PageTitle } from "@/components/ui";
-import { ImportDialog } from "@/features/import/ImportDialog";
 import { t, tn } from "@/i18n";
-import { exportCharacter } from "@/import/export";
 import { contentLabel } from "@/import/plan";
-import { downloadJson } from "@/lib/files";
-import { fileSlug } from "@/lib/format";
 import { entryCount } from "@/persistence/history";
-import { installationId } from "@/persistence/sync";
 import { usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
-import { useUi } from "@/store/ui";
 import { LocalCopyExport } from "./LocalCopyExport";
 import { LocalCopyImport, LocalCopyLast } from "./LocalCopyImport";
 
@@ -27,7 +23,6 @@ export function CharactersPage() {
   const characters = useDocuments((s) => s.characters);
   const create = useDocuments((s) => s.createCharacter);
   const navigate = useNavigate();
-  const [importing, setImporting] = useState(false);
   const [loadingCopy, setLoadingCopy] = useState(false);
   const list = Object.values(characters).sort((a, b) => b.updated - a.updated);
 
@@ -45,14 +40,10 @@ export function CharactersPage() {
         <Button variant="primary" icon="plus" onClick={onCreate}>
           {t("characters.new")}
         </Button>
-        <Button icon="upload" onClick={() => setImporting(true)} title={t("characters.importHint")}>
-          {t("import.open")}
-        </Button>
-        <Button icon="book" onClick={() => setLoadingCopy(true)} data-testid="local-copy-open">
+        <Button icon="upload" onClick={() => setLoadingCopy(true)} data-testid="local-copy-open">
           {t("localCopy.import")}
         </Button>
       </div>
-      <ImportDialog open={importing} onOpenChange={setImporting} />
       <LocalCopyImport open={loadingCopy} onOpenChange={setLoadingCopy} />
       <LocalCopyLast />
       {list.length === 0 ? (
@@ -75,9 +66,6 @@ export function CharactersPage() {
   );
 }
 
-/** kenli F-006: an export carries no history, days or counters; say so (it stays on this device). */
-const localOnly = () => useUi.getState().toast([t("history.local")], "info", t("history.title"));
-
 function CharacterCard({ record }: { record: CharacterRecord }) {
   const { data } = usePlayView(record.id);
   const duplicate = useDocuments((s) => s.duplicateCharacter);
@@ -89,7 +77,6 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
   const name = record.build.name || t("common.unnamed");
   const sheet = data?.sheet;
   const classes = sheet?.classes.map((c) => `${c.name} ${c.level}`).join(" / ");
-  const slug = fileSlug(record.build.name, record.id);
 
   return (
     <article className="panel flex h-full gap-3 p-3">
@@ -143,38 +130,6 @@ function CharacterCard({ record }: { record: CharacterRecord }) {
           <Button
             size="sm"
             icon="download"
-            iconOnly
-            label={t("characters.exportBuild")}
-            onClick={() => {
-              downloadJson(`${slug}.json`, record.build);
-              localOnly();
-            }}
-          />
-          <Button
-            size="sm"
-            icon="scroll"
-            iconOnly
-            label={t("characters.exportState")}
-            onClick={() => {
-              downloadJson(`${slug}.state.json`, record.state);
-              localOnly();
-            }}
-          />
-          <Button
-            size="sm"
-            icon="upload"
-            iconOnly
-            label={t("characters.exportTransfer")}
-            onClick={() =>
-              void exportCharacter(record, installationId()).then((env) => {
-                downloadJson(`${slug}.transfer.json`, env);
-                localOnly();
-              })
-            }
-          />
-          <Button
-            size="sm"
-            icon="book"
             iconOnly
             label={t("localCopy.export")}
             onClick={() => setCopying(true)}

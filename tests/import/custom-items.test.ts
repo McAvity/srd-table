@@ -125,7 +125,9 @@ describe("custom items in the app", () => {
     }
   });
 
-  it("a character transfer keeps the custom line and version 3", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("a character transfer keeps the custom line and version 3", async () => {
     const { id } = await aFighter();
     await docs().playAction(id, {
       type: "add_custom_item",
@@ -143,7 +145,7 @@ describe("custom items in the app", () => {
     await loadAll();
     const p = await previewImport(
       { files: [{ name: "c.json", bytes: new TextEncoder().encode(json(env)) }] },
-      { signal: new AbortController().signal },
+      { allowed: "encounter", signal: new AbortController().signal },
     );
     if (!p.ok) throw new Error(`${p.problem.code}: ${p.problem.detail}`);
     const r = await commitPlan(p.plan, { characters: {} });

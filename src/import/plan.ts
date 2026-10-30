@@ -8,9 +8,10 @@
 import type { CharacterBuild, CharacterState, Encounter } from "srd-rules-engine";
 import { engine } from "@/engine/client";
 import { type ContentContext, canonicalJson, contextKey, type PackRef } from "@/lib/canonical";
-import { changedFields, droppedFields, isStateFile, pairCharacterFiles } from "@/lib/files";
+import { droppedFields, isStateFile, pairCharacterFiles } from "@/lib/files";
 import type { RecordOrigin } from "@/persistence/db";
 import { type CharacterRecord, characterKeysOf, type EncounterRecord } from "@/store/documents";
+import { checkCharacterWith } from "./checkCharacter";
 import type { Graph, GraphNode, LocalMatch } from "./resolve";
 import { type Envelope, type PartyRef, packOfEnvelope, type Revision } from "./transfer";
 
@@ -123,56 +124,13 @@ export interface Records {
 const problem = (code: string, detail = ""): Problem => ({ code, detail });
 
 /** The F-004 checks on a character's documents, on its own content (contract §5.4). */
+/** The F-004 checks on the app's engine (the worker); the pure function is `checkCharacterWith`. */
 export async function checkCharacter(
   rawBuild: unknown,
   rawState: unknown | null,
   content: ContentContext | null,
 ): Promise<{ build: CharacterBuild | null; state: CharacterState | null; problems: Problem[] }> {
-  const ctx = content ?? undefined;
-  const problems: Problem[] = [];
-  if (content) {
-    const ok = await engine().checkContent(content);
-    if (!ok.ok)
-      return {
-        build: null,
-        state: null,
-        problems: [problem(contextCode(ok.reasons), ok.reasons.join("; "))],
-      };
-  }
-  const parsed = await engine().parseBuild(rawBuild);
-  if (!parsed.ok)
-    return {
-      build: null,
-      state: null,
-      problems: [problem("build_invalid", parsed.reasons.join("; "))],
-    };
-  const lostBuild = droppedFields(rawBuild, parsed.build);
-  if (lostBuild.length) problems.push(problem("fields_dropped", lostBuild.join(", ")));
-  const view = await engine().evaluate(parsed.build, ctx);
-  const buildErrors = view.report.issues.filter((i) => i.severity === "error");
-  if (buildErrors.length)
-    problems.push(problem("build_invalid", buildErrors.map((i) => i.message).join("; ")));
-  if (rawState === null || problems.length) return { build: parsed.build, state: null, problems };
-  const ps = await engine().parseState(rawState);
-  if (!ps.ok)
-    return {
-      build: parsed.build,
-      state: null,
-      problems: [problem("state_invalid", ps.reasons.join("; "))],
-    };
-  const lostState = droppedFields(rawState, ps.state);
-  if (lostState.length) problems.push(problem("fields_dropped", lostState.join(", ")));
-  const stateErrors = (await engine().validateState(parsed.build, ps.state, ctx)).filter(
-    (i) => i.severity === "error",
-  );
-  if (stateErrors.length)
-    problems.push(problem("state_invalid", stateErrors.map((i) => i.message).join("; ")));
-  if (!problems.length) {
-    const fitted = await engine().reconcileState(parsed.build, ps.state, ctx);
-    const changed = changedFields(ps.state, fitted.state);
-    if (changed.length) problems.push(problem("state_would_change", changed.join(", ")));
-  }
-  return { build: parsed.build, state: ps.state, problems };
+  return checkCharacterWith(engine(), rawBuild, rawState, content);
 }
 
 const contextCode = (reasons: readonly string[]) =>

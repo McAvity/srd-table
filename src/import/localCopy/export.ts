@@ -14,6 +14,16 @@ import { CAMPAIGN_CONTEXT_KEY, parsePrepared, settingsFingerprint } from "@/offl
 
 export { CAMPAIGN_CONTEXT_KEY, settingsFingerprint };
 
+import {
+  checkImageBytes,
+  decodeChecked,
+  imageDecoder,
+  PORTRAIT_LIMITS,
+  PortraitError,
+  type PortraitMime,
+  sniff,
+  toBase64,
+} from "@/lib/image";
 import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { isReleaseBuild, RELEASE_ID } from "@/offline/release";
 import { db, packKey, type StoredCharacter, type StoredPack } from "@/persistence/db";
@@ -25,8 +35,10 @@ import { readSettings } from "@/store/settings";
 import { exportPack } from "../export";
 import {
   asRefused,
+  type CopyPortrait,
   checkStructure,
   externalOf,
+  HISTORY_CONTAINER,
   ID,
   inheritedEncounterNames,
   LOCAL_COPY_FORMAT,
@@ -48,6 +60,8 @@ export interface ExportSummary {
   readonly packs: readonly PackRef[];
   readonly bytes: number;
   readonly legacy: boolean;
+  /** The portrait carried (`null`: none). */
+  readonly portrait: { readonly mime: PortraitMime; readonly bytes: number } | null;
 }
 
 export type ExportResult =
@@ -73,6 +87,8 @@ interface Snapshot {
   };
   readonly prepared: unknown;
   readonly encounters: ReadonlyMap<string, string>;
+  /** The portrait Blob read in the same transaction (kenli F-011 §3.2), `null`: none. */
+  readonly portrait: Blob | null;
 }
 
 /** `<slug>-<YYYYMMDD-HHMM>.local-copy.json` (local time). */
@@ -120,7 +136,7 @@ async function snapshot(recordId: string): Promise<Snapshot> {
   clean();
   const database = await db();
   const tx = database.transaction(
-    ["characters", "encounters", "history", "history_meta", "packs", "settings"],
+    ["characters", "encounters", "history", "history_meta", "packs", "settings", "portraits"],
     "readonly",
   );
   const record = await tx.objectStore("characters").get(recordId);
@@ -145,6 +161,9 @@ async function snapshot(recordId: string): Promise<Snapshot> {
   }
   const encounters = new Map<string, string>();
   for (const e of await tx.objectStore("encounters").getAll()) encounters.set(e.id, e.name);
+  // kenli F-011 §3.2: the portrait as it is with this very record revision (a portrait write is a
+  // revision of the record, §3.1, so the pair can't be torn).
+  const portrait = (await tx.objectStore("portraits").get(recordId)) ?? null;
   await tx.done;
   // The snapshot is what this tab shows: same document revision, same saved head, nothing new.
   clean();
@@ -161,10 +180,59 @@ async function snapshot(recordId: string): Promise<Snapshot> {
     campaign: { packs: settings.packs, sources: settings.sources },
     prepared,
     encounters,
+    portrait,
   };
 }
 
+/**
+ * kenli F-011 §3.2: the stored portrait as a copy carries it. Its type is its bytes' (never
+ * `Blob.type`: WebKit may store PNG for an asked WebP); over 5 MiB, or an old type (GIF, SVG,
+ * AVIF, HEIC…) is refused with what to do — the Blob stays as it is, nothing is converted or left
+ * out. Then the same checks as an import, its full decode included.
+ */
+async function portraitOfBlob(blob: Blob | null): Promise<CopyPortrait | null> {
+  if (!blob) return null;
+  if (blob.size > PORTRAIT_LIMITS.bytes)
+    refuse(
+      "limit_portrait_bytes",
+      "Portrait is larger than 5 MiB. Choose a smaller image in the portrait editor and export again.",
+    );
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const kind = sniff(bytes);
+  if (kind !== "png" && kind !== "jpeg" && kind !== "webp")
+    refuse(
+      "portrait_unsupported_stored",
+      `This portrait's format (${kind}) isn't supported. Choose a PNG, JPEG or WebP version in the portrait editor and export again.`,
+    );
+  try {
+    const head = checkImageBytes(bytes);
+    await decodeChecked(bytes, head.mime, head, imageDecoder());
+    return { mime: head.mime, bytes: bytes.length, base64: toBase64(bytes) };
+  } catch (error) {
+    if (error instanceof PortraitError) return refuse(error.code, error.detail);
+    throw error;
+  }
+}
+
 /** Outside the transaction: the context, packs, external names, hash, bytes and the self-check. */
+/**
+ * kenli F-011 §2.3: a record's origin as a copy carries it — an earlier copy's origin keeps its
+ * external names but not its own origin (`source_origin: null`), so origins never chain up.
+ */
+function flatOrigin(origin: StoredCharacter["origin"]): Payload["character"]["origin"] {
+  if (!origin) return null;
+  const o = structuredClone(origin);
+  if (o.kind === "import" && o.extensions && Object.hasOwn(o.extensions, "local_copy")) {
+    const lc = o.extensions.local_copy as Record<string, unknown> | null;
+    if (lc && typeof lc === "object")
+      return {
+        ...o,
+        extensions: { ...o.extensions, local_copy: { ...lc, source_origin: null } },
+      };
+  }
+  return o;
+}
+
 async function build(recordId: string, s: Snapshot, now: number): Promise<ExportResult> {
   const { record, meta, rows } = s;
   let context: ContentContext;
@@ -203,7 +271,7 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
   if (rows.some((e, i) => e.record_id !== recordId || e.seq !== i + 1))
     return refuse("history_head", "rows out of order");
   const history = {
-    schema: "kenli.history/1" as const,
+    schema: HISTORY_CONTAINER as typeof HISTORY_CONTAINER,
     entry_count: rows.length,
     meta: meta ? structuredClone(meta) : null,
     entries: structuredClone(rows) as HistoryEntry[],
@@ -217,6 +285,7 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       ? (inherited.get(e.encounter_id) ?? null)
       : (s.encounters.get(e.encounter_id) ?? null);
   const build = record.build as { name?: unknown };
+  const portrait = await portraitOfBlob(s.portrait);
   const payload: Payload = {
     source: {
       installation_id: installationId(),
@@ -227,6 +296,7 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       exported_at: now,
       release_id: isReleaseBuild(RELEASE_ID) ? RELEASE_ID : null,
       legacy_context: legacy,
+      producer: null,
     },
     character: {
       name: typeof build.name === "string" ? build.name : "",
@@ -234,7 +304,8 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       state: structuredClone(record.state) as Record<string, unknown>,
       state_origin: { kind: "exported" },
       context: structuredClone(context),
-      origin: record.origin ? structuredClone(record.origin) : null,
+      origin: flatOrigin(record.origin),
+      portrait,
     },
     history,
     external,
@@ -266,6 +337,7 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       packs: context.packs,
       bytes: bytes.byteLength,
       legacy: !record.content,
+      portrait: portrait ? { mime: portrait.mime, bytes: portrait.bytes } : null,
     },
   };
 }

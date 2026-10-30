@@ -306,6 +306,7 @@ describe("a failed save, retried; the unique index (AC-04)", () => {
 describe("import, copy, delete (R01-02, AC-06)", () => {
   async function preview(source: Source): Promise<Plan> {
     const p = await previewImport(source, {
+      allowed: "encounter",
       signal: new AbortController().signal,
       fetch: libraryFetch(),
     });
@@ -317,7 +318,9 @@ describe("import, copy, delete (R01-02, AC-06)", () => {
   const keyOf = (plan: Plan, title: string) =>
     plan.characters.find((c) => c.title === title)?.key as string;
 
-  it("replace keeps the journal and days, adds one boundary; its Undo is a status; all survives a reload", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("replace keeps the journal and days, adds one boundary; its Undo is a status; all survives a reload", async () => {
     ok(await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} }));
     const id = byName("Wren")?.id as string;
     expect(await journal(id)).toEqual([]); // a new import starts empty
@@ -355,7 +358,9 @@ describe("import, copy, delete (R01-02, AC-06)", () => {
     expect((await longRests(id)).total).toBe(1);
   });
 
-  it("an import refuses a character whose journal changed in another tab: nothing written", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("an import refuses a character whose journal changed in another tab: nothing written", async () => {
     ok(await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} }));
     const id = byName("Wren")?.id as string;
     hist().ensureMeta(id);

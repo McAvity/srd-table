@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { setEngine } from "../../src/engine/client";
 import type { EngineFacade } from "../../src/engine/facade";
 import { nodeFacade } from "../../src/engine/node";
+import type { AllowedRootKind, Source } from "../../src/import/resolve";
 
 export const FIX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/transfer");
 export const LIB = "https://host.test/dnd/library/";
@@ -59,4 +60,21 @@ export function engineWithDice(): { engine: EngineFacade; dice: number[] } {
   const engine = nodeFacade({ rng: { int: (min: number) => dice.shift() ?? min } });
   setEngine(engine);
   return { engine, dice };
+}
+
+/**
+ * kenli F-011 §8: the entrance a test's source goes through — Settings for packs only, else
+ * Encounters (where a character root is refused: `root_kind_not_allowed`).
+ */
+export function entranceFor(source: Source): AllowedRootKind {
+  const isPack = (bytes: Uint8Array) => {
+    try {
+      return JSON.parse(new TextDecoder().decode(bytes)).kind === "pack";
+    } catch {
+      return false;
+    }
+  };
+  if ("files" in source) return source.files.every((f) => isPack(f.bytes)) ? "pack" : "encounter";
+  const packs = [snapshot("a1"), snapshot("a2"), `${LIB}d/pack/synthetic-a.json`];
+  return packs.includes(source.url) ? "pack" : "encounter";
 }

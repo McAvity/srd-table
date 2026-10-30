@@ -45,7 +45,7 @@ beforeEach(async () => {
 async function importDuel() {
   const p = await previewImport(
     { url: `${LIB}d/encounter/mixed-duel.json` },
-    { signal: new AbortController().signal, fetch: libraryFetch() },
+    { allowed: "encounter", signal: new AbortController().signal, fetch: libraryFetch() },
   );
   if (!p.ok) throw new Error(p.problem.code);
   expect((await commitPlan(p.plan, { characters: {} })).ok).toBe(true);

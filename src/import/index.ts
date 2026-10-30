@@ -13,7 +13,7 @@ import { useSettings } from "@/store/settings";
 import { characterContent } from "./export";
 import type { Limits } from "./fetch";
 import { type Plan, type Problem, planRaw, planTransfer, type Records } from "./plan";
-import { type Graph, resolveGraph, type Source } from "./resolve";
+import { type AllowedRootKind, type Graph, resolveGraph, type Source } from "./resolve";
 import { ImportError } from "./transfer";
 
 export { commitPlan } from "./commit";
@@ -25,9 +25,11 @@ export type {
   PlanCharacter,
   Problem,
 } from "./plan";
-export type { Source } from "./resolve";
+export type { AllowedRootKind, Source } from "./resolve";
 
 export interface PreviewOptions {
+  /** The entrance (F-011 §8): Settings imports packs, Encounters an encounter. */
+  readonly allowed: AllowedRootKind;
   readonly signal: AbortSignal;
   readonly fetch?: typeof fetch;
   readonly limits?: Partial<Limits>;
@@ -69,6 +71,7 @@ export async function previewImport(source: Source, options: PreviewOptions): Pr
       installation = null;
     }
     const graph = await resolveGraph(source, {
+      allowed: options.allowed,
       installed,
       served,
       installation,

@@ -43,21 +43,20 @@ async function fillOpenChoices(page: Page) {
 }
 
 /**
- * Import character files as a player does (kenli F-008): the import dialog, the campaign's content
- * for plain files, and for a build without a play state a new character with its state initialized.
+ * Import characters as a player does: kenli F-011 T04 — each one's full copy through "Import
+ * character" (the only character entrance; files named by `<name>.local-copy.json`).
  */
-async function importBuilds(page: Page, files: string[], names: string[]) {
-  await page.goto("/#/characters");
-  await button(page, "Import…").click();
-  await page.getByLabel("Choose files").setInputFiles(files);
-  await page.getByRole("combobox", { name: "Content for these files" }).selectOption("campaign");
+async function importBuilds(page: Page, _files: string[], names: string[]) {
   for (const name of names) {
-    const card = page.getByTestId(`import-character-${name}`);
-    await card.getByRole("combobox").selectOption("new");
-    await card.getByRole("checkbox").check();
+    await page.goto("/#/characters");
+    await button(page, "Import character").click();
+    await page
+      .getByTestId("local-copy-file")
+      .setInputFiles(fixture(`${name.toLowerCase()}.local-copy.json`));
+    await expect(page.getByTestId("local-copy-preview")).toBeVisible({ timeout: 60_000 });
+    await button(page, /^Create (the|another separate) copy$/).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
   }
-  await button(page, "Import").click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.goto("/#/characters");
 }
 

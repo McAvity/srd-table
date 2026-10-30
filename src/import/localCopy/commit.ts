@@ -21,6 +21,7 @@
 import { create } from "zustand";
 import { engine } from "@/engine/client";
 import { type PackRef, packRefOf } from "@/lib/canonical";
+import { imageDecoder } from "@/lib/image";
 import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import { db, packKey, type StoredPack } from "@/persistence/db";
 import {
@@ -33,11 +34,14 @@ import {
 } from "@/persistence/sync";
 import { type CharacterRecord, lockDocuments, newId, useDocuments } from "@/store/documents";
 import { type HistoryEntry, type HistoryMeta, useHistory } from "@/store/history";
+import { usePortraits } from "@/store/portraits";
 import {
   asRefused,
   checkStructure,
   checkWithEngine,
+  decodePortrait,
   localCopyOf,
+  portraitOf,
   Refusal,
   type Refused,
   refuse,
@@ -69,6 +73,8 @@ interface LastImport {
   readonly meta: HistoryMeta | null;
   readonly entries: readonly HistoryEntry[];
   readonly packs: readonly StoredPack[];
+  /** kenli F-011 §3.3: the portrait it wrote (Redo writes it again), `null`: none. */
+  readonly portrait: Blob | null;
   readonly state: "done" | "undone";
 }
 
@@ -110,6 +116,7 @@ async function publish(
   record: CharacterRecord,
   meta: HistoryMeta | null,
   packs: readonly StoredPack[],
+  portrait: Blob | null,
 ): Promise<void> {
   const fault = (step: PublishStep) => {
     if (import.meta.env.DEV) localCopyFaults.publish?.(step);
@@ -125,12 +132,14 @@ async function publish(
     if (meta) useHistory.getState().published([], [meta]);
     fault("baseline");
     markCommitted({ characters: [record], encounters: [], meta: meta ? [meta] : [] });
+    usePortraits.getState().adopt(record.id, portrait);
   } catch (error) {
     // Nothing of a half publication stays: the autosave would take the record for one it never
     // saved (a conflict) or a baseline without its record for a deletion.
     forgetCommitted([record.id]);
     useDocuments.getState().withdrawLocalCopy(record.id);
     useHistory.getState().saved({ entries: [], meta: [], dropped: [record.id] });
+    usePortraits.getState().forget(record.id);
     throw error;
   }
 }
@@ -148,10 +157,14 @@ async function commitLocalCopyNow(
   // The whole file again (§4): the plan's copy may have been shown for a while.
   try {
     await checkStructure(structuredClone(plan.copy));
+    // kenli F-011 §2.2: the portrait fully decoded again (or refused), before anything is written.
+    await decodePortrait(plan.copy, imageDecoder());
     await checkWithEngine(plan.copy);
   } catch (error) {
     return asRefused(error);
   }
+  const picture = portraitOf(plan.copy);
+  const portrait = picture ? new Blob([picture.bytes as BlobPart], { type: picture.mime }) : null;
   plan.import_id ??= newId("lc");
   const importId = plan.import_id;
   const now = Date.now();
@@ -167,12 +180,13 @@ async function commitLocalCopyNow(
     record: CharacterRecord;
     meta: HistoryMeta | null;
     entries: HistoryEntry[];
+    portrait: Blob | null;
   } | null = null;
   try {
     await writeQueue(async () => {
       const database = await db();
       const tx = database.transaction(
-        ["packs", "characters", "history", "history_meta"],
+        ["packs", "characters", "history", "history_meta", "portraits"],
         "readwrite",
       );
       try {
@@ -185,7 +199,9 @@ async function commitLocalCopyNow(
             .objectStore("history")
             .index("by_record_seq")
             .getAll(IDBKeyRange.bound([retry.id, 0], [retry.id, Number.MAX_SAFE_INTEGER]));
-          existing = { record: retry as CharacterRecord, meta, entries };
+          // The record and its portrait as one pair (§3.3): the same revision, read together.
+          const shown = (await tx.objectStore("portraits").get(retry.id)) ?? null;
+          existing = { record: retry as CharacterRecord, meta, entries, portrait: shown };
           await tx.done;
           return;
         }
@@ -208,6 +224,7 @@ async function commitLocalCopyNow(
         const history = tx.objectStore("history");
         for (const e of mapped.entries) await history.add(e);
         if (mapped.meta) await tx.objectStore("history_meta").add(mapped.meta);
+        if (portrait) await tx.objectStore("portraits").add(portrait, mapped.record.id);
         await tx.done;
       } catch (error) {
         try {
@@ -226,10 +243,12 @@ async function commitLocalCopyNow(
     record: CharacterRecord;
     meta: HistoryMeta | null;
     entries: HistoryEntry[];
+    portrait: Blob | null;
   } | null;
   const record = found?.record ?? mapped.record;
   const meta = found ? found.meta : mapped.meta;
   const entries = found?.entries ?? mapped.entries;
+  const shownPortrait = found ? found.portrait : portrait;
   if (found) {
     // A technical retry: a copy published before (and maybe played since) is left as it is.
     const shown = alreadyPublished(record.id);
@@ -243,7 +262,7 @@ async function commitLocalCopyNow(
       };
   }
   try {
-    await publish(record, meta, packs);
+    await publish(record, meta, packs, shownPortrait);
   } catch (error) {
     return {
       ok: "saved_unpublished",
@@ -252,7 +271,15 @@ async function commitLocalCopyNow(
       detail: error instanceof Error ? error.message : String(error),
     };
   }
-  setLast({ import_id: importId, record, meta, entries, packs, state: "done" });
+  setLast({
+    import_id: importId,
+    record,
+    meta,
+    entries,
+    packs,
+    portrait: shownPortrait,
+    state: "done",
+  });
   return { ok: true, recordId: record.id, import_id: importId };
 }
 
@@ -272,7 +299,12 @@ async function undoLocalCopyImportNow(): Promise<
         return refuse("undo_import_changed", "the copy changed since the import");
       await writeQueue(async () => {
         const database = await db();
-        const tx = database.transaction(["characters", "history", "history_meta"], "readwrite");
+        // kenli F-011 §3.4: the portrait goes with the copy, in the same transaction. A portrait
+        // changed since (any tab) raised the record's `rev`, so the check below refuses it.
+        const tx = database.transaction(
+          ["characters", "history", "history_meta", "portraits"],
+          "readwrite",
+        );
         try {
           const row = await tx.objectStore("characters").get(id);
           if (!row) refuse("undo_import_gone", id);
@@ -286,6 +318,7 @@ async function undoLocalCopyImportNow(): Promise<
           for (let c = await index.openCursor(range); c; c = await c.continue()) await c.delete();
           await tx.objectStore("history_meta").delete(id);
           await tx.objectStore("characters").delete(id);
+          await tx.objectStore("portraits").delete(id);
           await tx.done;
         } catch (error) {
           try {
@@ -299,6 +332,7 @@ async function undoLocalCopyImportNow(): Promise<
       });
       forgetCommitted([id]);
       useDocuments.getState().withdrawLocalCopy(id);
+      usePortraits.getState().forget(id);
       useHistory.getState().saved({ entries: [], meta: [], dropped: [id] });
       setLast({ ...last, state: "undone" });
       return { ok: true as const, recordId: id };
@@ -321,7 +355,10 @@ async function redoLocalCopyImportNow(): Promise<
   try {
     await writeQueue(async () => {
       const database = await db();
-      const tx = database.transaction(["characters", "history", "history_meta"], "readwrite");
+      const tx = database.transaction(
+        ["characters", "history", "history_meta", "portraits"],
+        "readwrite",
+      );
       try {
         const row = await tx.objectStore("characters").get(id);
         if (row) {
@@ -342,6 +379,8 @@ async function redoLocalCopyImportNow(): Promise<
         await tx.objectStore("characters").add(last.record);
         for (const e of last.entries) await tx.objectStore("history").add(e);
         if (last.meta) await tx.objectStore("history_meta").add(last.meta);
+        // kenli F-011 §3.4: the same portrait again, with the record (never another one).
+        if (last.portrait) await tx.objectStore("portraits").put(last.portrait, id);
         await tx.done;
       } catch (error) {
         try {
@@ -362,7 +401,7 @@ async function redoLocalCopyImportNow(): Promise<
   if (alreadyPublished(id) === "partial")
     return { ok: false, code: "publication_failed", detail: "shown but not saved here: reload" };
   try {
-    await publish(last.record, last.meta, last.packs);
+    await publish(last.record, last.meta, last.packs, last.portrait);
   } catch (error) {
     // Written again but not shown: Redo stays offered (it only shows the written copy) and a
     // reload shows it too.

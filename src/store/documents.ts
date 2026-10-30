@@ -315,6 +315,11 @@ export interface DocumentsState {
    * source's stack is never carried over.
    */
   publishLocalCopy(record: CharacterRecord): void;
+  /**
+   * kenli F-011 §3.1: a portrait write committed this record's next revision (`rev + 1`, the same
+   * documents) in IndexedDB: show it, with no undo step or journal entry of its own.
+   */
+  publishRevision(record: CharacterRecord): void;
   /** kenli F-007 T03: a local copy's Undo deleted it from the database: drop it from the session. */
   withdrawLocalCopy(id: string): void;
 }
@@ -1633,6 +1638,14 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           revs: bump(s.revs, ...ids),
         };
       });
+    },
+
+    publishRevision(record) {
+      set((s) =>
+        Object.hasOwn(s.characters, record.id)
+          ? { characters: { ...s.characters, [record.id]: record }, revs: bump(s.revs, record.id) }
+          : s,
+      );
     },
 
     publishLocalCopy(record) {

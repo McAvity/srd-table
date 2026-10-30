@@ -28,6 +28,7 @@ import {
 } from "../helpers/transfer";
 
 const env = (over: Partial<Environment> = {}): Environment => ({
+  allowed: "encounter",
   installed: [],
   served: [refs.srd],
   installation: null,
@@ -164,28 +165,35 @@ describe("resolving the graph", () => {
   });
 
   it("installed packs satisfy dependencies; another version coexists; other bytes conflict", async () => {
+    // F-011 §8: a character is no root any more; its packs are reached through an encounter.
     const a1 = refs["synthetic-a@1.0.0"];
-    const g = await resolveGraph({ url: snapshot("wren") }, env({ installed: [a1] }));
+    const g = await resolveGraph({ url: snapshot("encounter") }, env({ installed: [a1] }));
     if (g.kind !== "transfer") throw new Error("raw");
     expect(g.satisfied.map((s) => s.by).sort()).toEqual(["installed", "served"]);
-    expect(await code({ url: snapshot("sable") }, env({ installed: [a1] }))).toBe("ok");
+    expect(keys(g)).toContain("pack:synthetic-a@2.0.0");
     expect(
       await code(
         { files: [fileOf("negative/pack-same-version-other-bytes.transfer.json")] },
-        env({ installed: [a1] }),
+        env({ allowed: "pack", installed: [a1] }),
       ),
     ).toBe("pack_identity_conflict");
   });
 
   it("refuses cycles, changed snapshots, other origins, redirects, HTML and HTTP errors", async () => {
     expect(
-      await code({
-        files: [fileOf("negative/cycle-x.transfer.json"), fileOf("negative/cycle-y.transfer.json")],
-      }),
+      await code(
+        {
+          files: [
+            fileOf("negative/cycle-x.transfer.json"),
+            fileOf("negative/cycle-y.transfer.json"),
+          ],
+        },
+        env({ allowed: "pack" }),
+      ),
     ).toBe("dependency_cycle");
-    expect(await code({ files: [fileOf("negative/cycle-x.transfer.json")] })).toBe(
-      "dependency_missing",
-    );
+    expect(
+      await code({ files: [fileOf("negative/cycle-x.transfer.json")] }, env({ allowed: "pack" })),
+    ).toBe("dependency_missing");
     const changed = { ...fixtureJson(`library/s/${refs.bytes.sable}.json`), title: "changed" };
     const tampered = libraryFetch({
       [snapshot("sable")]: () => new Response(JSON.stringify(changed), { status: 200 }),

@@ -18,6 +18,7 @@ import {
   type Envelope,
   ImportError,
   packOfEnvelope,
+  type Recognized,
   recognize,
 } from "./transfer";
 
@@ -32,7 +33,15 @@ export interface LocalCharacter {
   readonly sha256: string;
 }
 
+/**
+ * kenli F-011 (changes.md §8): what an entrance imports. A character is never a root any more
+ * (its import is the full copy's own entrance); party characters only as an encounter's deps.
+ */
+export type AllowedRootKind = "pack" | "encounter";
+
 export interface Environment {
+  /** The entrance: checked once the root is known, before any dependency is fetched. */
+  readonly allowed: AllowedRootKind;
   /** Installed packs (the `packs` store). */
   readonly installed: readonly PackRef[];
   /** Packs served with the app (the SRD), with their exact hash. */
@@ -77,6 +86,15 @@ export type Graph =
       readonly files: readonly { readonly name: string; readonly value: unknown }[];
     };
 
+const rootName = (r: Recognized): string =>
+  r.kind === "envelope"
+    ? `transfer ${r.value.kind}`
+    : r.kind === "local-copy"
+      ? r.format
+      : r.kind === "pointer"
+        ? "pointer"
+        : "raw document";
+
 const LOCAL_ID = /^table\/([^/]+)\/(.+)$/;
 
 export async function resolveGraph(source: Source, env: Environment): Promise<Graph> {
@@ -118,6 +136,11 @@ export async function resolveGraph(source: Source, env: Environment): Promise<Gr
     }
     for (const dep of env0.requires) {
       const key = depKey(dep);
+      if (
+        dep.kind !== "pack" &&
+        !(env.allowed === "encounter" && env0.kind === "encounter" && dep.kind === "character")
+      )
+        throw new ImportError("dependency_not_allowed", `${env.allowed} ← ${dep.kind} ${dep.id}`);
       if (nodes.has(key) || satisfied.has(key) || local.has(key)) continue;
       if (stack.includes(key) || key === node.key)
         throw new ImportError("dependency_cycle", [...stack, node.key, key].join(" → "));
@@ -184,7 +207,6 @@ export async function resolveGraph(source: Source, env: Environment): Promise<Gr
   let root: GraphNode;
   let rootUrl: URL | null = null;
   if ("files" in source) {
-    const raw: { name: string; value: unknown }[] = [];
     const envelopes: { name: string; envelope: Envelope; bytes: string }[] = [];
     for (const f of source.files) {
       budget.resource();
@@ -193,11 +215,11 @@ export async function resolveGraph(source: Source, env: Environment): Promise<Gr
       budget.add(f.bytes.byteLength);
       const r = recognize(f.bytes);
       if (r.kind === "pointer") throw new ImportError("pointer_needs_url", f.name);
-      if (r.kind === "raw") raw.push({ name: f.name, value: r.value });
-      else envelopes.push({ name: f.name, envelope: r.value, bytes: await sha256Hex(f.bytes) });
+      // F-011 §8: a raw document or a local copy is never a root (nor a dependency) here.
+      if (r.kind === "raw" || r.kind === "local-copy")
+        throw new ImportError("root_kind_not_allowed", `${env.allowed} ← ${rootName(r)} ${f.name}`);
+      envelopes.push({ name: f.name, envelope: r.value, bytes: await sha256Hex(f.bytes) });
     }
-    if (raw.length && envelopes.length) throw new ImportError("mixed_selection");
-    if (raw.length) return { kind: "raw", files: raw };
     for (const e of envelopes) pool.set(e.envelope.sha256, { envelope: e.envelope, name: e.name });
     // The root: the chosen file no other chosen file depends on (an encounter before its party).
     const needed = new Set(envelopes.flatMap((e) => e.envelope.requires.map((d) => d.sha256)));
@@ -216,12 +238,28 @@ export async function resolveGraph(source: Source, env: Environment): Promise<Gr
     };
   } else {
     let got = await get(source.url, null, null);
+    let pointerKind: unknown = null;
     if (got.recognized.kind === "pointer") {
       const cur = got.recognized.value.current;
+      pointerKind = got.recognized.value.kind;
       got = await get(cur.href, got.url, cur.bytes_sha256);
+      // The pointer says what it points at: a target of another kind is refused (§8).
+      const target = got.recognized.kind === "envelope" ? got.recognized.value.kind : "character";
+      if (
+        got.recognized.kind === "raw" ||
+        got.recognized.kind === "pointer" ||
+        target !== pointerKind
+      )
+        throw new ImportError(
+          "pointer_target_mismatch",
+          `${String(pointerKind)} → ${rootName(got.recognized)}`,
+        );
     }
     if (got.recognized.kind !== "envelope")
-      throw new ImportError("format_unknown", "a raw document needs a file import");
+      throw new ImportError(
+        "root_kind_not_allowed",
+        `${env.allowed} ← ${rootName(got.recognized)}`,
+      );
     const e = got.recognized.value;
     root = {
       key: depKey({ ...e, version: e.kind === "pack" ? packOfEnvelope(e).version : null }),
@@ -231,6 +269,11 @@ export async function resolveGraph(source: Source, env: Environment): Promise<Gr
     };
     rootUrl = got.url;
   }
+  if (root.envelope.kind !== env.allowed)
+    throw new ImportError(
+      "root_kind_not_allowed",
+      `${env.allowed} ← transfer ${root.envelope.kind} ${root.envelope.id}`,
+    );
   if (root.envelope.sha256 !== (await contentSha(root.envelope.content)))
     throw new ImportError("hash_mismatch", root.envelope.id);
   await visit(root, rootUrl, []);

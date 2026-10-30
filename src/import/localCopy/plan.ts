@@ -31,7 +31,18 @@ export interface LocalCopyPlan {
     readonly release_id: string | null;
     readonly legacy: boolean;
     readonly hp: { readonly current: number; readonly max: number } | null;
-    readonly entries: { readonly total: number; readonly done: number; readonly undone: number };
+    readonly entries: {
+      readonly total: number;
+      readonly done: number;
+      readonly undone: number;
+      /** kenli F-011: refused commands (`kenli.history/2`). */
+      readonly refused: number;
+    };
+    /** kenli F-011: the portrait it carries (`null`: none). */
+    readonly portrait: { readonly mime: string; readonly bytes: number } | null;
+    /** kenli F-011 §9.3: how its state came to be, and who made it (`null`: this app). */
+    readonly state_origin: string;
+    readonly library: { readonly slug: string; readonly label: string | null } | null;
     readonly days: readonly LocalCopyDay[];
     readonly long_rests: number;
     readonly pending_historical: number;
@@ -104,7 +115,15 @@ export async function planLocalCopy(
         total: entries.length,
         done: entries.filter((e) => e.status === "done").length,
         undone: entries.filter((e) => e.status === "undone").length,
+        refused: entries.filter((e) => e.kind === "refused").length,
       },
+      portrait: p.character.portrait
+        ? { mime: p.character.portrait.mime, bytes: p.character.portrait.bytes }
+        : null,
+      state_origin: p.character.state_origin.kind,
+      library: p.source.producer
+        ? { slug: p.source.producer.slug, label: p.source.producer.label }
+        : null,
       days: (p.history.meta?.days ?? []).map((d) => ({
         id: d.id,
         n: d.n,

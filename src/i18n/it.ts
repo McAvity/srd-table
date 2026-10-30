@@ -206,6 +206,13 @@ export const it: Messages = {
   "import.problem.several_roots":
     "Questi file sono importazioni separate: importane una alla volta.",
   "import.problem.pointer_needs_url": "Un link della biblioteca funziona solo dal suo indirizzo.",
+  "import.problem.root_kind_not_allowed":
+    "Qui non si importa questo: i personaggi con “Importa personaggio”, i pacchetti nelle Impostazioni, gli incontri qui in Incontri.",
+  "import.problem.pointer_target_mismatch":
+    "Il link della biblioteca punta a qualcos'altro da ciò che dichiara.",
+  "import.problem.dependency_not_allowed":
+    "Un file qui non è qualcosa che questa importazione può portare.",
+  "settings.importPack": "Importa pacchetto…",
   "import.problem.import_failed": "L'importazione non è riuscita.",
   "characters.contentPinned": "Contenuti: {content}",
   "characters.contentCampaign": "Contenuti: i pacchetti della campagna (non fissati)",
@@ -948,7 +955,7 @@ export const it: Messages = {
   "dice.featureDie": "Il suo dado ({dice})",
   "dice.modifier": "{label} {value}",
   "dice.bonusDie": "{label} {dice}: {rolls} ({total})",
-  "localCopy.export": "Copia locale con stato e cronologia",
+  "localCopy.export": "Esporta personaggio",
   "localCopy.exportTitle": "Copia locale di {name}",
   "localCopy.exportWorking": "Preparo la copia…",
   "localCopy.exportSummary":
@@ -956,8 +963,8 @@ export const it: Messages = {
   "localCopy.exportNotSync":
     "Una copia di questo momento, non una sincronizzazione: il gioco in un posto non arriva all'altro.",
   "localCopy.download": "Salva il file",
-  "localCopy.import": "Carica copia locale",
-  "localCopy.importTitle": "Carica una copia locale",
+  "localCopy.import": "Importa personaggio",
+  "localCopy.importTitle": "Importa un personaggio (copia completa)",
   "localCopy.importPick": "File di copia locale (.local-copy.json)",
   "localCopy.checking": "Controllo l'intero file…",
   "localCopy.from": "Dall'installazione {installation}, esportata {at}",
@@ -1032,8 +1039,75 @@ export const it: Messages = {
   "localCopy.problem.state_invalid": "Lo stato di gioco del personaggio non si carica.",
   "localCopy.problem.state_would_change": "Il caricamento cambierebbe lo stato di gioco.",
   "localCopy.problem.context_unavailable": "I pacchetti della copia non si caricano.",
+  "localCopy.importUrl": "Oppure il suo link (la copia, o un link della biblioteca)",
+  "localCopy.fetch": "Scarica",
+  "localCopy.fetching": "Scarico la copia…",
+  "localCopy.stop": "Ferma",
+  "localCopy.portrait": "Ritratto: {mime}, {size}",
+  "localCopy.noPortrait": "Nessun ritratto",
+  "localCopy.refused": "{count} tentativi rifiutati registrati",
+  "localCopy.stateOrigin.exported":
+    "Stato di gioco: com'era all'esportazione, con la sua cronologia.",
+  "localCopy.stateOrigin.new_session":
+    "Stato di gioco: una nuova sessione (riposato, niente speso); nessuna cronologia.",
+  "localCopy.stateOrigin.synthetic": "Stato di gioco: un dato di prova; nessuna cronologia.",
+  "localCopy.library": "Dalla biblioteca: {label} ({slug})",
+  "localCopy.problem.root_kind_not_allowed":
+    "Non è una copia di personaggio: qui si importa solo una copia completa (srd-table.local-copy/2).",
+  "localCopy.problem.pointer_target_mismatch":
+    "Il link della biblioteca punta a qualcos'altro da ciò che dichiara.",
+  "localCopy.problem.pointer_invalid": "Il link della biblioteca è malformato.",
+  "localCopy.problem.bytes_mismatch": "Il file al link non è quello indicato (è cambiato).",
+  "localCopy.problem.format_adapter_required":
+    "Un bundle Kenli: convertilo prima con gli strumenti dnd5.",
+  "localCopy.problem.limit_resource_bytes": "Il file al link supera 20 MiB.",
+  "localCopy.problem.redirect_refused": "Il link reindirizza altrove: usa l'indirizzo finale.",
+  "localCopy.problem.http_status": "Il server ha rifiutato il link.",
+  "localCopy.problem.fetch_failed":
+    "Impossibile scaricare il link (offline, o il server non lo consente).",
+  "localCopy.problem.url_scheme": "Si scaricano solo link https (o http locali).",
+  "localCopy.problem.url_invalid": "Non è un link.",
+  "localCopy.problem.url_credentials": "Un link con nome utente o password non viene scaricato.",
+  "localCopy.problem.dependency_cross_origin": "Il link della biblioteca punta a un altro sito.",
+  "localCopy.problem.cancelled": "Fermato: non è stato scritto nulla.",
+  "localCopy.problem.timeout": "Il link ha impiegato troppo: non è stato scritto nulla.",
+  "localCopy.problem.provenance_invalid": "L'origine della copia non torna.",
+  "localCopy.problem.origin_nested": "La copia porta una catena di copie precedenti.",
+  "localCopy.problem.history_not_allowed":
+    "Una copia della biblioteca con stato nuovo non può avere cronologia.",
+  "localCopy.problem.history_link_dangling":
+    "Un tentativo rifiutato segue una voce che non è nella copia.",
+  "localCopy.problem.portrait_invalid": "Il ritratto è malformato.",
+  "localCopy.problem.portrait_malformed": "L'immagine del ritratto è danneggiata.",
+  "localCopy.problem.portrait_unsupported": "Il ritratto non è un'immagine PNG, JPEG o WebP.",
+  "localCopy.problem.portrait_mime_mismatch": "Il ritratto non è del tipo dichiarato.",
+  "localCopy.problem.limit_portrait_bytes": "Il ritratto supera 5 MiB.",
+  "localCopy.problem.limit_portrait_pixels":
+    "Il ritratto ha troppi pixel (oltre 16 milioni, o un lato oltre 16384).",
+  "localCopy.problem.portrait_decode_failed": "Il ritratto non si apre come immagine.",
+  "localCopy.problem.portrait_decoder_unavailable":
+    "Questo browser non apre immagini per controllare il ritratto: non è stato scritto nulla.",
+  "localCopy.problem.portrait_unsupported_stored":
+    "Il ritratto del personaggio è in un formato che la copia non può portare: scegli un ritratto PNG, JPEG o WebP ed esporta di nuovo.",
+  "portrait.problem.portrait_unsupported": "Scegli un'immagine PNG, JPEG o WebP.",
+  "portrait.problem.portrait_mime_mismatch": "Il file non è del tipo d'immagine indicato.",
+  "portrait.problem.portrait_invalid": "L'immagine è malformata.",
+  "portrait.problem.portrait_malformed": "L'immagine è danneggiata.",
+  "portrait.problem.limit_portrait_bytes": "L'immagine supera 5 MiB.",
+  "portrait.problem.limit_portrait_pixels":
+    "L'immagine ha troppi pixel (oltre 16 milioni, o un lato oltre 16384).",
+  "portrait.problem.portrait_decode_failed": "L'immagine non si apre.",
+  "portrait.problem.portrait_decoder_unavailable":
+    "Questo browser non apre immagini: non è cambiato nulla.",
+  "portrait.problem.portrait_record_changed":
+    "Il personaggio è cambiato in un'altra scheda: ricarica e riprova.",
+  "portrait.problem.portrait_unsaved": "Il personaggio non è ancora salvato: riprova tra poco.",
+  "portrait.problem.document_gone": "Il personaggio non c'è più.",
+  "portrait.problem.storage_quota": "Spazio insufficiente sul dispositivo: non è cambiato nulla.",
+  "portrait.problem.storage_failed": "Salvataggio non riuscito: non è cambiato nulla.",
+  "portrait.problem.other": "Il ritratto non è cambiato ({code}).",
   "import.problem.format_local_copy":
-    "Una copia locale con cronologia: aprila con “Carica copia locale” nella pagina Personaggi.",
+    "Una copia di personaggio: importala con “Importa personaggio” nella pagina Personaggi.",
   "history.status.pendingHistorical": "In attesa di una decisione (storico)",
   "history.external": "fuori da questa copia",
   "history.context.external": "Si riferisce a una voce fuori da questa copia.",

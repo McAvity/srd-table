@@ -152,6 +152,7 @@ describe("R03-01: the operation a decision continues", () => {
     await flushNow();
     const source: Source = { url: `${LIB}d/encounter/mixed-duel.json` };
     const p = await previewImport(source, {
+      allowed: "encounter",
       signal: new AbortController().signal,
       fetch: libraryFetch(),
     });
@@ -181,7 +182,7 @@ describe("R03-01: the operation a decision continues", () => {
     await flushNow();
     const p = await previewImport(
       { url: `${LIB}d/encounter/mixed-duel.json` },
-      { signal: new AbortController().signal, fetch: libraryFetch() },
+      { allowed: "encounter", signal: new AbortController().signal, fetch: libraryFetch() },
     );
     if (!p.ok) throw new Error(p.problem.code);
     ok(

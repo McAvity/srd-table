@@ -191,6 +191,12 @@ export const en = {
   "import.problem.mixed_selection": "Choose either transfer files or plain files, not both.",
   "import.problem.several_roots": "These files are several separate imports: import one at a time.",
   "import.problem.pointer_needs_url": "A library link works only from its address.",
+  "import.problem.root_kind_not_allowed":
+    "This entrance doesn't import that: characters come in with “Import character”, packs in Settings, encounters here in Encounters.",
+  "import.problem.pointer_target_mismatch":
+    "The library link points at something other than it says.",
+  "import.problem.dependency_not_allowed": "A file here isn't something this import may bring in.",
+  "settings.importPack": "Import pack…",
   "import.problem.import_failed": "The import failed.",
   "characters.contentPinned": "Content: {content}",
   "characters.contentCampaign": "Content: the campaign's packs (not pinned)",
@@ -925,7 +931,7 @@ export const en = {
   "dice.featureDie": "Its die ({dice})",
   "dice.modifier": "{label} {value}",
   "dice.bonusDie": "{label} {dice}: {rolls} ({total})",
-  "localCopy.export": "Local copy with state and history",
+  "localCopy.export": "Export character",
   "localCopy.exportTitle": "Local copy of {name}",
   "localCopy.exportWorking": "Preparing the copy…",
   "localCopy.exportSummary":
@@ -933,9 +939,9 @@ export const en = {
   "localCopy.exportNotSync":
     "A copy of this moment, not a sync: play in either place doesn't reach the other.",
   "localCopy.download": "Save the file",
-  "localCopy.import": "Load local copy",
-  "localCopy.importTitle": "Load a local copy",
-  "localCopy.importPick": "Local copy file (.local-copy.json)",
+  "localCopy.import": "Import character",
+  "localCopy.importTitle": "Import a character (full copy)",
+  "localCopy.importPick": "Character file (.local-copy.json)",
   "localCopy.checking": "Checking the whole file…",
   "localCopy.from": "From installation {installation}, exported {at}",
   "localCopy.fromRelease": "App release {release}",
@@ -1004,8 +1010,75 @@ export const en = {
   "localCopy.problem.state_invalid": "The character's play state doesn't load.",
   "localCopy.problem.state_would_change": "Loading would change the play state.",
   "localCopy.problem.context_unavailable": "The copy's packs don't load.",
+  "localCopy.importUrl": "Or its link (the copy, or a library link)",
+  "localCopy.fetch": "Fetch",
+  "localCopy.fetching": "Fetching the copy…",
+  "localCopy.stop": "Stop",
+  "localCopy.portrait": "Portrait: {mime}, {size}",
+  "localCopy.noPortrait": "No portrait",
+  "localCopy.refused": "{count} refused attempts recorded",
+  "localCopy.stateOrigin.exported": "Play state: as it was exported, with its history.",
+  "localCopy.stateOrigin.new_session":
+    "Play state: a new session (rested, nothing spent); no history.",
+  "localCopy.stateOrigin.synthetic": "Play state: a test fixture; no history.",
+  "localCopy.library": "From the library: {label} ({slug})",
+  "localCopy.problem.root_kind_not_allowed":
+    "Not a character copy: this entrance imports only a full character copy (srd-table.local-copy/2).",
+  "localCopy.problem.pointer_target_mismatch":
+    "The library link points at something other than it says.",
+  "localCopy.problem.pointer_invalid": "The library link is malformed.",
+  "localCopy.problem.bytes_mismatch":
+    "The file at the link isn't the one the link names (changed since).",
+  "localCopy.problem.format_adapter_required":
+    "A Kenli bundle: convert it with the dnd5 tools first.",
+  "localCopy.problem.limit_resource_bytes": "The file at the link is larger than 20 MiB.",
+  "localCopy.problem.redirect_refused": "The link redirects elsewhere: use the final address.",
+  "localCopy.problem.http_status": "The server refused the link.",
+  "localCopy.problem.fetch_failed":
+    "The link couldn't be fetched (offline, or the server doesn't allow it).",
+  "localCopy.problem.url_scheme": "Only https links (or a local http one) are fetched.",
+  "localCopy.problem.url_invalid": "Not a link.",
+  "localCopy.problem.url_credentials": "A link with a user name or password isn't fetched.",
+  "localCopy.problem.dependency_cross_origin": "The library link points at another site.",
+  "localCopy.problem.cancelled": "Stopped: nothing was written.",
+  "localCopy.problem.timeout": "The link took too long: nothing was written.",
+  "localCopy.problem.provenance_invalid": "The copy's origin doesn't add up.",
+  "localCopy.problem.origin_nested": "The copy carries a chain of earlier copies.",
+  "localCopy.problem.history_not_allowed":
+    "A library copy with a new state can't carry play history.",
+  "localCopy.problem.history_link_dangling":
+    "A refused attempt follows an entry that isn't in the copy.",
+  "localCopy.problem.portrait_invalid": "The portrait is malformed.",
+  "localCopy.problem.portrait_malformed": "The portrait's image is damaged.",
+  "localCopy.problem.portrait_unsupported": "The portrait isn't a PNG, JPEG or WebP image.",
+  "localCopy.problem.portrait_mime_mismatch": "The portrait isn't the image type it says.",
+  "localCopy.problem.limit_portrait_bytes": "The portrait is larger than 5 MiB.",
+  "localCopy.problem.limit_portrait_pixels":
+    "The portrait has too many pixels (over 16 million, or a side over 16384).",
+  "localCopy.problem.portrait_decode_failed": "The portrait doesn't open as an image.",
+  "localCopy.problem.portrait_decoder_unavailable":
+    "This browser can't open images to check the portrait: nothing was written.",
+  "localCopy.problem.portrait_unsupported_stored":
+    "The character's portrait is in a format a copy can't carry: choose a PNG, JPEG or WebP portrait and export again.",
+  "portrait.problem.portrait_unsupported": "Choose a PNG, JPEG or WebP image.",
+  "portrait.problem.portrait_mime_mismatch": "The file isn't the image type its name says.",
+  "portrait.problem.portrait_invalid": "The image is malformed.",
+  "portrait.problem.portrait_malformed": "The image is damaged.",
+  "portrait.problem.limit_portrait_bytes": "The image is larger than 5 MiB.",
+  "portrait.problem.limit_portrait_pixels":
+    "The image has too many pixels (over 16 million, or a side over 16384).",
+  "portrait.problem.portrait_decode_failed": "The image doesn't open.",
+  "portrait.problem.portrait_decoder_unavailable":
+    "This browser can't open images: nothing was changed.",
+  "portrait.problem.portrait_record_changed":
+    "The character changed in another tab: reload, then try again.",
+  "portrait.problem.portrait_unsaved": "The character isn't saved yet: try again in a moment.",
+  "portrait.problem.document_gone": "The character isn't here any more.",
+  "portrait.problem.storage_quota": "Not enough storage on this device: nothing was changed.",
+  "portrait.problem.storage_failed": "Saving failed: nothing was changed.",
+  "portrait.problem.other": "The portrait wasn't changed ({code}).",
   "import.problem.format_local_copy":
-    "A local copy with history: open it with “Load local copy” on the Characters page.",
+    "A character copy: import it with “Import character” on the Characters page.",
   "history.status.pendingHistorical": "Waited for a decision (historical)",
   "history.external": "outside this copy",
   "history.context.external": "Refers to an entry outside this copy.",

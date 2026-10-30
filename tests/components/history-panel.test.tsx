@@ -214,13 +214,15 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     expect(within(panel).getByText(/^#1 ·/)).toBeInTheDocument();
   });
 
-  it("an import boundary reads as such; exports say history stays here", async () => {
+  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
+  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  it.skip("an import boundary reads as such; exports say history stays here", async () => {
     await loadAll();
     stop = startAutosave();
     const preview = async () => {
       const p = await previewImport(
         { url: snapshot("wren") },
-        { signal: new AbortController().signal, fetch: libraryFetch() },
+        { allowed: "encounter", signal: new AbortController().signal, fetch: libraryFetch() },
       );
       if (!p.ok) throw new Error(p.problem.code);
       return p.plan;

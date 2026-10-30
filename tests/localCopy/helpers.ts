@@ -18,7 +18,7 @@ import {
   inheritedEncounterNames,
   type LocalCopy,
 } from "../../src/import/localCopy/format";
-import { type ContentContext, canonicalJson, packRefOf } from "../../src/lib/canonical";
+import { type ContentContext, canonicalJson, packRefOf, sha256Hex } from "../../src/lib/canonical";
 import { closeDb, db, packKey } from "../../src/persistence/db";
 import {
   flushNow,
@@ -172,9 +172,12 @@ export async function writeJournal(
 export async function dumpDb(): Promise<string> {
   const database = await db();
   const tx = database.transaction(
-    ["characters", "encounters", "history", "history_meta", "packs", "settings"],
+    ["characters", "encounters", "history", "history_meta", "packs", "settings", "portraits"],
     "readonly",
   );
+  // kenli F-011 T04: portraits too (each Blob by its bytes), so "nothing written" covers them.
+  const portraitKeys = await tx.objectStore("portraits").getAllKeys();
+  const portraitBlobs = await tx.objectStore("portraits").getAll();
   const out = {
     characters: await tx.objectStore("characters").getAll(),
     encounters: await tx.objectStore("encounters").getAll(),
@@ -184,7 +187,14 @@ export async function dumpDb(): Promise<string> {
     settings: await tx.objectStore("settings").getAllKeys(),
   };
   await tx.done;
-  return canonicalJson(out);
+  const portraits = await Promise.all(
+    portraitBlobs.map(async (blob, i) => [
+      String(portraitKeys[i]),
+      blob.type,
+      await sha256Hex(new Uint8Array(await blob.arrayBuffer())),
+    ]),
+  );
+  return canonicalJson({ ...out, portraits });
 }
 
 export async function rowsOf(recordId: string): Promise<HistoryEntry[]> {

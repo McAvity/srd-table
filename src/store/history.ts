@@ -17,6 +17,7 @@
 
 import type { Message, RollCost, RollResult } from "srd-rules-engine";
 import { create } from "zustand";
+import type { RefusalCommand } from "@/lib/refusalCommands";
 import { admission } from "@/offline/admission";
 import type { RecordOrigin } from "@/persistence/db";
 
@@ -38,33 +39,8 @@ export type EntryKind =
   /** kenli F-011 (`kenli.history/2`): a command the rules refused; nothing happened. */
   | "refused";
 
-/**
- * kenli F-011 contracts/changes.md §5: the player's explicit command a refused entry records.
- * Only the engine's rule refusals (`cause: "rules"`) of these commands are journaled.
- */
-export type RefusalCommand =
-  | "sheet_cast"
-  | "sheet_attack"
-  | "sheet_use"
-  | "sheet_use_feature"
-  | "sheet_activate"
-  | "sheet_test"
-  | "late_advantage"
-  | "heroic_reroll"
-  | "encounter_roll"
-  | "encounter_action";
-export const REFUSAL_COMMANDS: readonly RefusalCommand[] = [
-  "sheet_cast",
-  "sheet_attack",
-  "sheet_use",
-  "sheet_use_feature",
-  "sheet_activate",
-  "sheet_test",
-  "late_advantage",
-  "heroic_reroll",
-  "encounter_roll",
-  "encounter_action",
-];
+export { REFUSAL_COMMANDS, type RefusalCommand } from "@/lib/refusalCommands";
+
 /** What a store action that can be refused records when it is (its caller's explicit command). */
 export interface Attempt {
   readonly command: RefusalCommand;
@@ -481,6 +457,14 @@ export const useHistory = create<HistoryState>()((set, get) => {
         for (const d of drafts) {
           const m = meta[d.record_id] ?? newMeta(d.record_id, now);
           if (d.kind === "refused") {
+            // kenli F-011 §5.1/§5.6, at the entry: a refused follow-up (Heroic Inspiration, late
+            // Advantage) follows exactly the local roll it was for; anything else follows nothing.
+            // A violation is an app bug: refused here, so no journal ever holds what a copy refuses.
+            const command = (d.refusal as { command?: string } | undefined)?.command;
+            const followUp = command === "late_advantage" || command === "heroic_reroll";
+            const follows = d.follows ?? null;
+            if (followUp !== (follows !== null) || follows?.startsWith("ext:"))
+              throw new Error(`history_refusal_invalid: links.follows for ${String(command)}`);
             // kenli F-011 §5.1: a refusal is an event of its own, with nothing paid, rolled or changed.
             const refused: HistoryEntry = {
               schema: "kenli.history/2",

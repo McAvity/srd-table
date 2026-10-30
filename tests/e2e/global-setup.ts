@@ -3,6 +3,7 @@
  * app imports) and find a dice seed for the decision flow (the seed the tests set in Settings).
  */
 
+import { execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { nodeFacade } from "../../src/engine/node";
@@ -16,6 +17,11 @@ export default async function globalSetup(): Promise<void> {
   writeFileSync(join(FIXTURES, "aerin.json"), JSON.stringify(await fighter(engine, 3), null, 2));
   writeFileSync(join(FIXTURES, "lirael.json"), JSON.stringify(await wizard(engine, 3), null, 2));
   writeFileSync(join(FIXTURES, "decision-seed.json"), JSON.stringify(await decisionSeed()));
+  // kenli F-011 T04: characters are imported as full copies now, exported by the app itself.
+  execFileSync("npx", ["vitest", "run", "tests/e2e-fixtures/copies.test.ts"], {
+    env: { ...process.env, F011_E2E_FIXTURES: FIXTURES },
+    stdio: "inherit",
+  });
 }
 
 /** The same actions the decision test sends, in order: a seed where the save fails. */

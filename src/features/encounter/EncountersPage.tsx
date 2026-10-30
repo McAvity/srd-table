@@ -41,7 +41,7 @@ export function EncountersPage() {
           {t("import.open")}
         </Button>
       </div>
-      <ImportDialog open={importing} onOpenChange={setImporting} />
+      <ImportDialog open={importing} onOpenChange={setImporting} allowedRootKind="encounter" />
       {list.length === 0 ? (
         <div className="panel">
           <Empty icon="table">{t("encounters.empty")}</Empty>

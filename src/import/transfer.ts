@@ -69,6 +69,7 @@ export type Recognized =
       readonly kind: "pointer";
       readonly value: { current: PointerTarget } & Record<string, unknown>;
     }
+  | { readonly kind: "local-copy"; readonly format: string }
   | { readonly kind: "raw"; readonly value: unknown };
 
 /** What a resource is, from its bytes (contract §4.1); throws `ImportError`. */
@@ -97,9 +98,8 @@ export function recognize(bytes: Uint8Array, contentType: string | null = null):
       value: value as { current: PointerTarget } & Record<string, unknown>,
     };
   if (typeof format === "string") {
-    // kenli F-007 T03: a local copy with history is its own format with its own import.
-    if (format.startsWith("srd-table.local-copy/"))
-      throw new ImportError("format_local_copy", format);
+    // kenli F-011 §8: a local copy is a root of its own kind (only the Characters entrance takes it).
+    if (format.startsWith("srd-table.local-copy/")) return { kind: "local-copy", format };
     const m = /^srd-table\.(transfer|library-pointer)\/(\d+)$/.exec(format);
     if (m && Number(m[2]) > 1) throw new ImportError("format_newer", format);
     if (format === "kenli.bundle/1") throw new ImportError("format_adapter_required", format);

@@ -12,6 +12,7 @@ import { Button, Dialog, Reasons, Spinner } from "@/components/ui";
 import { t } from "@/i18n";
 import { en } from "@/i18n/en";
 import {
+  type AllowedRootKind,
   availablePacks,
   type CharacterChoice,
   commitPlan,
@@ -44,9 +45,12 @@ const short = (sha: string | null) => (sha ? sha.slice(0, 12) : "—");
 export function ImportDialog({
   open,
   onOpenChange,
+  allowedRootKind,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** kenli F-011 §8: what this entrance imports; any other root is refused before the preview. */
+  allowedRootKind: AllowedRootKind;
 }) {
   // kenli F-007 T05: an open import blocks an update until it closes (offline.md §7.3).
   useEffect(() => (open ? admission.hold("import_open") : undefined), [open]);
@@ -98,7 +102,11 @@ export function ImportDialog({
     setProblem(null);
     setCommitProblems([]);
     setSource(next);
-    const result = await previewImport(next, { signal: controller.signal, rawContent: content });
+    const result = await previewImport(next, {
+      allowed: allowedRootKind,
+      signal: controller.signal,
+      rawContent: content,
+    });
     if (abort.current !== controller) return;
     setBusy(null);
     if (!result.ok) {
