@@ -422,7 +422,7 @@ describe("History: results at a glance next to refusals", () => {
     // review03 R03-04: what was asked (3 damage) and what it did (HP from its maximum to the
     // stored value), both without opening details; no roll, so no outcome is made up.
     expect(within(line as HTMLElement).getByTestId("history-request")).toHaveTextContent(
-      "Takes 3 damage",
+      "Requested: 3 damage",
     );
     expect(within(line as HTMLElement).getByTestId("history-applied")).toHaveTextContent(
       /Applied: HP: max → \d+/,
@@ -521,15 +521,46 @@ describe("History: a readable result without opening details (review03 R03-04)",
     const panel = await openPanel();
     const lines = await within(panel).findAllByTestId("history-entry", {}, { timeout: 10_000 });
     const [use, heal, damage] = lines as HTMLElement[];
-    expect(collapsed(damage as HTMLElement)).toMatch(/Takes 5 fire damage/);
+    expect(collapsed(damage as HTMLElement)).toMatch(/Requested: 5 fire damage/);
     expect(collapsed(damage as HTMLElement)).toMatch(/Applied: HP: max → \d+/);
-    expect(collapsed(heal as HTMLElement)).toMatch(/Heals 2 HP/);
+    expect(collapsed(heal as HTMLElement)).toMatch(/Requested: healing 2 HP/);
     expect(collapsed(heal as HTMLElement)).toMatch(/Applied: HP: \d+ → \d+/);
-    expect(collapsed(use as HTMLElement)).toMatch(/Uses Bardic Inspiration/);
+    expect(collapsed(use as HTMLElement)).toMatch(/Requested: use Bardic Inspiration/);
     expect(collapsed(use as HTMLElement)).toMatch(/Bardic Inspiration used: — → 1/);
     for (const l of [use, heal, damage]) {
       expect(within(l as HTMLElement).queryByTestId("history-outcome")).toBeNull();
       expect(within(l as HTMLElement).queryByTestId("history-dice")).toBeNull();
     }
+  });
+
+  it("a request is never shown as its effect: a healing capped at the maximum, damage taken by temporary HP", async () => {
+    const r = ok(await docs().importCharacter(await wizard(fx.engine, 3)));
+    ok(await docs().playAction(r.id, { type: "damage", amount: 3 }));
+    ok(await docs().playAction(r.id, { type: "heal", amount: 20 }));
+    ok(await docs().playAction(r.id, { type: "set_temp_hp", amount: 5 }));
+    ok(await docs().playAction(r.id, { type: "damage", amount: 3 }));
+    const record = docs().characters[r.id];
+    if (!record) throw new Error("no record");
+    const max = (await fx.engine.playSheet(record.build, record.state)).sheet.play.hp.max;
+    // Still at the maximum: the 3 points went to the temporary HP (5 → 2).
+    expect(record.state.hp).toMatchObject({ current: max, temp: 2 });
+    await renderApp(`/characters/${r.id}/sheet`);
+    const panel = await openPanel();
+    const lines = (
+      await within(panel).findAllByTestId("history-entry", {}, { timeout: 10_000 })
+    ).map((l) => collapsed(l as HTMLElement));
+    const [absorbed, temp, heal, hurt] = lines;
+    // 20 asked, only back to the maximum: the request says 20 as asked, the effect says max.
+    expect(heal).toMatch(/Requested: healing 20 HP/);
+    expect(heal).toMatch(/Applied: HP: \d+ → max/);
+    expect(heal).not.toMatch(/Heals 20/);
+    // 3 asked, all taken by temporary HP: the effect is the temporary HP's; HP stays at its maximum
+    // (stored as the explicit value now: "max → <max>", as recorded, no loss claimed).
+    expect(absorbed).toMatch(/Requested: 3 damage/);
+    expect(absorbed).toMatch(/temporary HP: 5 → 2/);
+    expect(absorbed).toMatch(new RegExp(`Applied: HP: max → ${max}\\b`));
+    expect(temp).toMatch(/Requested: 5 temporary HP/);
+    expect(hurt).toMatch(/Requested: 3 damage/);
+    expect(hurt).toMatch(/Applied: HP: max → \d+/);
   });
 });

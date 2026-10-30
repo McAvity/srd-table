@@ -188,8 +188,9 @@ export function appliedText(
 
 /**
  * review03 R03-04: what a sheet action asked for, from its stored request (a damage of 3, a
- * healing, a use…): the declared command, not its effect (that's `appliedText`) nor a roll. `null`
- * for a request it can't read (an old or foreign shape): nothing is guessed.
+ * healing, a use…), said as "Requested: …": the declared command, not its effect (that's
+ * `appliedText`) nor a roll. `null` for a request it can't read (an old or foreign shape): nothing
+ * is guessed.
  */
 export function requestText(
   e: HistoryEntry,
@@ -252,7 +253,12 @@ export function requestText(
     }
   };
   const lines = actionsOf(e.request).map(one);
-  return lines.every((l) => l !== null) && lines.length ? lines.join("; ") : null;
+  // review03 R03-04 (resume): labelled as the request — a healing capped at the maximum, damage
+  // taken by temporary HP or a resistance, a temporary HP that doesn't replace a higher one make
+  // the effect differ; what happened is `appliedText`, never this.
+  return lines.every((l) => l !== null) && lines.length
+    ? t("history.requested", { what: lines.join("; ") })
+    : null;
 }
 
 const numbers = (v: unknown): number[] | null =>
