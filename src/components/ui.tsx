@@ -206,12 +206,18 @@ export function Gems({
   label,
   onSpend,
   onRestore,
+  spendWhenEmpty = false,
 }: {
   total: number;
   spent: number;
   label: string;
   onSpend?: () => void;
   onRestore?: () => void;
+  /**
+   * kenli F-011 §5.3: spending is the player's attempt even with none left (the engine refuses it
+   * and the refusal is journaled). Off for bookkeeping counters such as slot corrections.
+   */
+  spendWhenEmpty?: boolean;
 }) {
   const left = Math.max(0, total - spent);
   const description = t("common.left", { left, total });
@@ -236,7 +242,7 @@ export function Gems({
               iconOnly
               label={t("common.spendOne", { what: label })}
               onClick={onSpend}
-              disabled={left === 0}
+              disabled={left === 0 && !spendWhenEmpty}
             />
           )}
           {onRestore && (

@@ -143,6 +143,13 @@ export interface Refusal {
   readonly reasons: readonly string[];
   /** `reasons` as messages, when the engine gave them (rendered in the app's language). */
   readonly reason_messages?: readonly Message[];
+  /**
+   * kenli F-011 §5.2: why. `rules`: the game's rules said no (a `PlayError`, `EncounterError`,
+   * `RuleError`, an unpaid cost) — a player's explicit command refused this way is journaled.
+   * `invalid`: a malformed request (Zod, a bad dice expression, a builder error). Missing: not the
+   * engine's refusal (the app's own: busy, stale, gone…), never journaled.
+   */
+  readonly cause?: "rules" | "invalid";
 }
 export type Outcome<T> = ({ readonly ok: true } & T) | Refusal;
 
@@ -557,6 +564,16 @@ export interface EngineFacade {
   ): Promise<Outcome<SheetRoll>>;
 
   // encounters
+  /**
+   * kenli F-011 §5.3: a `roll` action's costs checked before anything is rolled — a dry run on
+   * fixed dice (as the engine's `checkAction`), nothing kept and the session's dice untouched.
+   */
+  rollCosts(
+    encounter: Encounter,
+    party: Party,
+    roll: Extract<EncounterAction, { type: "roll" }>,
+    world?: ContentContext,
+  ): Promise<Outcome<{ costs: readonly CheckedCost[] }>>;
   /** One action or a list, in order; all or nothing, stopping at a decision. */
   applyEncounterAction(
     encounter: Encounter,
@@ -819,10 +836,16 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
         attempt(() => {
           const character = { build, state };
           const combatant = combatantFromCharacter(build, state, catalog);
+          // kenli F-011 §5.3: the costs are checked on fixed dice first, so a roll it can't pay for
+          // is refused before the session's dice are touched (what it costs never depends on them).
+          const probe = rollByHand(combatant, what, { catalog, character, rng: FIXED_DICE });
+          const checked = checkCosts(probe.costs, { catalog, name: combatant.name, character });
+          const owed = checked.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
+          // The app tracks resources: a roll it can't pay for is refused, unless forced.
+          if (owed.length > 0 && !force) throw new PlayError(owed.map((r) => r.message));
           const roll = rollByHand(combatant, what, { catalog, character, rng });
           const costs = checkCosts(roll.costs, { catalog, name: combatant.name, character });
           const unpaid = costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
-          // The app tracks resources: a roll it can't pay for is refused, unless forced.
           if (unpaid.length > 0 && !force) {
             throw new PlayError(unpaid.map((r) => r.message));
           }
@@ -844,6 +867,18 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
         }),
       ),
 
+    rollCosts: (encounter, party, roll, world) =>
+      withEncounter(world, party, (ctx) =>
+        attempt(() => {
+          const r = engineApplyEncounterAction(encounter, roll, {
+            catalog: ctx.catalog,
+            characters: ctx.characters,
+            rng: FIXED_DICE,
+          });
+          const results = r.result ? [r.result] : [];
+          return { costs: results.flatMap((x) => ("costs" in x ? x.costs : [])) };
+        }),
+      ),
     applyEncounterAction: (encounter, party, action, world) =>
       withEncounter(world, party, (ctx) =>
         attempt(() => {
@@ -1031,7 +1066,10 @@ function attempt<T extends object>(fn: () => T): Outcome<T> {
     const reasons = refusalReasons(error);
     if (!reasons) throw error;
     const messages = refusalMessages(error);
-    return messages ? { ok: false, reasons, reason_messages: messages } : { ok: false, reasons };
+    const cause = refusalCause(error);
+    return messages
+      ? { ok: false, reasons, reason_messages: messages, cause }
+      : { ok: false, reasons, cause };
   }
 }
 
@@ -1041,6 +1079,16 @@ function refusalMessages(error: unknown): readonly Message[] | null {
   if (error instanceof RuleError) return [error.detail];
   return null;
 }
+
+/** kenli F-011 §5.2: the rules said no, or the request itself was malformed. */
+function refusalCause(error: unknown): "rules" | "invalid" {
+  return error instanceof PlayError || error instanceof EncounterError || error instanceof RuleError
+    ? "rules"
+    : "invalid";
+}
+
+/** Dice that always land in the middle, for dry runs (as the engine's `checkAction`). */
+const FIXED_DICE: Rng = { int: (min, max) => Math.floor((min + max) / 2) };
 
 function refusalReasons(error: unknown): readonly string[] | null {
   if (error instanceof BuildError) return error.messages;

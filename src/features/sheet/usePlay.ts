@@ -6,6 +6,7 @@
 import { useState } from "react";
 import type { PlayAction, RollWhat } from "srd-rules-engine";
 import { type PlayCapture, useDocuments } from "@/store/documents";
+import type { Attempt } from "@/store/history";
 import { type DeclaredLucky, luckySpent, type RecordVersion } from "@/store/rolls";
 
 export function usePlay(id: string) {
@@ -31,11 +32,13 @@ export function usePlay(id: string) {
     action: PlayAction | readonly PlayAction[],
     at?: RecordVersion,
     capture?: PlayCapture,
-  ) => run(() => playAction(id, action, at, capture));
+    /** kenli F-011: the player's explicit command, journaled when the rules refuse it. */
+    attempt?: Attempt,
+  ) => run(() => playAction(id, action, at, capture, attempt));
   /** With `lucky`, the declared luck-style use is spent with the roll, then cleared. */
-  const roll = (what: RollWhat, lucky?: DeclaredLucky) =>
+  const roll = (what: RollWhat, lucky?: DeclaredLucky, attempt?: Attempt) =>
     run(async () => {
-      const result = await rollByHand(id, what, lucky);
+      const result = await rollByHand(id, what, lucky, attempt);
       if (result.ok && lucky) luckySpent(id);
       return result;
     });

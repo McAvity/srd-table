@@ -133,7 +133,7 @@ describe("sheet", () => {
     expect(tray).toHaveTextContent(/By hand/);
   });
 
-  it("offers a spell only the slots the engine lists, a spent level disabled with its reason", async () => {
+  it("offers a spell only the slots the engine lists, a spent level selectable with its reason (kenli F-011)", async () => {
     const result = await useDocuments.getState().importCharacter(await wizard(engine, 3));
     if (!result.ok) throw new Error(result.reasons.join("; "));
     // A Wizard 3 has four level 1 slots: all spent.
@@ -145,7 +145,8 @@ describe("sheet", () => {
     const [picker] = within(level1).getAllByRole("combobox", { name: /slot level/ });
     if (!picker) throw new Error("no slot picker");
     const spent = within(picker).getByRole("option", { name: /^Level 1/ });
-    expect(spent).toBeDisabled();
+    // kenli F-011 §5.3: a spent level stays selectable (an attempt the engine refuses), with its reason.
+    expect(spent).not.toBeDisabled();
     expect(spent).toHaveTextContent(/No level 1 spell slots left/);
     expect(picker).toHaveValue("slot:2");
     await userEvent.click(

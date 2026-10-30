@@ -38,6 +38,7 @@ import {
 } from "@/store/history";
 import { useUi } from "@/store/ui";
 import {
+  appliedText,
   changeText,
   costText,
   dayName,
@@ -442,8 +443,10 @@ function EntryLine({
     return `${text}${result ? ` — ${result}` : ""}${status}`;
   };
   const badges: string[] = [];
+  const refused = e.kind === "refused";
   if (e.status === "undone") badges.push(t("history.status.undone"));
-  if (!e.commit && e.kind !== "import_boundary") badges.push(t("history.status.noChange"));
+  if (!e.commit && e.kind !== "import_boundary" && !refused)
+    badges.push(t("history.status.noChange"));
   const outside =
     isExternal(e.context.encounter_id) ||
     e.participants.some((p) => isExternal(p.record_id)) ||
@@ -504,9 +507,15 @@ function EntryLine({
           {context(e.links.continues, "answers")}
         </p>
       )}
+      {refused && e.messages[0] && (
+        <p data-testid="history-refusal">
+          {t("history.refusedBecause", { reason: rendered?.[0]?.[0] || e.messages[0].text })}
+        </p>
+      )}
       {e.outcome.length > 0 && (
         <p data-testid="history-outcome">{e.outcome.map(outcomeText).join(" | ")}</p>
       )}
+      {!refused && appliedText(e) && <p data-testid="history-applied">{appliedText(e)}</p>}
       {e.rest && e.rest.dice.length > 0 && (
         <p>
           {t("history.restDice", {

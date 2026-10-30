@@ -60,6 +60,7 @@ import type { RecordMeta } from "@/persistence/db";
 import { longRests } from "@/persistence/history";
 import { rollDice } from "./dice";
 import {
+  type Attempt,
   componentOf,
   type EntryDraft,
   newOperationId,
@@ -216,6 +217,7 @@ export interface DocumentsState {
     action: PlayAction | readonly PlayAction[],
     at?: RecordVersion,
     capture?: PlayCapture,
+    attempt?: Attempt | null,
   ): Promise<Outcome<PlayChange>>;
   /**
    * Rolled by hand on the sheet: the dice shown in the tray, the costs spent on the state. With
@@ -223,7 +225,12 @@ export interface DocumentsState {
    * before the roll: the engine rolls with it, and the use is paid with the roll's own costs in
    * one commit; refused (no use left, nothing to roll it on), nothing changes.
    */
-  rollByHand(id: string, what: RollWhat, lucky?: DeclaredLucky): Promise<Outcome<SheetRoll>>;
+  rollByHand(
+    id: string,
+    what: RollWhat,
+    lucky?: DeclaredLucky,
+    attempt?: Attempt | null,
+  ): Promise<Outcome<SheetRoll>>;
   /**
    * An attack line's damage rolled freely (nothing spent): the character's last roll. `follows`: the
    * operation of the attack roll it follows (kept only while that roll is the open last roll).
@@ -245,13 +252,23 @@ export interface DocumentsState {
     request: D20TestRequest,
     options?: TestOptions,
     lucky?: DeclaredLucky,
+    attempt?: Attempt | null,
   ): Promise<Outcome<{ test: D20TestResult }>>;
   /** A death saving throw: the engine's d20, applied; remembered so Heroic Inspiration can redo it. */
   deathSave(id: string): Promise<Outcome<PlayChange>>;
   /** Late Advantage on the last roll (a test, or attack `attack` of a roll by hand), spending `use`. */
-  lateAdvantage(id: string, use: string, attack?: number): Promise<Outcome<PlayChange>>;
+  lateAdvantage(
+    id: string,
+    use: string,
+    attack?: number,
+    attempt?: Attempt | null,
+  ): Promise<Outcome<PlayChange>>;
   /** Heroic Inspiration on one die of the last roll; a death save is made again from before it. */
-  heroicReroll(id: string, target: HeroicTarget): Promise<Outcome<PlayChange>>;
+  heroicReroll(
+    id: string,
+    target: HeroicTarget,
+    attempt?: Attempt | null,
+  ): Promise<Outcome<PlayChange>>;
   /** A Critical Hit the table decides for attack `attack` of the last roll by hand (nothing spent). */
   setCritical(id: string, attack: number, critical: boolean): Promise<Outcome<object>>;
 
@@ -262,6 +279,7 @@ export interface DocumentsState {
   encounterAction(
     id: string,
     action: EncounterAction | readonly EncounterAction[],
+    attempt?: Attempt | null,
   ): Promise<Outcome<EncounterChange>>;
   /**
    * An action rolled by hand: the engine's free `roll`, then a `spend` of its costs, committed as
@@ -272,6 +290,7 @@ export interface DocumentsState {
     id: string,
     roll: Extract<EncounterAction, { type: "roll" }>,
     force?: boolean,
+    attempt?: Attempt | null,
   ): Promise<RollOutcome>;
   clearLog(id: string): Promise<void>;
   /** A combatant's way of playing its actions (`null`: the campaign's default). */
@@ -519,6 +538,71 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         ...(before ? { delta: stateDelta(before, r.state) } : {}),
       },
     ]);
+  }
+
+  /**
+   * kenli F-011 §5: the player's explicit command (`attempt`) the rules refused (`cause: "rules"`):
+   * one `refused` entry in the character's journal, nothing paid, rolled or changed. Any other
+   * refusal (a malformed request, the app's own: busy, stale, gone, closed window…) records nothing.
+   */
+  function captureRefusal(
+    id: string,
+    attempt: Attempt | null | undefined,
+    result: { readonly ok: boolean } & Partial<
+      Pick<Refusal, "reasons" | "reason_messages" | "cause">
+    >,
+    request: unknown,
+    at: { follows?: OperationId | null; encounter?: { id: string; round: number } } = {},
+  ) {
+    if (!attempt || result.ok || result.cause !== "rules") return;
+    const r = get().characters[id];
+    if (!r) return;
+    const messages: Message[] = result.reason_messages?.length
+      ? [...result.reason_messages]
+      : (result.reasons ?? []).map((text) => ({ code: "text", params: { text }, text }) as Message);
+    if (!messages.length) return;
+    const label = attempt.label.trim().slice(0, 200) || attempt.command;
+    useHistory.getState().capture([
+      {
+        record_id: id,
+        name: r.build.name ?? "",
+        gen: r.gen ?? 0,
+        operation_id: newOperationId(),
+        kind: "refused",
+        request: request ?? null,
+        messages,
+        commit: false,
+        refusal: { command: attempt.command, label },
+        follows: at.follows ?? null,
+        ...(at.encounter
+          ? {
+              source: "encounter" as const,
+              encounter_id: at.encounter.id,
+              round: at.encounter.round,
+            }
+          : { source: "sheet" as const }),
+      },
+    ]);
+  }
+  /** The same for an encounter command: in the journal of the character whose combatant acted. */
+  function captureEncounterRefusal(
+    id: string,
+    action: EncounterAction | readonly EncounterAction[],
+    result: { readonly ok: boolean } & Partial<
+      Pick<Refusal, "reasons" | "reason_messages" | "cause">
+    >,
+    attempt: Attempt | null | undefined,
+  ) {
+    if (!attempt || result.ok || result.cause !== "rules") return;
+    const record = get().encounters[id];
+    if (!record) return;
+    const first = (Array.isArray(action) ? action[0] : action) as EncounterAction | undefined;
+    const actor = first && "id" in first && typeof first.id === "string" ? first.id : undefined;
+    const key = record.encounter.combatants.find((c) => c.id === actor)?.character;
+    if (!key || !get().characters[key]) return;
+    captureRefusal(key, attempt, result, action, {
+      encounter: { id, round: record.encounter.round },
+    });
   }
 
   const genOf = (id: string) => get().characters[id]?.gen ?? get().encounters[id]?.gen ?? 0;
@@ -849,7 +933,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       return editBuildNow(id, { type: "level_hp", level, hp: roll });
     },
 
-    playAction(id, action, at, extra) {
+    playAction(id, action, at, extra, attempt) {
       return guarded(
         [id],
         async () => {
@@ -874,7 +958,10 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             action,
             record.content,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            captureRefusal(id, attempt, result, actions);
+            return result;
+          }
           const op = newOperationId();
           if (!commitCharacter(record, record.build, result.state, op)) return replaced();
           const heroic = actions.some((a) => a.type === "spend_inspiration");
@@ -907,7 +994,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    rollByHand(id, what, lucky) {
+    rollByHand(id, what, lucky, attempt) {
       return guarded(
         [id],
         async () => {
@@ -926,6 +1013,20 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
                   },
                 }
               : what;
+          const request = { what: asked, ...(lucky ? { lucky: lucky.use } : {}) };
+          if (lucky) {
+            // kenli F-011 §5.3: the declared use is checked before any die is rolled.
+            const pre = await f.applyPlayAction(
+              record.build,
+              record.state,
+              { type: "use", key: lucky.use },
+              record.content,
+            );
+            if (!pre.ok) {
+              captureRefusal(id, attempt, pre, request);
+              return pre;
+            }
+          }
           const result = await f.rollByHand(
             record.build,
             record.state,
@@ -933,7 +1034,10 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             false,
             record.content,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            captureRefusal(id, attempt, result, request);
+            return result;
+          }
           let state = result.state;
           if (lucky) {
             // A spell without an attack roll the engine rolls (a save, its effects by hand):
@@ -1024,12 +1128,25 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    rollTest(id, request, options, lucky) {
+    rollTest(id, request, options, lucky, attempt) {
       return guarded(
         [id],
         async () => {
           const record = get().characters[id];
           if (!record) return missing();
+          // kenli F-011 §5.3: a declared use is paid (or refused) before the d20 is rolled.
+          const paid = lucky
+            ? await engine().applyPlayAction(
+                record.build,
+                record.state,
+                { type: "use", key: lucky.use },
+                record.content,
+              )
+            : null;
+          if (paid && !paid.ok) {
+            captureRefusal(id, attempt, paid, { request, lucky: lucky?.use });
+            return paid;
+          }
           const modes = lucky ? [{ mode: "advantage" as const, label: lucky.label }] : [];
           const test = await engine().rollCheck(
             record.build,
@@ -1042,14 +1159,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             },
           );
           const op = newOperationId();
-          if (lucky) {
-            const paid = await engine().applyPlayAction(
-              record.build,
-              record.state,
-              { type: "use", key: lucky.use },
-              record.content,
-            );
-            if (!paid.ok) return paid;
+          if (paid?.ok) {
             if (!commitCharacter(record, record.build, paid.state, op)) return replaced();
           } else if (!unchanged(record)) return replaced();
           // A roll that changes nothing is kept too (saved by the autosave all the same).
@@ -1111,7 +1221,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    lateAdvantage(id, use, attack = 0) {
+    lateAdvantage(id, use, attack = 0, attempt) {
       return guarded(
         [id],
         async () => {
@@ -1133,7 +1243,17 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             use,
             record.content,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            // The use is paid before the die (the engine's order): refused, nothing rolled.
+            captureRefusal(
+              id,
+              attempt,
+              result,
+              { use, ...(last.roll.kind === "sheet" ? { attack } : {}) },
+              { follows: last.roll.group ?? last.roll.op ?? null },
+            );
+            return result;
+          }
           const op = newOperationId();
           if (!commitCharacter(record, record.build, result.state, op)) return replaced();
           capture(id, {
@@ -1154,7 +1274,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    heroicReroll(id, target) {
+    heroicReroll(id, target, attempt) {
       return guarded(
         [id],
         async () => {
@@ -1173,7 +1293,12 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               { kind: "single", roll: last.roll.die, die: 0 },
               record.content,
             );
-            if (!die.ok) return die;
+            if (!die.ok) {
+              captureRefusal(id, attempt, die, target, {
+                follows: last.roll.group ?? last.roll.op ?? null,
+              });
+              return die;
+            }
             const again = die.roll as typeof last.roll.die;
             const result = await f.applyPlayAction(
               record.build,
@@ -1215,7 +1340,12 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
             resolved.target,
             record.content,
           );
-          if (!result.ok) return result;
+          if (!result.ok) {
+            captureRefusal(id, attempt, result, target, {
+              follows: last.roll.group ?? last.roll.op ?? null,
+            });
+            return result;
+          }
           const op = newOperationId();
           if (!commitCharacter(record, record.build, result.state, op)) return replaced();
           capture(id, {
@@ -1333,26 +1463,42 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
-    encounterAction(id, action) {
+    encounterAction(id, action, attempt) {
       return guarded(
         () => encounterIds(id, action),
-        () =>
-          applyToEncounter(id, action, (encounter, party, world) =>
+        async () => {
+          const r = await applyToEncounter(id, action, (encounter, party, world) =>
             engine().applyEncounterAction(encounter, party, action, world),
-          ),
+          );
+          if (!r.ok) captureEncounterRefusal(id, action, r, attempt);
+          return r;
+        },
         replaced,
       );
     },
 
-    rollAndPay(id, roll, force = false) {
+    rollAndPay(id, roll, force = false, attempt) {
       let paidCosts: { costs: readonly RollCost[]; forced: boolean } | null = null;
       return guarded(
         () => encounterIds(id, roll),
-        () =>
-          applyToEncounter(
+        async () => {
+          const r = await applyToEncounter(
             id,
             roll,
             async (encounter, party, world) => {
+              // kenli F-011 §5.3: costs checked on fixed dice first; refused, nothing is rolled.
+              const pre = await engine().rollCosts(encounter, party, roll, world);
+              if (!pre.ok) return pre;
+              const owed = pre.costs.flatMap((c) => (c.payable || !c.reason ? [] : [c.reason]));
+              if (owed.length > 0 && !force) {
+                return {
+                  ok: false as const,
+                  reasons: owed.map((r) => r.text),
+                  reason_messages: owed.map((r) => r.message),
+                  unpaid: true as const,
+                  cause: "rules" as const,
+                };
+              }
               const rolled = await engine().applyEncounterAction(encounter, party, roll, world);
               if (!rolled.ok) return rolled;
               const costs = rolled.results.flatMap((r) => ("costs" in r ? r.costs : []));
@@ -1364,6 +1510,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
                   reasons: unpaid.map((r) => r.text),
                   reason_messages: unpaid.map((r) => r.message),
                   unpaid: true as const,
+                  cause: "rules" as const,
                 };
               }
               const paid = await engine().applyEncounterAction(
@@ -1384,7 +1531,10 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               };
             },
             () => paidCosts,
-          ),
+          );
+          if (!r.ok) captureEncounterRefusal(id, roll, r, attempt);
+          return r;
+        },
         replaced,
       );
     },

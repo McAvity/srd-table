@@ -34,6 +34,15 @@ export function byHandReasons(entry: Pick<OptionEntry, "reasons">): readonly Opt
 }
 
 /**
+ * kenli F-011 §5.3: refused only for a resource with none left (a slot, a use): the option is still
+ * the player's attempt — sent, refused by the engine and journaled, nothing spent or rolled.
+ * Anything else (turn, economy, target, input…) keeps it unavailable.
+ */
+export function onlyResourceRefused(reasons: readonly OptionReason[]): boolean {
+  return reasons.length > 0 && reasons.every((r) => r.category === "resource");
+}
+
+/**
  * What to roll for an action, as the `roll` action's `what`: the action's own fields, without its
  * actor, targets, area, cover or economy flags. `null` for an action that has no roll.
  */

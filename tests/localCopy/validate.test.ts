@@ -239,6 +239,13 @@ const MUTATIONS: Record<string, (c: Mutable) => Promise<Mutable> | Mutable> = {
   },
 };
 
+/**
+ * kenli F-011 contracts/changes.md §5.1 (case H10) supersedes F-007's expectation for these: a
+ * `kenli.history/2` entry now exists (a refused command only), so a `/1` entry relabelled `/2` is
+ * refused for its kind, not for an unknown schema. Still refused, never accepted.
+ */
+const F011_SUPERSEDED: Readonly<Record<string, string>> = { "LC-X06": "history_kind" };
+
 describe("the contract's 115 invalid cases: refused with exactly their code, never validator_error", () => {
   it.each(cases.map((c) => [c.id, c] as const))("%s", async (_id, cs) => {
     const base = cs.base === "long" ? long() : empty();
@@ -247,7 +254,7 @@ describe("the contract's 115 invalid cases: refused with exactly their code, nev
         ? await applyPathCase(base, cs)
         : await (MUTATIONS[cs.mutate as string] as (c: Mutable) => Promise<Mutable>)(base);
     const v = await check(mutated);
-    expect(v.ok ? "accepted" : v.code).toBe(cs.expect);
+    expect(v.ok ? "accepted" : v.code).toBe(F011_SUPERSEDED[cs.id] ?? cs.expect);
   });
 });
 

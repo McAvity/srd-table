@@ -156,6 +156,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                               ...attackDm(additions),
                             } as RollWhat,
                             declaredLucky(additions, sheet),
+                            { command: "sheet_cast", label: s.name },
                           )
                         }
                       />
@@ -173,11 +174,12 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
 
 /**
  * Cast by hand: a cantrip at once; a spell with one of the slots the engine lists for it
- * (`slots`: those with none left disabled, with the engine's reason), starting on the first one
- * left. With none left, Roll is disabled and the reason shown next to it. The spellcasting
- * feature it's cast with is the one the engine lists for it (`spellcasting`), sent with the roll;
- * when it lists several (the same spell given twice), the player picks one first: nothing is
- * chosen for them.
+ * (`slots`, those with none left included and marked with the engine's reason), starting on the
+ * first one left — or, when none is left, on the lowest level it can use (kenli F-011 §5.3: Cast is
+ * the player's attempt; the engine refuses it and the refusal is journaled, nothing spent or
+ * rolled). The spellcasting feature it's cast with is the one the engine lists for it
+ * (`spellcasting`), sent with the roll; when it lists several (the same spell given twice), the
+ * player picks one first: nothing is chosen for them, and Cast waits for it.
  */
 export type SpellPay =
   | { readonly kind: "slot"; readonly slot: SpellSlotChoice }
@@ -196,8 +198,20 @@ function RollSpell({
   const key = (slot: SpellSlotChoice) => `${slot.pact ? "pact" : "slot"}:${slot.level}`;
   const first = spell.slots.find((slot) => slot.available);
   const free = spell.free.find((f) => f.available);
+  // None left: the lowest slot level it can be cast with (an attempt the rules will refuse).
+  const lowest = [...spell.slots].sort(
+    (a, b) => a.level - b.level || Number(a.pact) - Number(b.pact),
+  )[0];
   const [picked, setPicked] = useState(() =>
-    first ? key(first) : free ? `free:${free.use}` : spell.ritual ? "ritual" : "",
+    first
+      ? key(first)
+      : free
+        ? `free:${free.use}`
+        : spell.ritual
+          ? "ritual"
+          : lowest
+            ? key(lowest)
+            : "",
   );
   const slot = spell.slots.find((x) => key(x) === picked) ?? null;
   const pay: SpellPay | null = picked.startsWith("free:")
@@ -216,11 +230,25 @@ function RollSpell({
   const otherWay = Boolean(free) || spell.ritual;
   const slotReason = leveled && !first && !otherWay ? (spell.slots[0]?.reason?.text ?? null) : null;
   const pickSource = sources.length > 1 && spellcasting === null && pay?.kind !== "free";
-  let reason: string | null = null;
-  if (spell.blocked) reason = spell.blocked.text;
-  else if (slotReason) reason = slotReason;
-  else if (leveled && pay === null) reason = spell.slots[0]?.reason?.text ?? null;
-  else if (pickSource) reason = t("sheet.chooseSpellcasting");
+  // Blocking: the spell can't be cast at all now (`blocked`), or something only the player can say
+  // is missing (which spellcasting, a way to pay). A slot or free use with none left is a warning
+  // next to Cast, not a lock: Cast sends the attempt (kenli F-011 §5.3).
+  let blocking: string | null = null;
+  if (spell.blocked) blocking = spell.blocked.text;
+  else if (leveled && pay === null)
+    blocking = spell.slots[0]?.reason?.text ?? t("sheet.chooseSlot");
+  else if (pickSource) blocking = t("sheet.chooseSpellcasting");
+  const picked0 =
+    pay?.kind === "slot"
+      ? pay.slot
+      : pay?.kind === "free"
+        ? spell.free.find((f) => f.use === pay.use)
+        : null;
+  const warning =
+    blocking === null && picked0 && !picked0.available
+      ? (picked0.reason?.text ?? slotReason)
+      : null;
+  const reason = blocking ?? warning;
   const reasonId = `cast-${spell.id}-${spell.source}`;
   return (
     <>
@@ -239,7 +267,7 @@ function RollSpell({
           ))}
         </select>
       )}
-      {leveled && (first || otherWay) && (
+      {leveled && (
         <select
           className="field w-auto py-1 text-sm"
           aria-label={t("sheet.castAt", { spell: spell.name })}
@@ -247,7 +275,7 @@ function RollSpell({
           onChange={(e) => setPicked(e.target.value)}
         >
           {spell.slots.map((x) => (
-            <option key={key(x)} value={key(x)} disabled={!x.available}>
+            <option key={key(x)} value={key(x)}>
               {x.pact
                 ? t("sheet.pact", { level: x.level })
                 : t("sheet.slotLevel", { level: x.level })}
@@ -255,7 +283,7 @@ function RollSpell({
             </option>
           ))}
           {spell.free.map((f) => (
-            <option key={f.use} value={`free:${f.use}`} disabled={!f.available}>
+            <option key={f.use} value={`free:${f.use}`}>
               {t("sheet.castFree", { use: f.name })}
               {f.reason
                 ? ` · ${f.reason.text}`
@@ -274,7 +302,7 @@ function RollSpell({
         size="sm"
         icon="d20"
         title={t("sheet.rollSpellHint")}
-        disabled={busy || reason !== null}
+        disabled={busy || blocking !== null}
         aria-describedby={reason ? reasonId : undefined}
         onClick={() => onRoll(leveled ? pay : null, spellcasting)}
       >

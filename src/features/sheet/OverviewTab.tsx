@@ -22,7 +22,21 @@ export function useRoller(id: string, sheet: PlaySheet) {
   return (request: D20TestRequest) => {
     const additions = useRollAdditions.getState().by[id];
     const lucky = declaredLucky(additions, sheet);
-    void rollTest(id, request, testOptions(additions), lucky).then((r) => {
+    // kenli F-011: with a declared use, the test is an attempt the rules may refuse (none left).
+    const label =
+      "skill" in request && request.skill
+        ? request.skill
+        : "attack" in request && request.attack
+          ? request.attack
+          : "ability" in request && request.ability
+            ? request.ability
+            : "save" in request && request.save
+              ? request.save
+              : "d20";
+    void rollTest(id, request, testOptions(additions), lucky, {
+      command: "sheet_test",
+      label: String(label),
+    }).then((r) => {
       if (r.ok && lucky) luckySpent(id);
     });
   };

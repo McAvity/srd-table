@@ -34,7 +34,43 @@ export type EntryKind =
   | "short_rest"
   | "long_rest"
   | "encounter"
-  | "import_boundary";
+  | "import_boundary"
+  /** kenli F-011 (`kenli.history/2`): a command the rules refused; nothing happened. */
+  | "refused";
+
+/**
+ * kenli F-011 contracts/changes.md §5: the player's explicit command a refused entry records.
+ * Only the engine's rule refusals (`cause: "rules"`) of these commands are journaled.
+ */
+export type RefusalCommand =
+  | "sheet_cast"
+  | "sheet_attack"
+  | "sheet_use"
+  | "sheet_use_feature"
+  | "sheet_activate"
+  | "sheet_test"
+  | "late_advantage"
+  | "heroic_reroll"
+  | "encounter_roll"
+  | "encounter_action";
+export const REFUSAL_COMMANDS: readonly RefusalCommand[] = [
+  "sheet_cast",
+  "sheet_attack",
+  "sheet_use",
+  "sheet_use_feature",
+  "sheet_activate",
+  "sheet_test",
+  "late_advantage",
+  "heroic_reroll",
+  "encounter_roll",
+  "encounter_action",
+];
+/** What a store action that can be refused records when it is (its caller's explicit command). */
+export interface Attempt {
+  readonly command: RefusalCommand;
+  /** What was tried, as the sheet names it (a spell, a use, an option); 1–200 characters. */
+  readonly label: string;
+}
 
 /** Kinds whose `result` is a roll (the current result of a group is made of them). */
 export const RESULT_KINDS: ReadonlySet<EntryKind> = new Set([
@@ -69,8 +105,13 @@ export interface RestDie {
   readonly rerolled_from: RollResult | null;
 }
 
+/**
+ * One journal entry. `kenli.history/1` for everything that happened; `kenli.history/2` (kenli
+ * F-011) only for `kind: "refused"`, with `refusal` and no cost, roll, outcome or state change. Both
+ * live in the same journal and sequence; old `/1` entries are never rewritten.
+ */
 export interface HistoryEntry {
-  readonly schema: "kenli.history/1";
+  readonly schema: "kenli.history/1" | "kenli.history/2";
   readonly id: string;
   readonly record_id: string;
   readonly seq: number;
@@ -119,6 +160,8 @@ export interface HistoryEntry {
     readonly origin: RecordOrigin | null;
   };
   readonly forced?: true;
+  /** Only on a refused (`kenli.history/2`) entry: the command and what was tried. */
+  readonly refusal?: Attempt;
 }
 
 export interface HistoryDay {
@@ -170,6 +213,8 @@ export interface EntryDraft {
   readonly forced?: boolean;
   /** A label for outcomes that need one (free damage). */
   readonly label?: string;
+  /** `kind: "refused"` only: the command and what was tried. */
+  readonly refusal?: Attempt;
 }
 
 export type SaveState =
@@ -435,6 +480,49 @@ export const useHistory = create<HistoryState>()((set, get) => {
         const entries = { ...s.entries };
         for (const d of drafts) {
           const m = meta[d.record_id] ?? newMeta(d.record_id, now);
+          if (d.kind === "refused") {
+            // kenli F-011 §5.1: a refusal is an event of its own, with nothing paid, rolled or changed.
+            const refused: HistoryEntry = {
+              schema: "kenli.history/2",
+              id: randomId("h"),
+              record_id: d.record_id,
+              seq: m.next_seq,
+              gen: d.gen,
+              operation_id: d.operation_id,
+              group_id: d.operation_id,
+              parent_op: null,
+              component: "",
+              at: now,
+              day_id: m.current_day_id,
+              kind: "refused",
+              role: "actor",
+              context: {
+                source: d.source === "encounter" ? "encounter" : "sheet",
+                encounter_id: d.source === "encounter" ? (d.encounter_id ?? null) : null,
+                round: d.source === "encounter" ? (d.round ?? null) : null,
+                combat_id: null,
+                turn_id: null,
+              },
+              participants: [{ record_id: d.record_id, name: d.name }],
+              name: d.name,
+              request: d.request ?? null,
+              result: null,
+              messages: d.messages ?? [],
+              outcome: [],
+              costs: [],
+              effect: { mode: "none", replaces_op: null, state_delta: [] },
+              commit: false,
+              status: "done",
+              undone_with: null,
+              pending_decision: false,
+              links: { follows: d.follows ?? null, continues: null },
+              refusal: d.refusal as Attempt,
+            };
+            meta[d.record_id] = { ...m, next_seq: m.next_seq + 1 };
+            entries[refused.id] = refused;
+            out.push(refused);
+            continue;
+          }
           const entry: HistoryEntry = {
             schema: "kenli.history/1",
             id: randomId("h"),

@@ -252,6 +252,12 @@ export function ActionComposer({
   const played = playedAs(action, as, entry.rollable);
   const check = useActionCheck(encounterId, played);
   const refused = check.data?.ok === false;
+  // kenli F-011 §5.3: refused only for a resource with none left — Send stays the player's attempt.
+  const resourceCodes = new Set(
+    entry.reasons.filter((r) => r.category === "resource").map((r) => r.code as string),
+  );
+  const attemptOnly =
+    refused && !!check.data?.codes.length && check.data.codes.every((c) => resourceCodes.has(c));
   // A roll by hand is free; its costs are paid with `spend`, which `force` overrides instead.
   const forced = useActionCheck(
     encounterId,
@@ -310,9 +316,21 @@ export function ActionComposer({
     setBusy(true);
     try {
       const played = playedAs(action, as, entry.rollable);
+      // kenli F-011: the player's explicit command (forced by the GM: not a refusal to journal).
+      const attempt = force
+        ? null
+        : {
+            command:
+              played.type === "roll" ? ("encounter_roll" as const) : ("encounter_action" as const),
+            label: entry.label,
+          };
       const result = await (played.type === "roll"
-        ? rollAndPay(encounterId, played, force)
-        : send(encounterId, force ? ({ ...played, force: true } as EncounterAction) : played));
+        ? rollAndPay(encounterId, played, force, attempt)
+        : send(
+            encounterId,
+            force ? ({ ...played, force: true } as EncounterAction) : played,
+            attempt,
+          ));
       if (result.ok) onClose();
       else {
         setAs(as);
@@ -737,7 +755,7 @@ export function ActionComposer({
         <Button
           variant="primary"
           icon="d20"
-          disabled={busy || check.data?.ok === false}
+          disabled={busy || (check.data?.ok === false && !attemptOnly)}
           onClick={() => void go(as)}
         >
           {byHand ? t("table.sendManual") : t("table.send")}

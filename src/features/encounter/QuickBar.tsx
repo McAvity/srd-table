@@ -21,7 +21,7 @@ import { t, tn } from "@/i18n";
 import { useDocuments } from "@/store/documents";
 import { type PlayWay, useSettings } from "@/store/settings";
 import { oddsText } from "./ActionComposer";
-import { byHandReasons, playedAs } from "./manual";
+import { byHandReasons, onlyResourceRefused, playedAs } from "./manual";
 
 /** A stable empty list: a store selector must not return a new array each time. */
 const NO_FAVORITES: readonly string[] = [];
@@ -147,9 +147,13 @@ export function QuickBar({
     setReasons(null);
     if (needsComposer(tile.entry, way)) return onCompose(tile.entry, way);
     const played = playedAs(tile.entry.action, way, tile.entry.rollable);
+    const attempt = {
+      command: played.type === "roll" ? ("encounter_roll" as const) : ("encounter_action" as const),
+      label: tile.entry.label,
+    };
     const result = await (played.type === "roll"
-      ? rollAndPay(encounterId, played)
-      : send(encounterId, played));
+      ? rollAndPay(encounterId, played, false, attempt)
+      : send(encounterId, played, attempt));
     if (result.ok) return;
     if (byHand(tile)) onCompose(tile.entry, way);
     else setReasons(result.reasons);
@@ -233,7 +237,15 @@ export function QuickBar({
                 icon={ICON[tile.kind]}
                 reason={reasonOf(tile)}
                 onClick={() => void use(tile)}
-                onUnavailable={gm ? () => onCompose(tile.entry, way) : undefined}
+                onUnavailable={
+                  gm
+                    ? () => onCompose(tile.entry, way)
+                    : onlyResourceRefused(
+                          byHand(tile) ? byHandReasons(tile.entry) : tile.entry.reasons,
+                        )
+                      ? () => void use(tile)
+                      : undefined
+                }
                 detail={[
                   t(`table.cost.${tile.entry.cost}`),
                   tile.entry.uses ? t("table.uses", tile.entry.uses) : null,

@@ -24,10 +24,14 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const setCritical = useDocuments((s) => s.setCritical);
   if (!last) return null;
   const inspired = sheet.play.heroic_inspiration;
-  const lucky = sheet.play.uses.filter(
-    (u) => u.spend_for?.includes("d20_advantage") && u.spent < u.max,
-  );
-  const reroll = (target: HeroicTarget) => run(() => heroic(id, target));
+  // kenli F-011 §5.3: a luck-style use with none left, or a reroll without Heroic Inspiration, is
+  // still the player's attempt: the engine refuses it and the refusal is journaled (it follows the
+  // roll). The reason is said next to it; nothing is spent or rolled.
+  const lucky = sheet.play.uses.filter((u) => u.spend_for?.includes("d20_advantage"));
+  const reroll = (target: HeroicTarget, what: string) =>
+    run(() => heroic(id, target, { command: "heroic_reroll", label: what }));
+  const luckyLabel = (u: (typeof lucky)[number]) =>
+    `${t("followups.lateAdvantage", { use: u.name })}${u.spent >= u.max ? ` · ${t("common.left", { left: 0, total: u.max })}` : ""}`;
   const dieButtons = (
     values: readonly number[],
     target: (die: number) => HeroicTarget,
@@ -38,9 +42,9 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
         key={`${what}-${die}`}
         size="sm"
         variant="ghost"
-        disabled={busy || !inspired}
+        disabled={busy}
         aria-label={t("followups.reroll", { what, value: v })}
-        onClick={() => void reroll(target(die))}
+        onClick={() => void reroll(target(die), t("followups.reroll", { what, value: v }))}
       >
         {v}
       </Button>
@@ -78,9 +82,13 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
             key={u.key}
             size="sm"
             disabled={busy}
-            onClick={() => void run(() => lateAdvantage(id, u.key, attack))}
+            onClick={() =>
+              void run(() =>
+                lateAdvantage(id, u.key, attack, { command: "late_advantage", label: u.name }),
+              )
+            }
           >
-            {t("followups.lateAdvantage", { use: u.name })}
+            {luckyLabel(u)}
           </Button>
         ))}
         <Button
@@ -124,9 +132,16 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 key={u.key}
                 size="sm"
                 disabled={busy}
-                onClick={() => void run(() => lateAdvantage(id, u.key))}
+                onClick={() =>
+                  void run(() =>
+                    lateAdvantage(id, u.key, undefined, {
+                      command: "late_advantage",
+                      label: u.name,
+                    }),
+                  )
+                }
               >
-                {t("followups.lateAdvantage", { use: u.name })}
+                {luckyLabel(u)}
               </Button>
             ))}
           </div>
@@ -174,8 +189,8 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
           <span>{t("followups.deathSave", { value: last.die.total })}</span>
           <Button
             size="sm"
-            disabled={busy || !inspired}
-            onClick={() => void reroll({ kind: "death_save" })}
+            disabled={busy}
+            onClick={() => void reroll({ kind: "death_save" }, t("followups.rerollDeathSave"))}
           >
             {t("followups.rerollDeathSave")}
           </Button>

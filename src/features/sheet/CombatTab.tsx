@@ -111,6 +111,7 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                         void roll(
                           { type: "attack", attack: a.name, ...attackDm(additions) } as RollWhat,
                           declaredLucky(additions, sheet),
+                          { command: "sheet_attack", label: a.name },
                         )
                       }
                     >
@@ -156,7 +157,12 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
             size="sm"
             icon="d20"
             disabled={busy}
-            onClick={() => void roll({ type: "unarmed", option })}
+            onClick={() =>
+              void roll({ type: "unarmed", option }, undefined, {
+                command: "sheet_attack",
+                label: t(option === "grapple" ? "sheet.grapple" : "sheet.shove"),
+              })
+            }
           >
             {t(option === "grapple" ? "sheet.grapple" : "sheet.shove")}
           </Button>
@@ -248,8 +254,14 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     disabled={busy}
                     onClick={() =>
                       void (manual
-                        ? roll({ type: "feature", feature: a.key, ...paid })
-                        : act({ type: "use_feature", key: a.key, ...paid }))
+                        ? roll({ type: "feature", feature: a.key, ...paid }, undefined, {
+                            command: "sheet_use_feature",
+                            label: a.name,
+                          })
+                        : act({ type: "use_feature", key: a.key, ...paid }, undefined, undefined, {
+                            command: "sheet_use_feature",
+                            label: a.name,
+                          }))
                     }
                   >
                     {manual ? t("table.wayManual") : t("sheet.useFeature")}
@@ -288,7 +300,14 @@ function Toggles({ id, sheet }: { id: string; sheet: PlaySheet }) {
               on={tg.active}
               aria-pressed={tg.active}
               disabled={busy}
-              onClick={() => void act({ type: tg.active ? "deactivate" : "activate", key: tg.key })}
+              onClick={() =>
+                void (tg.active
+                  ? act({ type: "deactivate", key: tg.key })
+                  : act({ type: "activate", key: tg.key }, undefined, undefined, {
+                      command: "sheet_activate",
+                      label: tg.name,
+                    }))
+              }
             >
               {tg.active ? t("sheet.on") : t("sheet.off")}
             </Button>
@@ -319,8 +338,14 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 total={u.max}
                 spent={u.spent}
                 label={u.name}
-                onSpend={() => void act({ type: "use", key: u.key })}
+                onSpend={() =>
+                  void act({ type: "use", key: u.key }, undefined, undefined, {
+                    command: "sheet_use",
+                    label: u.name,
+                  })
+                }
                 onRestore={() => void act({ type: "restore_use", key: u.key })}
+                spendWhenEmpty
               />
             ) : (
               <div className="flex items-center gap-2">
@@ -334,7 +359,12 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     icon="minus"
                     iconOnly
                     label={t("common.spendOne", { what: u.name })}
-                    onClick={() => void act({ type: "use", key: u.key })}
+                    onClick={() =>
+                      void act({ type: "use", key: u.key }, undefined, undefined, {
+                        command: "sheet_use",
+                        label: u.name,
+                      })
+                    }
                   />
                   <Button
                     size="sm"

@@ -76,6 +76,8 @@ export function titleOf(
       return t("history.kind.longRest");
     case "import_boundary":
       return t("history.kind.import");
+    case "refused":
+      return t("history.kind.refused", { what: e.refusal?.label ?? "" });
     case "encounter": {
       const name = e.context.encounter_id ? encounterName?.(e.context.encounter_id) : undefined;
       return t("history.kind.encounter", {
@@ -139,6 +141,18 @@ export function outcomeText(o: OutcomeValue): string {
 /** The engine's notes kept with an entry, as they were said (rendered, never parsed). */
 export const messagesOf = (e: HistoryEntry): string[] =>
   (e.messages as readonly Message[]).map((m) => m.text).filter(Boolean);
+
+/**
+ * kenli F-011 (AC-09): what an entry changed, said without opening its details — the applied
+ * change as stored (`state_delta`), never worked out again from the roll (rolled damage is the
+ * outcome; the HP change is this). At most `max` changes, then "…".
+ */
+export function appliedText(e: HistoryEntry, max = 3): string | null {
+  const d = e.effect.state_delta;
+  if (!d.length) return null;
+  const shown = d.slice(0, max).map(changeText).join(", ");
+  return t("history.applied", { changes: d.length > max ? `${shown}, …` : shown });
+}
 
 /** A state change line: `hp.current: 13 → 4`. */
 export function changeText(c: { path: string; before: unknown; after: unknown }): string {

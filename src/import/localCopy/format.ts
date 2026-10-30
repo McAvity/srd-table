@@ -20,7 +20,7 @@ import {
 } from "@/lib/canonical";
 import { changedFields } from "@/lib/files";
 import type { RecordOrigin } from "@/persistence/db";
-import type { HistoryEntry, HistoryMeta } from "@/store/history";
+import { type HistoryEntry, type HistoryMeta, REFUSAL_COMMANDS } from "@/store/history";
 import { checkCharacter } from "../plan";
 import type { Envelope } from "../transfer";
 
@@ -420,10 +420,68 @@ const entryShape: V = T.obj(
   },
 );
 
-/** One stored `kenli.history/1` entry, every structural field typed (throws a `Refusal`). */
+/**
+ * kenli F-011 contracts/changes.md §5.1: one `kenli.history/2` entry — a refused command, with
+ * nothing paid, rolled, changed or pending, a group of its own, and its command and label.
+ */
+function checkRefusal(x: Record<string, unknown>, at: string): void {
+  const R = "history_refusal_invalid";
+  if (x.kind !== "refused") refuse("history_kind", `${at}: kenli.history/2 holds only refused`);
+  const { refusal, ...rest } = x;
+  entryShape({ ...rest, kind: "test", schema: "kenli.history/1" }, at);
+  T.obj(R, {
+    command: T.lit(R, ...REFUSAL_COMMANDS),
+    label: (v, where) => {
+      if (typeof v !== "string" || v.length < 1 || v.length > 200 || v.trim() !== v)
+        refuse(R, `${where}: 1–200 characters, trimmed`);
+    },
+  })(refusal, `${at}.refusal`);
+  for (const k of ["rest_kind", "rest", "import", "forced"])
+    if (Object.hasOwn(x, k)) refuse(R, `${at}.${k}`);
+  const eff = x.effect as { mode: string; replaces_op: unknown; state_delta: unknown[] };
+  const links = x.links as { follows: unknown; continues: unknown };
+  const ctx = x.context as { source: string; encounter_id: unknown };
+  const command = (refusal as { command: string }).command;
+  const encounter = command.startsWith("encounter_");
+  const followUp = command === "late_advantage" || command === "heroic_reroll";
+  if (
+    x.commit !== false ||
+    x.status !== "done" ||
+    x.undone_with !== null ||
+    x.pending_decision !== false ||
+    (x.costs as unknown[]).length ||
+    (x.outcome as unknown[]).length ||
+    x.result !== null ||
+    x.request === null ||
+    eff.mode !== "none" ||
+    eff.replaces_op !== null ||
+    eff.state_delta.length ||
+    (x.messages as unknown[]).length < 1 ||
+    x.group_id !== x.operation_id ||
+    x.parent_op !== null ||
+    x.component !== "" ||
+    x.role !== "actor" ||
+    links.continues !== null ||
+    followUp !== (links.follows !== null) ||
+    ctx.source !== (encounter ? "encounter" : "sheet") ||
+    encounter !== (ctx.encounter_id !== null)
+  )
+    refuse(R, `${at}: a refusal changes, pays and rolls nothing`);
+  const ps = x.participants as { record_id: string }[];
+  if (ps.length !== 1 || ps[0]?.record_id !== x.record_id) refuse(R, `${at}.participants`);
+}
+
+/**
+ * One stored journal entry, every structural field typed (throws a `Refusal`): `kenli.history/1`,
+ * or (kenli F-011) a refused command `kenli.history/2`.
+ */
 export function checkEntry(e: unknown, at = "entry"): void {
   if (!isObj(e)) refuse(H, `${at}: object`);
   const x = e as Record<string, unknown>;
+  if (x.schema === "kenli.history/2") {
+    checkRefusal(x, at);
+    return;
+  }
   if (x.schema !== "kenli.history/1") refuse("history_schema", `${at}.schema`);
   if (typeof x.kind !== "string" || !KINDS.includes(x.kind)) refuse("history_kind", `${at}.kind`);
   if (x.status !== "done" && x.status !== "undone") refuse("history_status", `${at}.status`);
