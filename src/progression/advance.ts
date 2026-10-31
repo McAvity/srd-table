@@ -33,7 +33,6 @@ import type { PlanCheckpoint, PlanCompileResult, ReadableOp } from "@/engine/pla
 import { campaignContext } from "@/import/export";
 import {
   type ContentContext,
-  canonicalJson,
   contentSha,
   contextKey,
   type PackFiles,
@@ -272,6 +271,30 @@ async function keptState(build: CharacterBuild, record: CharacterRecord, ctx: Co
     : null;
 }
 
+/** A pack served with the app under exactly this ref (id, version and hash), without a stored copy. */
+async function servedExactly(ref: PackRef): Promise<boolean> {
+  const served = await engine()
+    .servedPack(ref.id)
+    .catch(() => null);
+  return (
+    !!served &&
+    served.id === ref.id &&
+    served.version === ref.version &&
+    served.sha256 === ref.sha256
+  );
+}
+
+/** The new packs for the worker, before any durable write: a failure is a refusal, nothing written. */
+async function registerBefore(rows: readonly StoredPack[]): Promise<ProgressionRefusal | null> {
+  if (!rows.length) return null;
+  try {
+    await engine().registerPacks(rows.map((r) => r.files));
+    return null;
+  } catch (error) {
+    return no("pack_register_failed", error instanceof Error ? error.message : String(error));
+  }
+}
+
 const tokenOf = async (snapshot: unknown, result: unknown) => contentSha({ snapshot, result });
 
 function compileRefusal(r: Extract<PlanCompileResult, { ok: false }>): ProgressionRefusal {
@@ -430,7 +453,9 @@ async function stageBind(id: string, file: unknown): Promise<Staged | Progressio
     if (await database.getKey("packs", packKey(ref))) continue;
     const files = envelopeFiles.get(ref.sha256);
     if (!files) {
-      if (cmp.kind === "equal" && ctx.packs.some((p) => p.sha256 === ref.sha256)) continue; // served (the SRD)
+      // Served with the app under exactly this ref (the SRD): available without a stored copy,
+      // whatever kind of bind this is (R06-02). Anything else missing is refused.
+      if (await servedExactly(ref)) continue;
       return no("plan_pack_missing", `${ref.id}@${ref.version ?? ""}#${ref.sha256}`);
     }
     rows.push({
@@ -442,8 +467,11 @@ async function stageBind(id: string, file: unknown): Promise<Staged | Progressio
     });
   }
   // The verified exact refs for this session's worker (as an import's preview does): the state
-  // and sheets are then read in the plan's very context. Nothing is written.
-  if (rows.length) await engine().registerPacks(rows.map((r) => r.files));
+  // and sheets are then read in the plan's very context. Nothing is written. This is the only
+  // registration of a bind — before its transaction (staged again under the confirm's lock), so a
+  // failing worker leaves nothing behind (R06-01).
+  const registered = await registerBefore(rows);
+  if (registered) return registered;
   const lost = await keptState(build, record, planCtx);
   if (lost) return lost;
   const progression: ProgressionMeta = {
@@ -626,9 +654,9 @@ async function confirmNow(preview: StepPreview): Promise<Confirmed | Progression
       if (name === "QuotaExceededError") return no("storage_quota", String(error));
       return no("storage_failed", error instanceof Error ? error.message : String(error));
     }
-    // Done: the packs for the worker, then in one synchronous block the store (one undo step),
-    // the journal and the autosave's baseline.
-    if (packs.length) await engine().registerPacks(packs.map((p) => p.files));
+    // Durable: from here on nothing can fail — no worker call, no await (the packs were registered
+    // while staging, before the transaction; R06-01). In one synchronous block: the store (one
+    // undo step), the journal and the autosave's baseline.
     const e = entry as unknown as HistoryEntry;
     const h = next as unknown as HistoryMeta;
     if (!useDocuments.getState().publishProgression(read, record, op))
@@ -722,10 +750,7 @@ async function startNow(
     if (await database.getKey("packs", packKey(ref))) continue;
     const files = envelopeFiles.get(ref.sha256);
     if (!files) {
-      const served = await engine()
-        .servedPack(ref.id)
-        .catch(() => null);
-      if (served && canonicalJson(served) === canonicalJson(ref)) continue;
+      if (await servedExactly(ref)) continue;
       return no("plan_pack_missing", `${ref.id}@${ref.version ?? ""}#${ref.sha256}`);
     }
     rows.push({
@@ -736,7 +761,8 @@ async function startNow(
       origin: { kind: "import", bytes_sha256: null },
     });
   }
-  if (rows.length) await engine().registerPacks(rows.map((r) => r.files));
+  const registered = await registerBefore(rows);
+  if (registered) return registered;
   const build = at.build;
   const fresh =
     parsed.file.plan.start.equipment === "starting"

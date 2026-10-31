@@ -11,7 +11,7 @@ import { join } from "node:path";
 import type { CharacterBuild } from "srd-rules-engine";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { canonicalJson, contentSha } from "@/lib/canonical";
-import { db } from "@/persistence/db";
+import { db, packKey } from "@/persistence/db";
 import { journal } from "@/persistence/history";
 import { flushNow, savedHead } from "@/persistence/sync";
 import {
@@ -564,5 +564,129 @@ describe("the association itself", () => {
     expect((await (await db()).get("characters", id))?.progression).toEqual({
       schema: "srd-table.progression/9",
     });
+  });
+});
+
+describe("R06: nothing fallible after the durable write; the served SRD without a stored copy", () => {
+  /** An ordinary character at the pool plan's level 3, on the campaign's packs, played. */
+  async function poolCharacter() {
+    const r = await inst.fx.engine.compilePlan(POOL());
+    if (!r.ok) throw new Error(r.problem.detail);
+    const id = await addCharacter(
+      { ...(r.checkpoints[2]?.build as CharacterBuild), name: "Pool" },
+      null,
+      inst.fx.engine,
+    );
+    await play(id);
+    return id;
+  }
+  /** Every facade call from now on, by name (the methods of the installed engine wrapped). */
+  function recordCalls() {
+    const e = inst.fx.engine as unknown as Record<string, unknown>;
+    const calls: string[] = [];
+    const originals = new Map<string, unknown>();
+    for (const [name, fn] of Object.entries(e)) {
+      if (typeof fn !== "function") continue;
+      originals.set(name, fn);
+      e[name] = (...args: unknown[]) => {
+        calls.push(name);
+        return (fn as (...a: unknown[]) => unknown)(...args);
+      };
+    }
+    return { calls, restore: () => originals.forEach((fn, name) => (e[name] = fn)) };
+  }
+
+  it("the registration a bind needs fails under the confirm's lock: refused before the transaction, nothing written or published", async () => {
+    const id = await poolCharacter();
+    const p = must(await previewBind(id, POOL())) as StepPreview;
+    await flushNow();
+    const dump = await dumpDb();
+    const before = rec(id);
+    const past = docs().history[id]?.past.length ?? 0;
+    const e = inst.fx.engine as unknown as { registerPacks: (...a: unknown[]) => Promise<unknown> };
+    const original = e.registerPacks;
+    e.registerPacks = async () => {
+      throw new Error("synthetic worker failure");
+    };
+    try {
+      const r = await confirmStep(p);
+      expect(r).toMatchObject({ ok: false, code: "pack_register_failed" });
+    } finally {
+      e.registerPacks = original;
+    }
+    expect(await dumpDb()).toBe(dump);
+    expect(rec(id)).toBe(before);
+    expect(docs().history[id]?.past.length ?? 0).toBe(past);
+    expect(Object.values(useHistory.getState().entries).some((x) => x.kind === "level_up")).toBe(
+      false,
+    );
+    // The worker back: a fresh preview and confirm work.
+    must(await confirmStep(must(await previewBind(id, POOL())) as StepPreview));
+    expect(rec(id).progression?.applied_level).toBe(3);
+  });
+
+  it.each(["bind", "advance"] as const)(
+    "%s: no worker call after the transaction's last write; the database, store, journal and baseline agree",
+    async (kind) => {
+      const id = await poolCharacter();
+      if (kind === "advance")
+        must(await confirmStep(must(await previewBind(id, POOL())) as StepPreview));
+      const p = must(
+        await (kind === "bind" ? previewBind(id, POOL()) : previewAdvance(id)),
+      ) as StepPreview;
+      const past = docs().history[id]?.past.length ?? 0;
+      const spy = recordCalls();
+      let mark = -1;
+      confirmHooks.beforeDone = () => {
+        mark = spy.calls.length;
+      };
+      let done: Confirmed;
+      try {
+        done = must(await confirmStep(p)) as Confirmed;
+      } finally {
+        confirmHooks.beforeDone = undefined;
+        spy.restore();
+      }
+      expect(mark).toBeGreaterThanOrEqual(0);
+      expect(spy.calls.slice(mark)).toEqual([]);
+      const database = await db();
+      expect(canonicalJson(await database.get("characters", id))).toBe(canonicalJson(rec(id)));
+      expect(rec(id)).toBe(done.record);
+      expect(docs().history[id]?.past.length ?? 0).toBe(past + 1);
+      const memory = Object.values(useHistory.getState().entries).find(
+        (x) => x.operation_id === done.op,
+      );
+      expect(canonicalJson((await journal(id)).at(-1))).toBe(canonicalJson(memory));
+      expect(canonicalJson(await database.get("history_meta", id))).toBe(
+        canonicalJson(useHistory.getState().meta[id]),
+      );
+      const dump = await dumpDb();
+      await flushNow();
+      expect(await dumpDb()).toBe(dump);
+      expect(useHistory.getState().saveState.status).toBe("saved");
+    },
+  );
+
+  it("an add-on bind with the served SRD and no stored copy of it: bound; a missing private pack is still refused", async () => {
+    const id = await poolCharacter();
+    const srd = await inst.fx.engine.servedPack("srd-5.2.1");
+    const database = await db();
+    await database.delete("packs", packKey(srd));
+    const p = must(await previewBind(id, POOL())) as StepPreview;
+    expect(p.packs_added.map((r) => r.id)).toEqual(["test-pool-feat"]);
+    must(await confirmStep(p));
+    expect(rec(id).content?.packs[0]).toEqual(srd);
+    expect(await database.getKey("packs", packKey(srd))).toBeUndefined();
+    // Without its envelope, and not installed: the private pack is missing (nothing fetched).
+    const other = await poolCharacter();
+    const bare = clone(POOL());
+    delete bare.packs;
+    const pool = await (await db()).getAllKeys("packs");
+    for (const k of pool)
+      if (String(k).startsWith("test-pool-feat@")) await database.delete("packs", k);
+    await inst.reload();
+    const dump = await dumpDb();
+    expect(code(await previewBind(other, bare))).toBe("plan_pack_missing");
+    expect(await dumpDb()).toBe(dump);
   });
 });
