@@ -6,7 +6,8 @@
  * entry is ever cut): each roll with its changes (late Advantage, Heroic Inspiration, a Critical
  * Hit), each with its own cost and status, and the roll's current result put together from them; rests, play
  * actions, encounter actions and import boundaries. Above them: the character's days (by hand),
- * Long Rest counts, and whether this tab saved its journal. History stays on this device.
+ * Long Rest counts, and whether this tab saved its journal. History is saved on this device and goes
+ * with the character in its full copy ("Export character", kenli F-011); nothing syncs.
  *
  * kenli F-007 T03: a character made from a local copy reads its journal like any other. References
  * outside the copy (`ext:<installation>:<id>`: another character, an encounter, an earlier entry)
@@ -810,22 +811,26 @@ function Days({
       {today > 1 && (
         <p className="text-sm text-orange">{t("history.restsMany", { count: today })}</p>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      {/* kenli F-011 R03-11: the day's name on its own full row (readable in the narrow iPad
+          panel), its buttons below — never squeezed beside them. */}
+      <div className="mt-2 space-y-1.5" data-testid="history-day-edit">
         <input
           ref={input}
-          className="min-h-11 min-w-0 flex-1 rounded border border-edge bg-card px-2 text-sm"
+          className="block min-h-11 w-full rounded border border-edge bg-card px-2 text-sm"
           aria-label={t("history.dayLabel")}
           placeholder={t("history.dayLabel")}
           maxLength={60}
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
-        <Button size="sm" onClick={() => done(rename(id, head.current_day_id, label))}>
-          {t("history.renameDay")}
-        </Button>
-        <Button size="sm" variant="primary" onClick={() => done(next(id, label))}>
-          {t("history.nextDay")}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Button size="sm" onClick={() => done(rename(id, head.current_day_id, label))}>
+            {t("history.renameDay")}
+          </Button>
+          <Button size="sm" variant="primary" onClick={() => done(next(id, label))}>
+            {t("history.nextDay")}
+          </Button>
+        </div>
       </div>
       {problem && (
         <p role="alert" className="mt-1 text-sm text-red">

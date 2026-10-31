@@ -933,7 +933,8 @@ export const it: Messages = {
     "Risponde a una decisione che non è nella cronologia di questo personaggio.",
   "history.save.pendingDays": "Non ancora salvato: modifiche ai giorni (a breve).",
   "history.save.failedDays": "Salvataggio non riuscito: le modifiche ai giorni non sono salvate.",
-  "history.local": "La cronologia resta su questo dispositivo: non viene esportata né importata.",
+  "history.local":
+    "La cronologia è salvata su questo dispositivo e accompagna il personaggio in “Esporta personaggio” (una copia completa con la sua cronologia).",
   "sheet.secondLongRest": "In questo giorno c'è già stato un Riposo Lungo ({count}).",
   "sheet.dmException": "Il DM lo concede (un'eccezione)",
   "sheet.dmExceptionNote": "Nota (facoltativa)",
@@ -985,7 +986,7 @@ export const it: Messages = {
   "dice.modifier": "{label} {value}",
   "dice.bonusDie": "{label} {dice}: {rolls} ({total})",
   "localCopy.export": "Esporta personaggio",
-  "localCopy.exportTitle": "Copia locale di {name}",
+  "localCopy.exportTitle": "Esporta {name} (una copia completa con la sua cronologia)",
   "localCopy.exportWorking": "Preparo la copia…",
   "localCopy.exportSummary":
     "{entries} voci di cronologia ({undone} annullate), {days} giorni, {rests} Riposi lunghi, {packs} pacchetti, {size}.",
@@ -1142,7 +1143,7 @@ export const it: Messages = {
   "history.external": "fuori da questa copia",
   "history.context.external": "Si riferisce a una voce fuori da questa copia.",
   "history.localCopyHint":
-    "Una copia locale (pagina Personaggi) porta un personaggio con tutta la sua cronologia su un altro dispositivo.",
+    "“Importa personaggio” nella pagina Personaggi crea un personaggio separato con la cronologia della copia. Niente si sincronizza tra dispositivi: il gioco qui e sull'altro dispositivo resta separato.",
   "history.currentAsRecorded":
     "Risultato attuale: conservato com'è stato registrato (non leggibile qui)",
   "history.entryAsRecorded":

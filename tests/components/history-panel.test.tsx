@@ -61,7 +61,8 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     expect(within(panel).getByRole("combobox", { name: "Character" })).toHaveValue(id);
     expect(await within(panel).findByText(/Nothing recorded yet/)).toBeInTheDocument();
     expect(within(panel).getByTestId("history-local")).toHaveTextContent(
-      "History stays on this device: it isn't exported or imported.",
+      // F-011 R03-10: saved here, carried by "Export character" (the full copy), never synced.
+      "History is saved on this device and goes with the character in “Export character” (a full copy with its history).",
     );
     // Playing beside it: a click on the sheet leaves it open.
     await userEvent.click(

@@ -92,7 +92,9 @@ test("@touch the panel beside the sheet: rolls, Heroic and its cost, follow-up, 
   // AC-01: open, empty, local only; Esc closes and gives focus back to the toggle.
   let panel = await openPanel(page);
   await expect(panel.getByText(/Nothing recorded yet/)).toBeVisible();
-  await expect(panel.getByTestId("history-local")).toContainText("History stays on this device");
+  await expect(panel.getByTestId("history-local")).toContainText(
+    "History is saved on this device and goes with the character in “Export character”",
+  );
   await page.keyboard.press("Escape");
   await expect(panel).toBeHidden();
   await expect(page.getByRole("button", { name: TOGGLE })).toBeFocused();

@@ -909,7 +909,8 @@ export const en = {
   "history.context.answersMissing": "Answers a decision that isn't in this character's history.",
   "history.save.pendingDays": "Not saved yet: changes to days (saving shortly).",
   "history.save.failedDays": "Saving failed: changes to days aren't saved.",
-  "history.local": "History stays on this device: it isn't exported or imported.",
+  "history.local":
+    "History is saved on this device and goes with the character in “Export character” (a full copy with its history).",
   "sheet.secondLongRest": "A Long Rest was already taken on this day ({count}).",
   "sheet.dmException": "The DM allows it (an exception)",
   "sheet.dmExceptionNote": "Note (optional)",
@@ -960,7 +961,7 @@ export const en = {
   "dice.modifier": "{label} {value}",
   "dice.bonusDie": "{label} {dice}: {rolls} ({total})",
   "localCopy.export": "Export character",
-  "localCopy.exportTitle": "Local copy of {name}",
+  "localCopy.exportTitle": "Export {name} (a full copy with its history)",
   "localCopy.exportWorking": "Preparing the copy…",
   "localCopy.exportSummary":
     "{entries} history entries ({undone} undone), {days} days, {rests} Long Rests, {packs} packs, {size}.",
@@ -1112,7 +1113,7 @@ export const en = {
   "history.external": "outside this copy",
   "history.context.external": "Refers to an entry outside this copy.",
   "history.localCopyHint":
-    "A local copy (Characters page) takes a character with its whole history to another device.",
+    "“Import character” on the Characters page makes a separate character with the copy's history. Nothing syncs between devices: play here and play on the other device stay apart.",
   "history.currentAsRecorded": "Current result: kept as recorded (not readable here)",
   "history.entryAsRecorded": "An entry kept as recorded; this app can't show its details.",
   "offline.boot.waiting":
