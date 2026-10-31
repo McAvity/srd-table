@@ -110,7 +110,7 @@ describe("paid riders through the facade (kenli F-002 R04-01)", () => {
       if (tryPaid)
         refused = await act({ type: "attack", id: "aerin", target: "ogre", attack: "Greatsword", riders: [{ rider: "first" }] } as never);
       const plain = await act({ type: "attack", id: "aerin", target: "ogre", attack: "Greatsword" } as never);
-      return { refused, plain: plain.ok ? JSON.stringify(plain.rolls ?? plain.notes) : plain.reasons };
+      return { refused, plain: plain.ok ? JSON.stringify(plain.results) : plain.reasons };
     };
     const tried = await run(9, true);
     expect((tried.refused as { ok: boolean; reasons: string[] }).ok).toBe(false);
