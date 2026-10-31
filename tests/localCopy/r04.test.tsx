@@ -54,6 +54,7 @@ afterEach(() => {
   cleanup();
   localCopyFaults.publish = null;
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 afterAll(() => inst.close());
 
@@ -154,6 +155,9 @@ describe("R04-01: a publication is whole or not shown", () => {
     await inst.open("P-newer-dest");
     const plan = await planOf(src.copy);
     const id = ok(await commitLocalCopy(plan)).recordId;
+    // The play stays unsaved until the retry is checked: the autosave's delay never ends inside
+    // this window, however slow the machine (a full parallel run outlasted it); flushNow saves it.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     inst.fx.dice.push(9);
     ok(await docs().rollTest(id, { skill: "stealth" }));
     const played = docs().characters[id];
@@ -163,6 +167,7 @@ describe("R04-01: a publication is whole or not shown", () => {
     expect(docs().characters[id]).toBe(played);
     expect(useHistory.getState().meta[id]).toBe(head);
     expect(unsavedState(id).entries).toBe(1);
+    vi.useRealTimers();
     await flushNow();
     expect(await rowsOf(id)).toHaveLength(596);
     expect(useHistory.getState().saveState.status).toBe("saved");
