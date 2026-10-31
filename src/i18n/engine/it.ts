@@ -43,6 +43,7 @@ export const ENGINE_IT = {
   "damage.amount": "{amount} {type}",
   "damage.untyped": "{amount}",
   "readied.taken": "{name} compie l'azione preparata ({trigger}).",
+  "attack.hit_instead": "{name} usa {feature}: l'attacco invece colpisce.",
   "relentless_rage.hp": "Relentless Rage: i Punti Ferita di {name} diventano invece {hp}.",
   "relentless_rage.save":
     "Relentless Rage: {name} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
@@ -118,7 +119,8 @@ export const ENGINE_IT = {
   "mastery.sap": "Sap: il prossimo tiro per colpire di {target} ha Svantaggio.",
   "mastery.slow":
     "Slow: la Velocità di {target} diminuisce di 10 piedi fino al prossimo turno di {name}.",
-  "attack.rider_save": "{rider}: {target} {success, select, true {supera} other {fallisce}} ({save}).",
+  "attack.rider_save":
+    "{rider}: {target} {success, select, true {supera} other {fallisce}} ({save}).",
   "mastery.topple":
     "Topple: {target} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
   "mastery.push": "Push: {name} può spingere {target} fino a 10 piedi in linea retta.",
@@ -321,6 +323,10 @@ export const ENGINE_IT = {
     "Quel punto è a {d} piedi: fuori dalla gittata di {spell} ({range})",
   "refusal.feet_away_out_range": "{target} è a {d} piedi: fuori dalla gittata di {spell} ({range})",
   "refusal.already_used_turn": "{name} ha già usato {again} in questo turno",
+  "refusal.needs_attack_with":
+    "{feature} segue un attacco con {attacks, list, or} nell'azione di Attacco di questo turno",
+  "refusal.rider_paid_by_feature":
+    "{rider} aggiunge il dado pagato con {feature} in questo turno: {label} non si applica",
   "refusal.rider_needs_feature": "{rider} richiede {feature} usato in questo turno",
   "refusal.needs_attack_action": "{feature} segue l'azione di Attacco in questo turno",
   "refusal.used_own_turns": "{rider} si usa nei turni di {name}",
@@ -447,7 +453,10 @@ export const ENGINE_IT = {
   "refusal.no_attack_roll_resolve":
     "{attack} non ha un tiro per colpire da risolvere: vedi il suo testo",
   "refusal.no_feature": "{name} non ha il privilegio '{feature}'",
+  "refusal.offered_when_attack_misses": "{feature} viene offerto quando un attacco di {name} manca",
   "refusal.offered_when_attack_hits": "{feature} viene offerto quando un attacco colpisce {name}",
+  "feature.hit_on_miss_by_hand":
+    "{feature}: l'attacco che il tavolo ha dichiarato mancato colpisce invece, con i danni già tirati; non di nuovo fino all'inizio del prossimo turno di {name} (lo tiene il tavolo)",
   "refusal.used_yourself": "{feature} si usa su te stesso",
   "refusal.used_another_creature": "{feature} si usa su un'altra creatura",
   "refusal.affects_several_creatures_give": "{feature} colpisce più creature: indica `targets`",
@@ -672,6 +681,8 @@ export const ENGINE_IT = {
     "{name} fallisce un tiro salvezza su {ability}{rolled, select, true { ({total} contro CD {dc})} other {}}. Usare Resistenza leggendaria ({left} rimaste)?",
   "decision.indomitable":
     "{name} fallisce un {what} ({total} contro CD {dc}). Ripeterlo con Indomitable (+{bonus})?",
+  "decision.hit_on_miss":
+    "{name}: {attack} manca ({total} contro CA {ac}). Usare {feature} per colpire invece?",
   "decision.relentless_rage":
     "{name} scende a 0 Punti Ferita mentre è in ira. Effettuare un tiro salvezza su Costituzione CD {dc} (Relentless Rage)?",
   "decision.zone_force":
