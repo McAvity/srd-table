@@ -96,7 +96,8 @@ test("import an encounter with its party by URL, reload, then play on with the h
   await page.locator("article", { hasText: "Sable" }).getByRole("link", { name: "Sheet" }).click();
   await page.getByRole("tab", { name: "Spells" }).click();
   await expect(page.getByText("Synthetic Spark").first()).toBeVisible();
-  await page.getByRole("button", { name: "Details: Synthetic Spark" }).click();
+  // F-011 T06: the description opens from the spell's name (one accordion in the tab).
+  await page.locator("#main").getByRole("button", { name: "Synthetic Spark", exact: true }).click();
   await expect(page.getByText(/test spell, version 2/)).toBeVisible();
   // Back to the table without the network: the world's monster and both characters still load.
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Table" }).click();
