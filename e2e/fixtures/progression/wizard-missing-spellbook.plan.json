@@ -1,0 +1,385 @@
+{
+  "format": "srd-table.progression-plan/1",
+  "plan_sha256": "62da81c38ab882b3a568956621064b0881fa53ed742a67cea3867bd6872e60ed",
+  "plan": {
+    "id": "test-wizard",
+    "revision": 1,
+    "title": "Wizard 1–5",
+    "language": "en",
+    "authorship": {
+      "source": "invented test plan",
+      "adaptation": "none",
+      "author": "srd-table tests"
+    },
+    "packs": [
+      {
+        "id": "srd-5.2.1",
+        "version": "5.2.1",
+        "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+      }
+    ],
+    "sources": null,
+    "start": {
+      "equipment": "starting",
+      "ops": [
+        {
+          "op": "class",
+          "id": "wizard",
+          "origin": "author"
+        },
+        {
+          "op": "species",
+          "id": "elf",
+          "origin": "author"
+        },
+        {
+          "op": "background",
+          "id": "sage",
+          "origin": "author"
+        },
+        {
+          "op": "ability_method",
+          "method": "standard_array",
+          "origin": "author"
+        },
+        {
+          "op": "base_scores",
+          "scores": {
+            "str": 8,
+            "dex": 14,
+            "con": 13,
+            "int": 15,
+            "wis": 12,
+            "cha": 10
+          },
+          "origin": "author"
+        },
+        {
+          "op": "background_bonus",
+          "bonus": {
+            "int": 2,
+            "con": 1
+          },
+          "origin": "author"
+        },
+        {
+          "op": "name",
+          "name": "Lirael",
+          "origin": "author"
+        },
+        {
+          "op": "alignment",
+          "alignment": "CG",
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "creation#languages",
+          "values": [
+            "common-sign-language",
+            "draconic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#skills",
+          "values": [
+            "insight",
+            "investigation"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#cantrips",
+          "values": [
+            "acid-splash",
+            "chill-touch",
+            "dancing-lights"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#spellbook",
+          "values": [
+            "alarm",
+            "burning-hands",
+            "charm-person",
+            "chromatic-orb",
+            "color-spray",
+            "comprehend-languages"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#prepared",
+          "values": [
+            "alarm",
+            "burning-hands",
+            "charm-person",
+            "chromatic-orb"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:elf#lineage",
+          "values": [
+            "drow"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:wizard#cantrips",
+          "values": [
+            "acid-splash",
+            "chill-touch",
+            "elementalism"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:elf#spellcasting_ability",
+          "values": [
+            "int"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:elf#keen_senses",
+          "values": [
+            "perception"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:sage#spellcasting_ability",
+          "values": [
+            "int"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:sage#cantrips",
+          "values": [
+            "fire-bolt",
+            "light"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:sage#spell",
+          "values": [
+            "detect-magic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:sage#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        }
+      ]
+    },
+    "levels": [
+      {
+        "level": 2,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "wizard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard#prepared",
+            "values": [
+              "alarm",
+              "burning-hands",
+              "charm-person",
+              "chromatic-orb",
+              "color-spray"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:2#expertise",
+            "values": [
+              "arcana"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 3,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "wizard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard#prepared",
+            "values": [
+              "alarm",
+              "burning-hands",
+              "charm-person",
+              "chromatic-orb",
+              "color-spray",
+              "comprehend-languages"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:3#subclass",
+            "values": [
+              "evoker"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:3#spellbook",
+            "values": [
+              "false-life",
+              "feather-fall"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "subclass:evoker:3#evocation_savant",
+            "values": [
+              "magic-missile",
+              "thunderwave"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 4,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "wizard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard#cantrips",
+            "values": [
+              "acid-splash",
+              "chill-touch",
+              "elementalism",
+              "mage-hand"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard#prepared",
+            "values": [
+              "alarm",
+              "burning-hands",
+              "charm-person",
+              "chromatic-orb",
+              "color-spray",
+              "comprehend-languages",
+              "disguise-self"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:4#feat",
+            "values": [
+              "alert"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:4#spellbook",
+            "values": [
+              "find-familiar",
+              "floating-disk"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 5,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "wizard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard#prepared",
+            "values": [
+              "alarm",
+              "burning-hands",
+              "charm-person",
+              "chromatic-orb",
+              "color-spray",
+              "comprehend-languages",
+              "disguise-self",
+              "expeditious-retreat",
+              "false-life"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:wizard:5#spellbook",
+            "values": [
+              "fog-cloud",
+              "grease"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "subclass:evoker:5#evocation_savant",
+            "values": [
+              "acid-arrow"
+            ],
+            "origin": "author"
+          }
+        ]
+      }
+    ]
+  }
+}

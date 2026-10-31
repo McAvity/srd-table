@@ -1,0 +1,111 @@
+{
+  "schema": "srd-table.progression-fixtures/1",
+  "cases": [
+    {
+      "file": "fighter-1-6.plan.json",
+      "expect": "ok",
+      "why": "Fighter 1–6: S-new at each level, weapon mastery S-pool at 4",
+      "levels": 6
+    },
+    {
+      "file": "wizard-1-5.plan.json",
+      "expect": "ok",
+      "why": "Wizard 1–5: spellbook S-new, prepared/cantrips S-pool",
+      "levels": 5
+    },
+    {
+      "file": "sorcerer-bard-1-3.plan.json",
+      "expect": "ok",
+      "why": "a legal multiclass Sorcerer 1 → Bard 2",
+      "levels": 3
+    },
+    {
+      "file": "wizard-fighter-1-2.plan.json",
+      "expect": "ok",
+      "why": "a legal multiclass Wizard 1 → Fighter 1",
+      "levels": 2
+    },
+    {
+      "file": "pool-feat-1-6.plan.json",
+      "expect": "ok",
+      "why": "an invented feat's language pool grows at Fighter 6 (S-pool, no rest change), its pack carried as an envelope",
+      "levels": 6
+    },
+    {
+      "file": "fighter-partial-1-3.plan.json",
+      "expect": "ok",
+      "why": "a partial plan (1–3) is legal",
+      "levels": 3
+    },
+    {
+      "file": "wizard-missing-spellbook.plan.json",
+      "expect": "plan_choice_missing",
+      "why": "level 2's spellbook picks left out"
+    },
+    {
+      "file": "fighter-respec-skills.plan.json",
+      "expect": "plan_respec",
+      "why": "level 5 rewrites level 1's skills (S-frozen)"
+    },
+    {
+      "file": "fighter-species-vanished.plan.json",
+      "expect": "plan_choice_vanished",
+      "why": "changing the species after its choices: normalisation deletes them"
+    },
+    {
+      "file": "wizard-barbarian-illegal.plan.json",
+      "expect": "plan_step_illegal",
+      "why": "multiclass into Barbarian without Strength 13"
+    },
+    {
+      "file": "wizard-fighter-pool-other-class.plan.json",
+      "expect": "plan_respec",
+      "why": "a Fighter level rewrites the Wizard's prepared pool (another class's)"
+    },
+    {
+      "file": "pool-feat-shrink.plan.json",
+      "expect": "plan_pool_shrink",
+      "why": "level 6 drops the pool's earlier language (no rest change)"
+    },
+    {
+      "file": "fighter-unknown-key.plan.json",
+      "expect": "plan_step_illegal",
+      "why": "a key the build doesn't have"
+    },
+    {
+      "file": "fighter-pack-missing.plan.json",
+      "expect": "plan_pack_missing",
+      "why": "the SRD ref with another hash isn't here"
+    },
+    {
+      "file": "pool-feat-no-envelope.plan.json",
+      "expect": "plan_pack_missing",
+      "why": "the invented pack isn't installed and isn't carried"
+    },
+    {
+      "file": "fighter-hash-tampered.plan.json",
+      "expect": "plan_hash_mismatch",
+      "why": "a changed op under the old hash"
+    },
+    {
+      "file": "fighter-level-hp-forbidden.plan.json",
+      "expect": "plan_op_forbidden",
+      "why": "rewriting a past level's HP"
+    },
+    {
+      "file": "split-decrease-forbidden.plan.json",
+      "expect": "plan_op_forbidden",
+      "why": "a later step lowering an earlier class's levels (a source's inconsistent split, B11-like)"
+    },
+    {
+      "file": "pool-feat-envelope-tampered.plan.json",
+      "expect": "plan_pack_invalid",
+      "why": "an envelope whose files don't hash to its sha256"
+    },
+    {
+      "file": "fighter-envelope-unreferenced.plan.json",
+      "expect": "plan_pack_unreferenced",
+      "why": "an envelope of a pack the plan doesn't name"
+    }
+  ]
+}

@@ -1,0 +1,396 @@
+{
+  "format": "srd-table.progression-plan/1",
+  "plan_sha256": "b83b7636be1c82b4379fe36312e3e4ae4a3636beafc9e7252629f34a5149198f",
+  "plan": {
+    "id": "test-pool-feat",
+    "revision": 1,
+    "title": "Fighter 1–6 with a growing language feat",
+    "language": "en",
+    "authorship": {
+      "source": "invented test plan",
+      "adaptation": "none",
+      "author": "srd-table tests"
+    },
+    "packs": [
+      {
+        "id": "srd-5.2.1",
+        "version": "5.2.1",
+        "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+      },
+      {
+        "id": "test-pool-feat",
+        "version": "1.0.0",
+        "sha256": "49949af906fa93c6512c86923de3508c4ea5f5e3d5032e39d5eb98951a5da21f"
+      }
+    ],
+    "sources": null,
+    "start": {
+      "equipment": "starting",
+      "ops": [
+        {
+          "op": "class",
+          "id": "fighter",
+          "origin": "author"
+        },
+        {
+          "op": "species",
+          "id": "human",
+          "origin": "author"
+        },
+        {
+          "op": "background",
+          "id": "soldier",
+          "origin": "author"
+        },
+        {
+          "op": "ability_method",
+          "method": "standard_array",
+          "origin": "author"
+        },
+        {
+          "op": "base_scores",
+          "scores": {
+            "str": 15,
+            "dex": 14,
+            "con": 13,
+            "int": 8,
+            "wis": 10,
+            "cha": 12
+          },
+          "origin": "author"
+        },
+        {
+          "op": "background_bonus",
+          "bonus": {
+            "str": 2,
+            "con": 1
+          },
+          "origin": "author"
+        },
+        {
+          "op": "name",
+          "name": "Aerin",
+          "origin": "author"
+        },
+        {
+          "op": "alignment",
+          "alignment": "NG",
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "creation#languages",
+          "values": [
+            "common-sign-language",
+            "draconic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#skills",
+          "values": [
+            "acrobatics",
+            "animal-handling"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#fighting_style",
+          "values": [
+            "archery"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#weapon_mastery",
+          "values": [
+            "club",
+            "dagger",
+            "greatclub"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#size",
+          "values": [
+            "medium"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#skillful",
+          "values": [
+            "arcana"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#versatile",
+          "values": [
+            "alert"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:soldier#tool",
+          "values": [
+            "dice-set"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:soldier#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        }
+      ]
+    },
+    "levels": [
+      {
+        "level": 2,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 3,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:3#subclass",
+            "values": [
+              "champion"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 4,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:4#feat",
+            "values": [
+              "test-tongues"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter#weapon_mastery",
+            "values": [
+              "club",
+              "dagger",
+              "greatclub",
+              "handaxe"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:test-tongues@class:fighter:4#feat#tongues",
+            "values": [
+              "dwarvish"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 5,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 6,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:test-tongues@class:fighter:4#feat#tongues",
+            "values": [
+              "dwarvish",
+              "elvish"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:6#feat",
+            "values": [
+              "magic-initiate"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spell_list",
+            "values": [
+              "cleric"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spellcasting_ability",
+            "values": [
+              "int"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#cantrips",
+            "values": [
+              "guidance",
+              "light"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spell",
+            "values": [
+              "bane"
+            ],
+            "origin": "author"
+          }
+        ]
+      }
+    ]
+  },
+  "packs": [
+    {
+      "format": "srd-table.transfer/1",
+      "kind": "pack",
+      "id": "test-pool-feat",
+      "revision": null,
+      "title": "test-pool-feat 1.0.0",
+      "sha256": "49949af906fa93c6512c86923de3508c4ea5f5e3d5032e39d5eb98951a5da21f",
+      "content": {
+        "files": {
+          "manifest.json": {
+            "manifest": {
+              "id": "test-pool-feat",
+              "version": "1.0.0",
+              "source": "test",
+              "requires": [
+                "srd-5.2.1"
+              ]
+            },
+            "tables": {
+              "feats": {
+                "file": "feats.json",
+                "count": 1
+              }
+            }
+          },
+          "feats.json": [
+            {
+              "id": "test-tongues",
+              "name": "Test Tongues",
+              "category": "general",
+              "prerequisite": {
+                "level": 4
+              },
+              "grants": {
+                "choices": [
+                  {
+                    "id": "tongues",
+                    "label": "Test Tongues",
+                    "kind": "language",
+                    "count": 1,
+                    "scaling": {
+                      "count": [
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2,
+                        2
+                      ],
+                      "max_spell_level": null
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "requires": [
+        {
+          "kind": "pack",
+          "id": "srd-5.2.1",
+          "version": "5.2.1",
+          "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4",
+          "href": null,
+          "bytes_sha256": null
+        }
+      ],
+      "provenance": {},
+      "extensions": {}
+    }
+  ]
+}

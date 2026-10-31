@@ -374,6 +374,19 @@ export class ContentRegistry {
     return promise;
   }
 
+  /**
+   * kenli F-002 T03: an exact pack's files when they're here (registered, or served with that
+   * hash), else `null`; nothing is fetched beyond the served pack and nothing is registered.
+   */
+  async localFiles(ref: PackRef): Promise<PackFiles | null> {
+    try {
+      return await this.filesOf(ref);
+    } catch (error) {
+      if (error instanceof ContextUnavailable) return null;
+      throw error;
+    }
+  }
+
   private async filesOf(ref: PackRef): Promise<PackFiles> {
     const own = this.registered.get(ref.sha256);
     if (own) return own;

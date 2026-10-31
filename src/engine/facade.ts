@@ -131,6 +131,12 @@ import {
   type StoredPackStatus,
 } from "./content";
 import { engineLanguage, localize, renderAll } from "./messages";
+import {
+  type AddonCheckRequest,
+  type AddonCheckResult,
+  type PlanCompileResult,
+  planMethods,
+} from "./plans";
 
 // --- results ------------------------------------------------------------------------------
 
@@ -631,6 +637,17 @@ export interface EngineFacade {
   roll(expression: string): Promise<Outcome<{ roll: RollResult }>>;
   /** Roll an attack line's damage parts (`rollDamage`): a Critical Hit doubles the dice. */
   rollDamage(parts: readonly DamagePart[], critical: boolean): Promise<RolledDamage>;
+
+  // progression plans (kenli F-002 T03)
+  /**
+   * A `srd-table.progression-plan/1` file (bytes, text or parsed JSON) read whole and compiled in
+   * one call: the codec, the plan's exact context (registered/served packs or its own envelopes,
+   * used for this call only), every setter of every step and the checkpoints. Memoised by
+   * `(plan_sha256, contextKey)`; nothing is stored or registered.
+   */
+  compilePlan(file: unknown): Promise<PlanCompileResult>;
+  /** The add-on bind checks that need the engine (contract §6.3): before any preview. */
+  checkAddon(request: AddonCheckRequest): Promise<AddonCheckResult>;
 }
 
 // --- in-process implementation --------------------------------------------------------------
@@ -673,6 +690,7 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
   };
   let rng: Rng = options.rng ?? seededRng(options.seed ?? randomSeed());
   let language: EngineLanguage | null = null;
+  const plans = planMethods(content);
 
   const facade: EngineFacade = {
     constants: async () => ({
@@ -970,6 +988,8 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       }),
     roll: async (expression) => attempt(() => ({ roll: roll(expression, rng) })),
     rollDamage: async (parts, critical) => rollDamage(parts, { critical, rng }),
+    compilePlan: (file) => plans.compilePlan(file),
+    checkAddon: (request) => plans.checkAddon(request),
   };
   return localized(facade, () => language);
 }
@@ -995,6 +1015,9 @@ const UNLOCALIZED = new Set<keyof EngineFacade>([
   "rollAbilityScores",
   "distance",
   "squaresWithin",
+  // kenli F-002 T03: plan documents and their checkpoints (builds), returned as they are.
+  "compilePlan",
+  "checkAddon",
 ]);
 
 /**
