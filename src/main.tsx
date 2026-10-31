@@ -7,7 +7,7 @@ import { loadConstants } from "./engine/constants";
 import { t } from "./i18n";
 import { startGameData } from "./offline/boot";
 import { checkForUpdate, resumeConsented, startUpdateProtocol } from "./offline/update";
-import { onDbBlocked } from "./persistence/db";
+import { dbWaitsForOtherTabs, onDbBlocked } from "./persistence/db";
 import { createQueryClient } from "./queries";
 import { createAppRouter } from "./routes/router";
 import { applyLocale, startLocaleSync } from "./store/locale";
@@ -47,10 +47,14 @@ async function start() {
   // opens — the data: loadAll (migrations, installation id, verified packs, the campaign catalog),
   // the autosave and the served SRD in the background (`offline/boot.ts`). A release installing
   // keeps the start waiting; a live update owner elsewhere keeps the gate queued on its lock.
+  // kenli F-011 T08 correction: while the data waits for another tab to let the older database go,
+  // the start's "waiting" says that (close the other tabs), not that an update is installing.
   const message = (key: "offline.boot.waiting" | "offline.boot.readOnly") =>
     root.render(
       <div className="flex h-full items-center justify-center p-6 text-center text-xl" role="alert">
-        {t(key)}
+        {key === "offline.boot.waiting" && dbWaitsForOtherTabs()
+          ? t("persistence.closeOtherTabs")
+          : t(key)}
       </div>,
     );
   let gate: Awaited<ReturnType<typeof startGameData>>;

@@ -114,15 +114,28 @@ export const packKey = (ref: PackRef) => `${ref.id}@${ref.version ?? ""}#${ref.s
 
 let connection: Promise<IDBPDatabase<Schema>> | null = null;
 const blockedListeners = new Set<(why: "blocked" | "blocking") => void>();
+/** The open waits for another tab holding an older version (until it opens). */
+let waitingForOtherTabs = false;
 
-/** Told when another tab holds an older version open, or wants a newer one (reload). */
+/**
+ * Told when another tab holds an older version open, or wants a newer one (reload). kenli F-011
+ * T08 correction: a listener added while the open is already blocked is told at once (the start
+ * may open the database before its loading screen listens).
+ */
 export function onDbBlocked(listener: (why: "blocked" | "blocking") => void): () => void {
   blockedListeners.add(listener);
+  if (waitingForOtherTabs) listener("blocked");
   return () => blockedListeners.delete(listener);
 }
 
+/** Whether the open still waits for another tab to let the older version go. */
+export function dbWaitsForOtherTabs(): boolean {
+  return waitingForOtherTabs;
+}
+
 export function db(): Promise<IDBPDatabase<Schema>> {
-  connection ??= openDB<Schema>(DB_NAME, DB_VERSION, {
+  if (connection) return connection;
+  const opening = openDB<Schema>(DB_NAME, DB_VERSION, {
     upgrade(database, oldVersion, _newVersion, transaction) {
       if (oldVersion < 1) {
         database.createObjectStore("characters", { keyPath: "id" });
@@ -146,6 +159,7 @@ export function db(): Promise<IDBPDatabase<Schema>> {
           .createIndex("by_group", ["record_id", "group_id", "seq"]);
     },
     blocked() {
+      waitingForOtherTabs = true;
       for (const l of blockedListeners) l("blocked");
     },
     blocking() {
@@ -155,7 +169,12 @@ export function db(): Promise<IDBPDatabase<Schema>> {
       for (const l of blockedListeners) l("blocking");
     },
   });
-  return connection;
+  connection = opening;
+  const opened = () => {
+    if (connection === opening) waitingForOtherTabs = false;
+  };
+  void opening.then(opened, opened);
+  return opening;
 }
 
 /** Forget the open connection (tests delete the database between runs). */

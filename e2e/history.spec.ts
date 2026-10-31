@@ -296,6 +296,13 @@ test("the v2 → v4 upgrade makes up no history; a tab holding the old database 
   await expect(app.getByText("Close the app's other tabs").first()).toBeVisible({
     timeout: 15_000,
   });
+  // kenli F-011 T08 correction: it stays the instruction while the old tab holds on (past the
+  // start's 0.8 s and 1.5 s waits), in a plain and a release build alike — never "an update is
+  // installing", which reopening wouldn't fix.
+  await app.waitForTimeout(2_500);
+  await expect(app.getByRole("alert")).toHaveText(
+    "Close the app's other tabs: the saved data must be updated.",
+  );
   await page.evaluate(() => (window as unknown as { held: IDBDatabase }).held.close());
   await expect(app.getByRole("heading", { name: "Aerin" })).toBeVisible({ timeout: 15_000 });
   expect(await rowsOf(app, "history")).toEqual([]);
