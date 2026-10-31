@@ -88,8 +88,11 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     );
     await renderApp(`/characters/${a}/sheet`);
     let panel = await openPanel();
-    expect(await within(panel).findByTestId("history-rests")).toHaveTextContent(
-      "Long Rests today: 2 · since this history began: 2",
+    // The counts come from the saved journal, read after the panel opens (0 until then).
+    await waitFor(() =>
+      expect(within(panel).getByTestId("history-rests")).toHaveTextContent(
+        "Long Rests today: 2 · since this history began: 2",
+      ),
     );
     expect(within(panel).getByText(/2 Long Rests on this day/)).toBeInTheDocument();
     await waitFor(() =>
