@@ -838,10 +838,11 @@ function Days({
         </p>
       )}
       {head.days.length > 1 && (
-        <label className="mt-2 flex items-center gap-2 text-sm">
+        // R03-11: the label above, the selector a full row (no squeeze in the narrow panel).
+        <label className="mt-2 flex flex-col gap-1 text-sm" data-testid="history-correct-day">
           <span className="text-ink-muted">{t("history.correctDay")}</span>
           <select
-            className="min-h-11 flex-1 rounded border border-edge bg-card px-2"
+            className="block min-h-11 w-full min-w-0 rounded border border-edge bg-card px-2"
             value={head.current_day_id}
             onChange={(e) => done(switchTo(id, e.target.value))}
           >

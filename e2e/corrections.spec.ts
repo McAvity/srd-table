@@ -85,6 +85,18 @@ for (const vp of [
     await field.fill("Second dawn");
     await button(panel, "Next day").click();
     await expect(panel.getByTestId("history-day")).toContainText("Today: Second dawn");
+    // With two days, "correct the current day" appears: its selector inside the panel too.
+    const correct = await page.evaluate(() => {
+      const p = (
+        document.querySelector('[data-testid="history-panel"]') as HTMLElement
+      ).getBoundingClientRect();
+      const sel = (
+        document.querySelector('[data-testid="history-correct-day"] select') as HTMLElement
+      ).getBoundingClientRect();
+      return { inside: sel.left >= p.left && sel.right <= p.right + 0.5, width: sel.width };
+    });
+    expect(correct.inside).toBe(true);
+    expect(correct.width).toBeGreaterThanOrEqual(200);
     await expect(panel.getByTestId("history-local")).toContainText(
       "History is saved on this device and goes with the character in “Export character”",
     );
