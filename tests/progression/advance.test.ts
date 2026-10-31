@@ -593,7 +593,10 @@ describe("R06: nothing fallible after the durable write; the served SRD without 
         return (fn as (...a: unknown[]) => unknown)(...args);
       };
     }
-    return { calls, restore: () => originals.forEach((fn, name) => (e[name] = fn)) };
+    const restore = () => {
+      for (const [name, fn] of originals) e[name] = fn;
+    };
+    return { calls, restore };
   }
 
   it("the registration a bind needs fails under the confirm's lock: refused before the transaction, nothing written or published", async () => {
