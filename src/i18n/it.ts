@@ -244,6 +244,13 @@ export const it: Messages = {
   "characters.title": "Personaggi",
   "characters.sub": "I tuoi eroi: creali, giocali, portali al tavolo.",
   "characters.new": "Nuovo personaggio",
+  "characters.newContentTitle": "Nuovo personaggio: contenuti",
+  "characters.newContentHint":
+    "Con quali pack gioca. Un pack importato nelle Impostazioni si usa esattamente, versione compresa, con i pack che richiede.",
+  "characters.newContentCampaign": "I contenuti della campagna (Impostazioni)",
+  "characters.newContentPack": "{id} {version} e i pack che richiede",
+  "characters.newContentPackDetail": "Pack importato ({sha})",
+  "characters.newContentGone": "Quel pack non è più su questo dispositivo.",
   "characters.empty":
     "Ancora nessun personaggio. Creane uno, o importa una build salvata dall'app o dalla CLI srd-rules.",
   "characters.importHint":

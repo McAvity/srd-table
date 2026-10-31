@@ -6,6 +6,7 @@
  * as a new character after ticking its initialization (Q-01…Q-03). Nothing is matched by name.
  */
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Dialog, Reasons, Spinner } from "@/components/ui";
@@ -57,6 +58,7 @@ export function ImportDialog({
   const characters = useDocuments((s) => s.characters);
   const encounters = useDocuments((s) => s.encounters);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState<"fetching" | "committing" | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -157,6 +159,8 @@ export function ImportDialog({
       setCommitProblems([...result.problems]);
       return;
     }
+    // kenli F-011 T08: the installed packs' list (Settings, "New character") shows a new one now.
+    if (result.packs > 0) await queryClient.invalidateQueries({ queryKey: ["installed-packs"] });
     useUi.getState().toast([
       t("import.done", {
         characters: result.characters.length,

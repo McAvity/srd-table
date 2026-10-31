@@ -3,18 +3,22 @@
  * copy (`srd-table.local-copy/2`: build, state, whole journal, exact packs, portrait) — and ONE
  * import, of such a copy, from a file or a URL; it always makes a new character. The old raw
  * build/state and character transfer exports and imports are gone (packs: Settings; encounters with
- * their party: Encounters).
+ * their party: Encounters). kenli F-011 T08: "New character" asks for the content when packs were
+ * imported in Settings (the campaign's, or one installed pack's exact context).
  */
 
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Icon } from "@/components/Icon";
+import { OptionButton } from "@/components/OptionButton";
 import { Portrait } from "@/components/Portrait";
-import { Button, Dialog, Empty, HpBar, PageTitle } from "@/components/ui";
+import { Button, Dialog, Empty, HpBar, PageTitle, Reasons } from "@/components/ui";
 import { t, tn } from "@/i18n";
+import { installedPackContext } from "@/import/export";
 import { contentLabel } from "@/import/plan";
+import type { ContentContext } from "@/lib/canonical";
 import { entryCount } from "@/persistence/history";
-import { usePlayView } from "@/queries";
+import { useInstalledPacks, usePlayView } from "@/queries";
 import { type CharacterRecord, useDocuments } from "@/store/documents";
 import { LocalCopyExport } from "./LocalCopyExport";
 import { LocalCopyImport, LocalCopyLast } from "./LocalCopyImport";
@@ -26,9 +30,25 @@ export function CharactersPage() {
   const [loadingCopy, setLoadingCopy] = useState(false);
   const list = Object.values(characters).sort((a, b) => b.updated - a.updated);
 
-  async function onCreate() {
-    const id = await create();
+  const installed = useInstalledPacks();
+  const ownPacks = (installed.data ?? []).filter((p) => !p.bundled);
+  const [choosing, setChoosing] = useState(false);
+  const [createReasons, setCreateReasons] = useState<string[] | null>(null);
+
+  async function onCreate(content?: ContentContext) {
+    const id = await create(content);
+    setChoosing(false);
     await navigate({ to: "/characters/$id/build", params: { id }, search: { step: "class" } });
+  }
+  // kenli F-011 T08: with packs imported in Settings, the new character's content is asked: the
+  // campaign's (Settings), or one installed pack's exact context (with the packs it requires).
+  async function onCreateWith(key: string) {
+    const content = await installedPackContext(key);
+    if (!content) return setCreateReasons([t("characters.newContentGone")]);
+    if ("ambiguous" in content)
+      return setCreateReasons([t("settings.packAmbiguous", { id: content.ambiguous })]);
+    setCreateReasons(null);
+    await onCreate(content);
   }
 
   return (
@@ -37,13 +57,46 @@ export function CharactersPage() {
         <div className="flex-1">
           <PageTitle sub={t("characters.sub")}>{t("characters.title")}</PageTitle>
         </div>
-        <Button variant="primary" icon="plus" onClick={onCreate}>
+        <Button
+          variant="primary"
+          icon="plus"
+          onClick={() => (ownPacks.length ? setChoosing(true) : void onCreate())}
+        >
           {t("characters.new")}
         </Button>
         <Button icon="upload" onClick={() => setLoadingCopy(true)} data-testid="local-copy-open">
           {t("localCopy.import")}
         </Button>
       </div>
+      <Dialog
+        open={choosing}
+        onOpenChange={(open) => {
+          setChoosing(open);
+          if (!open) setCreateReasons(null);
+        }}
+        title={t("characters.newContentTitle")}
+        description={t("characters.newContentHint")}
+      >
+        <Reasons reasons={createReasons} className="mb-2" />
+        <ul className="grid gap-1.5" data-testid="new-character-content">
+          <li>
+            <OptionButton reason={null} onClick={() => void onCreate()}>
+              {t("characters.newContentCampaign")}
+            </OptionButton>
+          </li>
+          {ownPacks.map((p) => (
+            <li key={p.key}>
+              <OptionButton
+                reason={null}
+                onClick={() => void onCreateWith(p.key)}
+                detail={t("characters.newContentPackDetail", { sha: p.ref.sha256.slice(0, 12) })}
+              >
+                {t("characters.newContentPack", { id: p.ref.id, version: p.ref.version ?? "" })}
+              </OptionButton>
+            </li>
+          ))}
+        </ul>
+      </Dialog>
       <LocalCopyImport open={loadingCopy} onOpenChange={setLoadingCopy} />
       <LocalCopyLast />
       {list.length === 0 ? (

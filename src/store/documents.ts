@@ -53,7 +53,7 @@ import type {
   TestOptions,
 } from "@/engine/facade";
 import { t } from "@/i18n";
-import { canonicalJson } from "@/lib/canonical";
+import { type ContentContext, canonicalJson } from "@/lib/canonical";
 import { changedFields, droppedFields } from "@/lib/files";
 import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import type { RecordMeta } from "@/persistence/db";
@@ -197,7 +197,11 @@ export interface DocumentsState {
 
   hydrate(docs: { characters: CharacterRecord[]; encounters: EncounterRecord[] }): void;
 
-  createCharacter(): Promise<string>;
+  /**
+   * A new character: on the campaign's packs (Settings), or pinned to `content` — kenli F-011 T08:
+   * an installed pack's exact context (Settings → Import pack), as an imported record is pinned.
+   */
+  createCharacter(content?: ContentContext): Promise<string>;
   importCharacter(build: unknown, state?: unknown): Promise<Outcome<{ id: string }>>;
   duplicateCharacter(id: string): Promise<string | null>;
   deleteCharacter(id: string): Promise<void>;
@@ -781,15 +785,23 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       });
     },
 
-    async createCharacter() {
+    async createCharacter(content) {
       const build = await engine().newBuild();
-      const state = await engine().createState(build);
+      const state = await engine().createState(build, content);
       const id = newId("c");
       const now = Date.now();
       set((s) => ({
         characters: {
           ...s.characters,
-          [id]: { id, build, state, created: now, updated: now, rev: 1 },
+          [id]: {
+            id,
+            build,
+            state,
+            created: now,
+            updated: now,
+            rev: 1,
+            ...(content ? { content } : {}),
+          },
         },
         revs: bump(s.revs, id),
       }));

@@ -148,16 +148,13 @@ export function exportPack(
 }
 
 /**
- * An installed pack as a transfer, its required packs resolved to exact refs (the served SRD, or
- * the one installed version of each); `{ ambiguous }` when an id has several versions here.
+ * The exact refs of the packs an installed pack requires, in order (the served SRD, or the one
+ * installed version of each); `{ ambiguous }` when an id has several versions here.
  */
-export async function exportInstalledPack(
-  key: string,
-  installation: string,
-): Promise<Envelope | { readonly ambiguous: string } | null> {
-  const all = await (await db()).getAll("packs");
-  const pack = all.find((p) => p.key === key);
-  if (!pack) return null;
+async function requiredRefs(
+  pack: StoredPack,
+  all: readonly StoredPack[],
+): Promise<PackRef[] | { readonly ambiguous: string }> {
   const manifest = (pack.files["manifest.json"] as { manifest?: { requires?: string[] } }).manifest;
   const deps: PackRef[] = [];
   for (const id of manifest?.requires ?? []) {
@@ -173,5 +170,36 @@ export async function exportInstalledPack(
       deps.push(served);
     }
   }
+  return deps;
+}
+
+/**
+ * An installed pack as a transfer, its required packs resolved to exact refs (the served SRD, or
+ * the one installed version of each); `{ ambiguous }` when an id has several versions here.
+ */
+export async function exportInstalledPack(
+  key: string,
+  installation: string,
+): Promise<Envelope | { readonly ambiguous: string } | null> {
+  const all = await (await db()).getAll("packs");
+  const pack = all.find((p) => p.key === key);
+  if (!pack) return null;
+  const deps = await requiredRefs(pack, all);
+  if ("ambiguous" in deps) return deps;
   return exportPack(pack, deps, installation);
+}
+
+/**
+ * kenli F-011 T08: the exact content a new character plays with on an installed pack — its required
+ * packs (resolved as for its export), then the pack itself; no source limit. `{ ambiguous }` as above.
+ */
+export async function installedPackContext(
+  key: string,
+): Promise<ContentContext | { readonly ambiguous: string } | null> {
+  const all = await (await db()).getAll("packs");
+  const pack = all.find((p) => p.key === key);
+  if (!pack) return null;
+  const deps = await requiredRefs(pack, all);
+  if ("ambiguous" in deps) return deps;
+  return { packs: [...deps, pack.ref], sources: null };
 }

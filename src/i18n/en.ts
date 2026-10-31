@@ -228,6 +228,13 @@ export const en = {
   "characters.title": "Characters",
   "characters.sub": "Your heroes: build them, play them, take them to the table.",
   "characters.new": "New character",
+  "characters.newContentTitle": "New character: content",
+  "characters.newContentHint":
+    "Which packs it plays with. A pack imported in Settings is used exactly, version and all, with the packs it needs.",
+  "characters.newContentCampaign": "The campaign’s content (Settings)",
+  "characters.newContentPack": "{id} {version} and the packs it needs",
+  "characters.newContentPackDetail": "Imported pack ({sha})",
+  "characters.newContentGone": "That pack isn’t on this device any more.",
   "characters.empty":
     "No characters yet. Create one, or import a build saved by the app or the srd-rules CLI.",
   "characters.importHint": "Import a build (.json) and, optionally, its play state (.state.json).",
