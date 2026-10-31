@@ -118,6 +118,7 @@ export const ENGINE_IT = {
   "mastery.sap": "Sap: il prossimo tiro per colpire di {target} ha Svantaggio.",
   "mastery.slow":
     "Slow: la Velocità di {target} diminuisce di 10 piedi fino al prossimo turno di {name}.",
+  "attack.rider_save": "{rider}: {target} {success, select, true {supera} other {fallisce}} ({save}).",
   "mastery.topple":
     "Topple: {target} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
   "mastery.push": "Push: {name} può spingere {target} fino a 10 piedi in linea retta.",
@@ -320,6 +321,8 @@ export const ENGINE_IT = {
     "Quel punto è a {d} piedi: fuori dalla gittata di {spell} ({range})",
   "refusal.feet_away_out_range": "{target} è a {d} piedi: fuori dalla gittata di {spell} ({range})",
   "refusal.already_used_turn": "{name} ha già usato {again} in questo turno",
+  "refusal.rider_needs_feature": "{rider} richiede {feature} usato in questo turno",
+  "refusal.needs_attack_action": "{feature} segue l'azione di Attacco in questo turno",
   "refusal.used_own_turns": "{rider} si usa nei turni di {name}",
   "refusal.no_class_features": "{name} non ha privilegi di classe",
   "refusal.each_effect_used_once": "Ogni effetto si può usare una volta per attacco",
@@ -592,6 +595,8 @@ export const ENGINE_IT = {
     "Il tiro per colpire ha Svantaggio: non si può rinunciare al suo Vantaggio",
   "rule.isnt_light_weapon": "{attack} non è un'arma leggera",
   "rule.doesnt_cleave_mastery_property": "{attack} non ha la proprietà di maestria Cleave",
+  "rule.rider_once": "{rider} si aggiunge una volta per attacco",
+  "rule.rider_exclusive": "{rider} non si può aggiungere allo stesso attacco con {other}",
   "rule.no_rider": "{attack} non ha il rider '{rider}'",
   "rule.needs_target_missing_some":
     "{rider} richiede un bersaglio a cui manchi parte dei Punti Ferita",
@@ -703,6 +708,8 @@ export const ENGINE_IT = {
   "option.requires_class_level": "richiede {class} di livello {level}+",
   "option.requires": "richiede {name}",
   "option.requires_ability": "richiede {abilities, list, or} {min}+",
+  "option.requires_armor_training": "richiede l'addestramento nelle armature {armor}",
+  "option.already_save_proficient": "già competente nei tiri salvezza su {ability}",
   "option.requires_feature": "richiede il privilegio {feature}",
   "option.requires_spell": "richiede di conoscere {spells, list, or}",
   "option.requires_spellcasting": "richiede il privilegio Spellcasting o Pact Magic",
