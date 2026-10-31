@@ -11,6 +11,8 @@ import { t } from "@/i18n";
 import { type RollAdditions, useRollAdditions } from "@/store/rolls";
 
 const DICE = /^[1-9]\d*d[1-9]\d*$/;
+/** The Lucky choice's element (a use's (i) brings the focus here: kenli F-011 T06). */
+export const luckySelectId = (id: string) => `rollopts-lucky-${id}`;
 
 export function RollOptions({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const value = useRollAdditions((s) => s.by[id]) ?? {};
@@ -103,6 +105,7 @@ export function RollOptions({ id, sheet }: { id: string; sheet: PlaySheet }) {
           <label className="flex flex-col gap-1">
             <span className="text-ink-muted">{t("rollopts.lucky")}</span>
             <select
+              id={luckySelectId(id)}
               className="field w-auto py-1"
               value={value.lucky ?? ""}
               onChange={(e) => change({ lucky: e.target.value || undefined })}

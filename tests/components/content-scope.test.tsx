@@ -77,7 +77,8 @@ describe("catalog lookups in the document's content", () => {
           <SpellsTab id={id} sheet={sheet} />
         </QueryClientProvider>,
       );
-      await user.click(await view.findByRole("button", { name: "Details: Synthetic Spark" }));
+      // F-011 T06: the description opens from the spell's name (one accordion in the tab).
+      await user.click(await view.findByRole("button", { name: "Synthetic Spark" }));
       expect(await view.findByText(new RegExp(`test spell, ${version}`))).toBeInTheDocument();
       view.unmount();
     }

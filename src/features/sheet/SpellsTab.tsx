@@ -6,7 +6,7 @@
  * applied.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type {
   PlaySheet,
   PlaySpellLine,
@@ -14,13 +14,13 @@ import type {
   SpellDef,
   SpellSlotChoice,
 } from "srd-rules-engine";
-import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
+import { SrdText } from "@/components/SrdText";
+import { Button, cx, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { abilityName } from "@/engine/constants";
 import { signed, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
 import { useTable } from "@/queries";
 import { attackDm, declaredLucky, useRollAdditions } from "@/store/rolls";
-import { MoreText } from "../builder/ChoiceCard";
 import { usePlay } from "./usePlay";
 
 export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
@@ -30,6 +30,10 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const byId = new Map((spells ?? []).map((s) => [s.id, s]));
   const levels = [...new Set(sheet.spells.map((s) => s.level))].sort((a, b) => a - b);
   const { play } = sheet;
+  // kenli F-011 T06 (AC-17): at most one description open in the whole tab.
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const looks = useMemo(() => sourceLooks(sheet), [sheet]);
+  const keys = spellKeys(sheet.spells);
 
   return (
     <div className="space-y-4">
@@ -104,14 +108,30 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 .filter((s) => s.level === level)
                 .map((s) => {
                   const def = byId.get(s.id);
+                  const key = keys.get(s) as string;
+                  const look = looks.get(s.source) ?? FALLBACK_LOOK;
+                  const open = expanded === key;
+                  const descId = `spell-desc-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
                   return (
                     <li
-                      key={`${s.id}|${s.source}`}
-                      className="flex flex-wrap items-center gap-2 rounded border border-edge px-2 py-1.5"
+                      key={key}
+                      className={cx("rounded border border-l-4 border-edge px-2 py-1.5", look.edge)}
+                      data-testid="spell-line"
+                      data-spell-key={key}
                     >
-                      <div className="min-w-0 flex-[1_1_14rem]">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
-                          <span className="font-semibold">{s.name}</span>
+                      {/* The header: the name (opens its description) and its controls beside it,
+                          limited in width; the metadata on a full row below (AC-16). */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="flex min-w-0 flex-[1_1_9rem] flex-wrap items-baseline gap-x-2">
+                          <button
+                            type="button"
+                            className="text-left font-semibold underline decoration-dotted underline-offset-4 hover:text-blue"
+                            aria-expanded={open}
+                            aria-controls={descId}
+                            onClick={() => setExpanded(open ? null : key)}
+                          >
+                            {s.name}
+                          </button>
                           {def?.concentration && (
                             <span className="text-[13px] text-purple">
                               {t("sheet.concentrationTag")}
@@ -120,47 +140,73 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                           {def?.ritual && (
                             <span className="text-[13px] text-purple">{t("sheet.ritual")}</span>
                           )}
-                        </div>
-                        <div className="text-[13px] text-ink-muted">
-                          {def
-                            ? `${titleCase(def.school)} · ${def.casting_time} · ${def.range} · ${def.duration}`
-                            : ""}
-                          {` · ${s.source}`}
-                        </div>
+                        </span>
+                        <span
+                          className="flex max-w-full min-w-0 flex-wrap items-center justify-end gap-1"
+                          data-testid="spell-controls"
+                        >
+                          {def?.concentration && (
+                            <Button
+                              size="sm"
+                              icon="concentration"
+                              iconOnly
+                              label={`${t("sheet.concentration")}: ${s.name}`}
+                              on={play.concentration === s.name}
+                              onClick={() => void act({ type: "set_concentration", spell: s.name })}
+                            />
+                          )}
+                          <RollSpell
+                            spell={s}
+                            busy={busy}
+                            onRoll={(pay, spellcasting) =>
+                              void roll(
+                                {
+                                  type: "cast",
+                                  spell: s.id,
+                                  ...(pay?.kind === "slot" ? { slot_level: pay.slot.level } : {}),
+                                  ...(pay?.kind === "slot" && pay.slot.pact ? { pact: true } : {}),
+                                  ...(pay?.kind === "free"
+                                    ? { payment: { type: "free", use: pay.use } }
+                                    : {}),
+                                  ...(pay?.kind === "ritual"
+                                    ? { payment: { type: "ritual" } }
+                                    : {}),
+                                  ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
+                                  ...attackDm(additions),
+                                } as RollWhat,
+                                declaredLucky(additions, sheet),
+                                { command: "sheet_cast", label: s.name },
+                              )
+                            }
+                          />
+                        </span>
                       </div>
-                      {def?.concentration && (
-                        <Button
-                          size="sm"
-                          icon="concentration"
-                          iconOnly
-                          label={`${t("sheet.concentration")}: ${s.name}`}
-                          on={play.concentration === s.name}
-                          onClick={() => void act({ type: "set_concentration", spell: s.name })}
-                        />
+                      <div
+                        className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-ink-muted"
+                        data-testid="spell-meta"
+                      >
+                        <span
+                          className={cx("rounded border px-1.5 font-semibold", look.chip)}
+                          data-testid="spell-source"
+                          data-look={look.index}
+                        >
+                          {s.source}
+                        </span>
+                        {def && (
+                          <span>
+                            {`${titleCase(def.school)} · ${def.casting_time} · ${def.range} · ${def.duration}`}
+                          </span>
+                        )}
+                      </div>
+                      {open && (
+                        <div id={descId} className="mt-1 border-t border-edge pt-1 text-sm">
+                          {def?.description ? (
+                            <SrdText text={def.description} />
+                          ) : (
+                            <p className="text-ink-muted italic">{t("sheet.spellNoText")}</p>
+                          )}
+                        </div>
                       )}
-                      <RollSpell
-                        spell={s}
-                        busy={busy}
-                        onRoll={(pay, spellcasting) =>
-                          void roll(
-                            {
-                              type: "cast",
-                              spell: s.id,
-                              ...(pay?.kind === "slot" ? { slot_level: pay.slot.level } : {}),
-                              ...(pay?.kind === "slot" && pay.slot.pact ? { pact: true } : {}),
-                              ...(pay?.kind === "free"
-                                ? { payment: { type: "free", use: pay.use } }
-                                : {}),
-                              ...(pay?.kind === "ritual" ? { payment: { type: "ritual" } } : {}),
-                              ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
-                              ...attackDm(additions),
-                            } as RollWhat,
-                            declaredLucky(additions, sheet),
-                            { command: "sheet_cast", label: s.name },
-                          )
-                        }
-                      />
-                      {def?.description && <MoreText title={s.name} text={def.description} />}
                     </li>
                   );
                 })}
@@ -258,7 +304,7 @@ function RollSpell({
     <>
       {sources.length > 1 && (
         <select
-          className="field w-auto max-w-full min-w-0 py-1 text-sm"
+          className="field w-auto max-w-[min(15rem,100%)] min-w-0 py-1 text-sm"
           aria-label={t("sheet.castWith", { spell: spell.name })}
           value={castWith ?? ""}
           onChange={(e) => setCastWith(e.target.value || null)}
@@ -273,7 +319,7 @@ function RollSpell({
       )}
       {leveled && (
         <select
-          className="field w-auto max-w-full min-w-0 py-1 text-sm"
+          className="field w-auto max-w-[min(15rem,100%)] min-w-0 py-1 text-sm"
           aria-label={t("sheet.castAt", { spell: spell.name })}
           value={picked}
           onChange={(e) => setPicked(e.target.value)}
@@ -314,4 +360,59 @@ function RollSpell({
       </Button>
     </>
   );
+}
+
+/**
+ * kenli F-011 T06 (AC-18): each spell source its look, from the data. Sources in the order the
+ * character's spellcasting features list them, then any other source of its spells in their first
+ * order; the palette's colours by that index, its later rounds with a dashed then dotted edge (two
+ * sources never share both colour and edge before 18 of them), and the source's name always shown
+ * as text. The same source keeps its look in every level group and render (not a hash of a name).
+ */
+export interface SourceLook {
+  readonly index: number;
+  readonly edge: string;
+  readonly chip: string;
+}
+const PALETTE = [
+  { edge: "border-l-blue", chip: "border-blue text-blue" },
+  { edge: "border-l-green", chip: "border-green text-green" },
+  { edge: "border-l-purple", chip: "border-purple text-purple" },
+  { edge: "border-l-orange", chip: "border-orange text-orange" },
+  { edge: "border-l-red", chip: "border-red text-red" },
+  { edge: "border-l-ink", chip: "border-ink text-ink" },
+] as const;
+const ROUNDS = ["", "[border-left-style:dashed]", "[border-left-style:dotted]"] as const;
+const FALLBACK_LOOK: SourceLook = { index: -1, edge: "border-l-edge", chip: "border-edge" };
+
+export function sourceLooks(
+  sheet: Pick<PlaySheet, "spellcasting" | "spells">,
+): Map<string, SourceLook> {
+  const order: string[] = [];
+  for (const sc of sheet.spellcasting) if (!order.includes(sc.source)) order.push(sc.source);
+  for (const sp of sheet.spells) if (!order.includes(sp.source)) order.push(sp.source);
+  const out = new Map<string, SourceLook>();
+  order.forEach((source, index) => {
+    const colour = PALETTE[index % PALETTE.length] as (typeof PALETTE)[number];
+    const round = ROUNDS[Math.floor(index / PALETTE.length) % ROUNDS.length] as string;
+    out.set(source, { index, edge: cx(colour.edge, round), chip: colour.chip });
+  });
+  return out;
+}
+
+/**
+ * A spell line's identity in the tab: its source, the spellcasting feature(s) it's cast with and
+ * the spell (the same spell from two sources is two lines with their own choices and costs); an
+ * exact repeat gets its occurrence.
+ */
+export function spellKeys(spells: readonly PlaySpellLine[]): Map<PlaySpellLine, string> {
+  const seen = new Map<string, number>();
+  const out = new Map<PlaySpellLine, string>();
+  for (const s of spells) {
+    const base = `${s.source}|${s.spellcasting.join("+")}|${s.id}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    out.set(s, n ? `${base}#${n}` : base);
+  }
+  return out;
 }

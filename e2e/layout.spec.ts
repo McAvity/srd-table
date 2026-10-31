@@ -72,7 +72,12 @@ async function checkLayout(page: Page, where: string) {
 }
 async function shot(page: Page, name: string) {
   mkdirSync(SHOTS, { recursive: true });
-  await page.screenshot({ path: join(SHOTS, `${test.info().project.name}-${name}.png`) });
+  await page.screenshot({
+    path: join(SHOTS, `${test.info().project.name}-${name}.jpg`),
+    type: "jpeg",
+    quality: 75,
+    scale: "css",
+  });
 }
 /** A dialog fully in the window, its buttons reachable. */
 async function inWindow(page: Page, dialog: ReturnType<Page["getByRole"]>) {

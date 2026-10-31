@@ -369,6 +369,20 @@ export const it: Messages = {
   "sheet.useByHandHint":
     "Tira i suoi dadi e spendi l'uso; nient'altro viene applicato: applica tu il risultato.",
   "sheet.rollByHand": "Tira",
+  "sheet.spellNoText": "I pacchetti di questo personaggio non descrivono questo incantesimo.",
+  "sheet.useInfo.button": "Informazioni su {use}",
+  "sheet.useInfo.source": "Da: {source}",
+  "sheet.useInfo.noText":
+    "I pacchetti di questo personaggio non descrivono questo uso; qui se ne conoscono solo il numero e il recupero.",
+  "sheet.useInfo.uses": "{total} usi.",
+  "sheet.useInfo.recharge.short": "Tornano tutti con un riposo breve o lungo.",
+  "sheet.useInfo.recharge.long": "Tornano tutti con un riposo lungo.",
+  "sheet.useInfo.shortRegain": "Un riposo breve ne restituisce {count}.",
+  "sheet.useInfo.luckyHow":
+    "Spendine uno per avere vantaggio a una prova con il d20: prima del tiro, sceglilo nelle opzioni di tiro alla voce “Vantaggio dichiarato con” (si spende al tiro); oppure dopo un tiro, tra le sue azioni successive. Non si spende nulla finché non tiri o scegli un'azione successiva.",
+  "sheet.useInfo.luckyGo": "Vai a “Vantaggio dichiarato con” nelle opzioni di tiro",
+  "sheet.useInfo.disadvantageHow":
+    "Può anche imporre svantaggio a un tiro contro di te, tra le azioni successive di quel tiro.",
   "sheet.rollAttackHint":
     "Tiro per colpire e danni con i dadi del motore; non viene applicato nulla.",
   "sheet.rollSpellHint":
@@ -412,6 +426,21 @@ export const it: Messages = {
   "sheet.takeStartingEquipment": "Prendi l'equipaggiamento iniziale",
   "sheet.gold": "{gp} mo",
   "sheet.addItem": "Aggiungi un oggetto",
+  "sheet.custom.add": "Aggiungi un oggetto personalizzato",
+  "sheet.custom.title": "Un oggetto personalizzato (fuori catalogo)",
+  "sheet.custom.name": "Nome",
+  "sheet.custom.nameRequired": "Il nome è obbligatorio (fino a 120 caratteri).",
+  "sheet.custom.description": "Descrizione (facoltativa)",
+  "sheet.custom.qty": "Quantità",
+  "sheet.custom.weight": "Peso (di uno)",
+  "sheet.custom.weightUnknownOption":
+    "Sconosciuto (non conteggiato; il totale trasportato lo segnala come incompleto)",
+  "sheet.custom.weightKnownOption": "Noto:",
+  "sheet.custom.weightLb": "Peso in libbre",
+  "sheet.custom.confirm": "Aggiungi",
+  "sheet.custom.weightUnknown": "peso sconosciuto",
+  "sheet.custom.weightIncomplete":
+    "(incompleto: peso sconosciuto per {count} oggetto/i trasportato/i)",
   "sheet.itemSearch": "Cerca oggetti",
   "sheet.base": "Ricavato da",
   "sheet.variant": "Tipo",

@@ -1,4 +1,4 @@
-/** Features and traits with their SRD text, feats, class options, class resources. */
+/** Features and traits with their SRD text (always shown), feats, class options, class resources. */
 
 import type { PlaySheet } from "srd-rules-engine";
 import { SrdText } from "@/components/SrdText";
@@ -43,16 +43,20 @@ export function FeaturesTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
       <Section title={t("sheet.features")}>
         <ul className="space-y-2">
           {sheet.traits.map((trait) => (
-            <li key={`${trait.source}|${trait.name}`}>
-              <details className="rounded border border-edge px-3 py-2 open:border-edge-strong">
-                <summary className="cursor-pointer">
-                  <span className="font-semibold">{trait.name}</span>
-                  <span className="ml-2 text-[13px] text-ink-muted">
-                    {trait.source} · {t("common.level", { level: trait.level })}
-                  </span>
-                </summary>
-                <SrdText text={trait.text} className="mt-2 text-sm" />
-              </details>
+            // kenli F-011 T06 (AC-19): every description always shown — plain blocks, nothing to
+            // fold (no details/summary, no toggle).
+            <li
+              key={`${trait.source}|${trait.name}`}
+              className="rounded border border-edge px-3 py-2"
+              data-testid="feature-block"
+            >
+              <h3 className="font-semibold">
+                {trait.name}
+                <span className="ml-2 text-[13px] font-normal text-ink-muted">
+                  {trait.source} · {t("common.level", { level: trait.level })}
+                </span>
+              </h3>
+              <SrdText text={trait.text} className="mt-1 text-sm" />
             </li>
           ))}
         </ul>

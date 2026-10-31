@@ -487,6 +487,8 @@ describe("the last roll on the sheet (review 04)", () => {
   it("Initiative from the sheet: the engine's test, the last roll", async () => {
     const id = await storeCharacter(engine, await fighter(engine, 3));
     await renderApp(`/characters/${id}/sheet`);
+    // F-011 T06 (AC-11): Initiative is rolled from the Combat tab.
+    await userEvent.click(await screen.findByRole("tab", { name: "Combat" }, { timeout: 10_000 }));
     await userEvent.click(
       await screen.findByRole("button", { name: /^Init [+-]\d+: Roll$/ }, { timeout: 10_000 }),
     );

@@ -8,19 +8,36 @@
  */
 
 import { useState } from "react";
-import type { PlaySheet, RollWhat } from "srd-rules-engine";
+import type { FeatDef, PlaySheet, RollWhat } from "srd-rules-engine";
 import { Icon } from "@/components/Icon";
+import { SrdText } from "@/components/SrdText";
 import { Button, Empty, Gems, Reasons, Section } from "@/components/ui";
 import { signed, t } from "@/i18n";
+import { useTable } from "@/queries";
 import { useDocuments } from "@/store/documents";
 import { attackDm, declaredLucky, openRoll, useRollAdditions, useRolls } from "@/store/rolls";
 import { useSettings } from "@/store/settings";
-import { useRoller } from "./OverviewTab";
+import { RollButton, useRoller } from "./OverviewTab";
+import { luckySelectId } from "./RollOptions";
 import { usePlay } from "./usePlay";
 
 export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
+  const roll = useRoller(id, sheet);
   return (
     <div className="space-y-4">
+      {/* kenli F-011 T06 (AC-11): Initiative is rolled from Combat only — the same request as
+          before (a roll of this character, nothing else); it starts no encounter. */}
+      <Section title={t("summary.initiative")}>
+        <p className="flex items-center gap-2" data-testid="combat-initiative">
+          <span className="font-semibold">{t("summary.initiative")}</span>
+          <RollButton
+            label={t("summary.initiative")}
+            bonus={sheet.initiative.total}
+            request={{ initiative: true }}
+            onRoll={roll}
+          />
+        </p>
+      </Section>
       <Attacks id={id} sheet={sheet} />
       <div className="grid gap-4 @min-[1180px]:grid-cols-2">
         <FeatureActions id={id} sheet={sheet} />
@@ -209,8 +226,19 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 <span className="font-semibold">{a.name}</span>
                 <span className="block text-[13px] text-ink-muted">
                   {t(`table.cost.${a.economy}`)}
-                  {use && ` · ${t("common.left", { left: use.max - use.spent, total: use.max })}`}
                 </span>
+                {/* kenli F-011 T06 (AC-12): the use pool it spends, as the same crossed squares as
+                    in Limited Uses (one pool, read here, never a second counter). */}
+                {use && use.max <= 12 && (
+                  <span className="mt-0.5 block" data-testid={`action-pool-${a.key}`}>
+                    <Gems total={use.max} spent={use.spent} label={use.name} />
+                  </span>
+                )}
+                {use && use.max > 12 && (
+                  <span className="block text-[13px] text-ink-muted tabular-nums">
+                    {use.name}: {t("common.left", { left: use.max - use.spent, total: use.max })}
+                  </span>
+                )}
               </span>
               {a.slot_payment && (
                 <select
@@ -320,6 +348,7 @@ function Toggles({ id, sheet }: { id: string; sheet: PlaySheet }) {
 
 function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, reasons } = usePlay(id);
+  const [info, setInfo] = useState<string | null>(null);
   if (!sheet.play.uses.length) return null;
   return (
     <Section title={t("sheet.uses")}>
@@ -332,7 +361,13 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
               <span className="text-[13px] text-ink-muted">
                 {t(`sheet.recharge.${u.recharge}`)}
               </span>
+              <UseInfoButton
+                use={u}
+                open={info === u.key}
+                onToggle={() => setInfo(info === u.key ? null : u.key)}
+              />
             </div>
+            {info === u.key && <UseInfo id={id} sheet={sheet} use={u} />}
             {u.max <= 12 ? (
               <Gems
                 total={u.max}
@@ -381,5 +416,98 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
       </ul>
       {sheet.play.uses.length === 0 && <Empty>{t("common.none")}</Empty>}
     </Section>
+  );
+}
+
+type PlayUse = PlaySheet["play"]["uses"][number];
+const norm = (s: string) => s.trim().toLowerCase();
+const infoId = (key: string) => `use-info-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+
+function UseInfoButton({
+  use,
+  open,
+  onToggle,
+}: {
+  use: PlayUse;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="btn !min-h-0 !px-1.5 !py-0.5"
+      aria-expanded={open}
+      aria-controls={infoId(use.key)}
+      aria-label={t("sheet.useInfo.button", { use: use.name })}
+      title={t("sheet.useInfo.button", { use: use.name })}
+      onClick={onToggle}
+    >
+      <Icon name="info" size={16} />
+    </button>
+  );
+}
+
+/**
+ * kenli F-011 T06 (AC-14): what a limited use is, read only — nothing is spent. Its text is the
+ * character's own feature or trait of that name (its source shown); without one, that is said,
+ * never made up. Then when it comes back (the engine's recharge), and for a luck-style use how the
+ * existing roll options take it: chosen for the next roll (focus goes there; nothing is picked or
+ * spent here), or on the last roll from its follow-ups.
+ */
+export function UseInfo({ id, sheet, use }: { id: string; sheet: PlaySheet; use: PlayUse }) {
+  const trait = sheet.traits.find((x) => norm(x.name) === norm(use.name));
+  // A feat's use (`feat:<id>@…`, Magic Initiate's free cast): that feat's text in this character's
+  // own content (its packs), when no trait of the use's name says it.
+  const featId = trait ? null : (/^feat:([^@:]+)/.exec(use.key)?.[1] ?? null);
+  const { data: feats } = useTable<FeatDef>("feats", { character: id });
+  const feat = featId ? feats?.find((f) => f.id === featId) : undefined;
+  const text = trait?.text ?? (feat?.description || null);
+  const from = trait?.source ?? feat?.name ?? null;
+  const line = sheet.limited_uses.find((l) => l.key === use.key);
+  const regain = line?.short_rest_regain ?? null;
+  const advantage = use.spend_for?.includes("d20_advantage") ?? false;
+  const disadvantage = use.spend_for?.includes("impose_disadvantage") ?? false;
+  return (
+    <div
+      id={infoId(use.key)}
+      className="mt-1 space-y-1 rounded border border-edge bg-card-2 p-2 text-sm"
+      data-testid="use-info"
+    >
+      {text ? (
+        <>
+          <SrdText text={text} />
+          {from && (
+            <p className="text-[13px] text-ink-muted">
+              {t("sheet.useInfo.source", { source: from })}
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="text-ink-muted italic">{t("sheet.useInfo.noText")}</p>
+      )}
+      <p>
+        {t("sheet.useInfo.uses", { total: use.max })} {t(`sheet.useInfo.recharge.${use.recharge}`)}
+        {regain !== null && regain > 0
+          ? ` ${t("sheet.useInfo.shortRegain", { count: regain })}`
+          : ""}
+      </p>
+      {advantage && (
+        <div className="space-y-1">
+          <p>{t("sheet.useInfo.luckyHow")}</p>
+          <Button
+            size="sm"
+            icon="d20"
+            onClick={() => {
+              const select = document.getElementById(luckySelectId(id));
+              select?.scrollIntoView({ block: "center" });
+              select?.focus();
+            }}
+          >
+            {t("sheet.useInfo.luckyGo")}
+          </Button>
+        </div>
+      )}
+      {disadvantage && <p>{t("sheet.useInfo.disadvantageHow")}</p>}
+    </div>
   );
 }

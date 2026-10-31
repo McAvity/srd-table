@@ -4,7 +4,7 @@
  */
 
 import { QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it } from "vitest";
 import { SpellsTab } from "../../src/features/sheet/SpellsTab";
 import { createQueryClient } from "../../src/queries";
@@ -31,8 +31,9 @@ it("review: pinned spell exposes its own definition", async () => {
       <SpellsTab id="sable" sheet={result.sheet} />
     </QueryClientProvider>,
   );
-  await screen.findByText("Synthetic Spark");
-  await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Details: Synthetic Spark" })).toBeDefined(),
-  );
+  // F-011 T06: the description opens from the spell's name (one accordion), not a Details button.
+  const name = await screen.findByRole("button", { name: "Synthetic Spark" });
+  fireEvent.click(name);
+  await waitFor(() => expect(name).toHaveAttribute("aria-expanded", "true"));
+  await waitFor(() => expect(screen.getByText(/test spell, version 2/)).toBeDefined());
 });

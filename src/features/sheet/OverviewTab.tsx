@@ -42,7 +42,7 @@ export function useRoller(id: string, sheet: PlaySheet) {
   };
 }
 
-function RollButton({
+export function RollButton({
   label,
   bonus,
   request,
@@ -72,16 +72,8 @@ export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const languageName = useNames("languages", { character: id });
   return (
     <div className="grid gap-4 @min-[1180px]:grid-cols-2">
+      {/* kenli F-011 T06 (AC-11): Initiative is rolled from the Combat tab. */}
       <Section title={t("sheet.abilities")}>
-        <p className="mb-1 flex items-center gap-2">
-          <span className="font-semibold">{t("summary.initiative")}</span>
-          <RollButton
-            label={t("summary.initiative")}
-            bonus={sheet.initiative.total}
-            request={{ initiative: true }}
-            onRoll={roll}
-          />
-        </p>
         <table className="w-full text-left">
           <thead>
             <tr className="text-[13px] font-bold text-ink-muted">

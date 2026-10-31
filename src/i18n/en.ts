@@ -351,6 +351,20 @@ export const en = {
   "sheet.useByHandHint":
     "Roll its dice and spend the use; nothing else is applied: apply the result yourself.",
   "sheet.rollByHand": "Roll",
+  "sheet.spellNoText": "This character's packs give no description for this spell.",
+  "sheet.useInfo.button": "About {use}",
+  "sheet.useInfo.source": "From: {source}",
+  "sheet.useInfo.noText":
+    "This character's packs give no description for this use; only its count and recharge are known here.",
+  "sheet.useInfo.uses": "{total} uses.",
+  "sheet.useInfo.recharge.short": "All come back on a Short or Long Rest.",
+  "sheet.useInfo.recharge.long": "All come back on a Long Rest.",
+  "sheet.useInfo.shortRegain": "A Short Rest gives back {count}.",
+  "sheet.useInfo.luckyHow":
+    "Spend one for Advantage on a D20 Test: before the roll, pick it in Roll options under “Advantage declared with” (it's spent when you roll); or after a roll, from that roll's follow-ups. Nothing is spent until you roll or pick a follow-up.",
+  "sheet.useInfo.luckyGo": "Go to “Advantage declared with” in Roll options",
+  "sheet.useInfo.disadvantageHow":
+    "It can also impose Disadvantage on a roll against you, from that roll's follow-ups.",
   "sheet.rollAttackHint": "Attack roll and damage with the engine's dice; nothing is applied.",
   "sheet.rollSpellHint":
     "The spell's dice (attack rolls, damage, healing, its DC), its slot spent; nothing else is applied.",
@@ -393,6 +407,20 @@ export const en = {
   "sheet.takeStartingEquipment": "Take starting equipment",
   "sheet.gold": "{gp} GP",
   "sheet.addItem": "Add an item",
+  "sheet.custom.add": "Add a custom item",
+  "sheet.custom.title": "A custom item (not in the catalog)",
+  "sheet.custom.name": "Name",
+  "sheet.custom.nameRequired": "A name is required (up to 120 characters).",
+  "sheet.custom.description": "Description (optional)",
+  "sheet.custom.qty": "Quantity",
+  "sheet.custom.weight": "Weight (for one)",
+  "sheet.custom.weightUnknownOption":
+    "Unknown (not counted; the carried total says it's incomplete)",
+  "sheet.custom.weightKnownOption": "Known:",
+  "sheet.custom.weightLb": "Weight in pounds",
+  "sheet.custom.confirm": "Add it",
+  "sheet.custom.weightUnknown": "weight unknown",
+  "sheet.custom.weightIncomplete": "(incomplete: unknown weight for {count} carried item(s))",
   "sheet.itemSearch": "Search items",
   "sheet.base": "Made from",
   "sheet.variant": "Kind",
