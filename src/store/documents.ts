@@ -58,6 +58,7 @@ import { changedFields, droppedFields } from "@/lib/files";
 import { admission, UPDATE_IN_PROGRESS } from "@/offline/admission";
 import type { RecordMeta } from "@/persistence/db";
 import { longRests } from "@/persistence/history";
+import type { ProgressionMeta } from "@/progression/record";
 import { rollDice } from "./dice";
 import {
   type Attempt,
@@ -113,6 +114,12 @@ export interface CharacterRecord extends RecordMeta {
   readonly state: CharacterState;
   readonly created: number;
   readonly updated: number;
+  /**
+   * kenli F-002 T04: the plan this character follows (contracts/progression.md §4.3); absent or
+   * `null`: an ordinary character. Kept as loaded (never stripped) and read strictly
+   * (`readProgression`) by every planned action; restored with the record by Undo.
+   */
+  readonly progression?: ProgressionMeta | null;
 }
 
 /** One entry of an encounter's combat log: the engine's notes for one action. */
@@ -155,6 +162,8 @@ type CharacterSnapshot = Identity &
     readonly kind: "character";
     readonly build: CharacterBuild;
     readonly state: CharacterState;
+    /** kenli F-002 T04 (§7.4): the plan association as it was (`null`: none). */
+    readonly progression?: ProgressionMeta | null;
   };
 type EncounterSnapshot = Identity &
   Step & {
@@ -326,6 +335,42 @@ export interface DocumentsState {
   publishRevision(record: CharacterRecord): void;
   /** kenli F-007 T03: a local copy's Undo deleted it from the database: drop it from the session. */
   withdrawLocalCopy(id: string): void;
+  /**
+   * kenli F-002 T04: publish a planned step, a bind or a detach of the plan (`progression/advance.ts`,
+   * after its own admission and lock; a step/bind only once its transaction is done): `record`
+   * replaces `read` — refused (`false`, nothing changed) if the store no longer holds that very
+   * version — with one undo step (`op`) holding `read`'s documents, identity and progression.
+   */
+  publishProgression(
+    read: CharacterRecord,
+    record: CharacterRecord,
+    op: OperationId | null,
+  ): boolean;
+}
+
+/**
+ * kenli F-002 T04: the next version of a character for a planned step or bind — documents,
+ * progression and content replaced, `rev + 1`, and a new generation when its content changes (the
+ * existing `withIdentity` rule, §6.4). Pure: what the transaction writes and the store publishes.
+ */
+export function stageCharacter(
+  read: CharacterRecord,
+  patch: {
+    readonly build: CharacterBuild;
+    readonly state: CharacterState;
+    readonly progression: ProgressionMeta | null;
+    readonly content?: ContentContext;
+  },
+): CharacterRecord {
+  const identity: Identity = {
+    ...((patch.content ?? read.content) ? { content: patch.content ?? read.content } : {}),
+    ...(read.origin ? { origin: read.origin } : {}),
+  };
+  return touch(withIdentity(read, identity), {
+    build: patch.build,
+    state: patch.state,
+    progression: patch.progression,
+  });
 }
 
 export function newId(prefix: string): string {
@@ -520,6 +565,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
           op,
           build: record.build,
           state: record.state,
+          progression: record.progression ?? null,
           ...identityOf(record),
         }),
       };
@@ -1621,6 +1667,7 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
               op: op ?? null,
               build: before.build,
               state: before.state,
+              progression: before.progression ?? null,
               ...identityOf(before),
             });
           }
@@ -1665,6 +1712,28 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
         characters: { ...s.characters, [record.id]: record },
         revs: bump(s.revs, record.id),
       }));
+    },
+
+    publishProgression(read, record, op) {
+      let published = false;
+      set((s) => {
+        const now = s.characters[read.id];
+        if (!now || now !== read) return s;
+        published = true;
+        return {
+          characters: { ...s.characters, [record.id]: record },
+          revs: bump(s.revs, record.id),
+          history: pushPast(s.history, record.id, {
+            kind: "character",
+            op,
+            build: read.build,
+            state: read.state,
+            progression: read.progression ?? null,
+            ...identityOf(read),
+          }),
+        };
+      });
+      return published;
     },
 
     withdrawLocalCopy(id) {
@@ -1929,13 +1998,21 @@ function travel(
       op,
       build: record.build,
       state: record.state,
+      progression: record.progression ?? null,
       ...identityOf(record),
     };
     return {
       patch: {
         characters: {
           ...s.characters,
-          [id]: touch(withIdentity(record, target), { build: target.build, state: target.state }),
+          [id]: touch(withIdentity(record, target), {
+            build: target.build,
+            state: target.state,
+            // kenli F-002 T04: the plan association goes back with the documents (§7.4).
+            ...(Object.hasOwn(target, "progression")
+              ? { progression: target.progression ?? null }
+              : {}),
+          }),
         },
         revs: bump(s.revs, id),
         history: { ...s.history, [id]: swap(h, direction, rest, current) },

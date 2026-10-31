@@ -56,6 +56,12 @@ export interface StoredCharacter extends RecordMeta {
   readonly state: unknown;
   readonly created: number;
   readonly updated: number;
+  /**
+   * kenli F-002 T04: the plan this character follows (`srd-table.progression/1`, dnd5
+   * contracts/progression.md §4.3); absent or `null`: none. An optional field of the same store:
+   * no upgrade, no row rewritten (DB 5 is T07's). Read strictly where used, never stripped.
+   */
+  readonly progression?: unknown;
 }
 
 export interface StoredEncounter extends RecordMeta {

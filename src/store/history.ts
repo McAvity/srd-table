@@ -37,7 +37,12 @@ export type EntryKind =
   | "encounter"
   | "import_boundary"
   /** kenli F-011 (`kenli.history/2`): a command the rules refused; nothing happened. */
-  | "refused";
+  | "refused"
+  /**
+   * kenli F-002 T04 (`kenli.history/3`): a planned level gained, or a plan bound (`from_level ==
+   * to_level`: the link, no level gained). No roll, cost or outcome; the state isn't changed.
+   */
+  | "level_up";
 
 export { REFUSAL_COMMANDS, type RefusalCommand } from "@/lib/refusalCommands";
 
@@ -87,7 +92,7 @@ export interface RestDie {
  * live in the same journal and sequence; old `/1` entries are never rewritten.
  */
 export interface HistoryEntry {
-  readonly schema: "kenli.history/1" | "kenli.history/2";
+  readonly schema: "kenli.history/1" | "kenli.history/2" | "kenli.history/3";
   readonly id: string;
   readonly record_id: string;
   readonly seq: number;
@@ -138,6 +143,30 @@ export interface HistoryEntry {
   readonly forced?: true;
   /** Only on a refused (`kenli.history/2`) entry: the command and what was tried. */
   readonly refusal?: Attempt;
+  /** Only on a `level_up` (`kenli.history/3`) entry (dnd5 contracts/progression.md §7.5). */
+  readonly level_up?: LevelUpRecord;
+}
+
+/** What a planned step or a bind did (§7.5): no roll, no cost; the plan's choices as applied. */
+export interface LevelUpRecord {
+  readonly mode: "advance" | "bind";
+  readonly from_level: number;
+  readonly to_level: number;
+  readonly class_id: string;
+  readonly class_level: number;
+  readonly plan_sha256: string;
+  readonly step_choices: readonly {
+    readonly key: string;
+    readonly values: readonly string[];
+    /** A replacement's old value (`#replace:` keys, `[old, new]`). */
+    readonly replaced?: string;
+  }[];
+  /** Exact refs of the packs the step added to the record's content (a bind with an add-on). */
+  readonly packs_added: readonly {
+    readonly id: string;
+    readonly version: string | null;
+    readonly sha256: string;
+  }[];
 }
 
 export interface HistoryDay {

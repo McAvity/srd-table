@@ -132,7 +132,16 @@ export async function loadAll(): Promise<void> {
       problems.push(t("persistence.badCharacter", { id: raw.id, reasons: reasons.join("; ") }));
       continue;
     }
-    const record: CharacterRecord = { ...raw, build: build.build, state: state.state };
+    // kenli F-002 T04: `progression` is kept exactly as stored (validated where it's used).
+    const { progression: _stored, ...fields } = raw;
+    const record: CharacterRecord = {
+      ...fields,
+      build: build.build,
+      state: state.state,
+      ...(raw.progression !== undefined
+        ? { progression: raw.progression as CharacterRecord["progression"] }
+        : {}),
+    };
     characters.push(record);
     if (canonicalJson([raw.build, raw.state]) !== canonicalJson([record.build, record.state]))
       migrated.push({ store: "characters", record, rev: raw.rev ?? 0 });
