@@ -260,7 +260,9 @@ test("the v2 → v4 upgrade makes up no history; a tab holding the old database 
   page,
   context,
 }) => {
-  await page.goto("/favicon.svg"); // the app's origin, without the app
+  // The app's origin, without the app: a file the host serves as is (a release has no root
+  // /favicon.svg — its icons are hashed — so that path falls back to the app itself).
+  await page.goto("/content/srd-5.2.1/manifest.json");
   const build = JSON.parse(readFileSync(fixture("aerin.json"), "utf8"));
   // A database as version 2 left it, with one character, held open by an "old tab".
   await page.evaluate(
@@ -297,8 +299,7 @@ test("the v2 → v4 upgrade makes up no history; a tab holding the old database 
     timeout: 15_000,
   });
   // kenli F-011 T08 correction: it stays the instruction while the old tab holds on (past the
-  // start's 0.8 s and 1.5 s waits), in a plain and a release build alike — never "an update is
-  // installing", which reopening wouldn't fix.
+  // start's 0.8 s and 1.5 s waits) — never "an update is installing", which reopening can't fix.
   await app.waitForTimeout(2_500);
   await expect(app.getByRole("alert")).toHaveText(
     "Close the app's other tabs: the saved data must be updated.",

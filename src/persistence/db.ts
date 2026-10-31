@@ -117,18 +117,16 @@ const blockedListeners = new Set<(why: "blocked" | "blocking") => void>();
 /** The open waits for another tab holding an older version (until it opens). */
 let waitingForOtherTabs = false;
 
-/**
- * Told when another tab holds an older version open, or wants a newer one (reload). kenli F-011
- * T08 correction: a listener added while the open is already blocked is told at once (the start
- * may open the database before its loading screen listens).
- */
+/** Told when another tab holds an older version open, or wants a newer one (reload). */
 export function onDbBlocked(listener: (why: "blocked" | "blocking") => void): () => void {
   blockedListeners.add(listener);
-  if (waitingForOtherTabs) listener("blocked");
   return () => blockedListeners.delete(listener);
 }
 
-/** Whether the open still waits for another tab to let the older version go. */
+/**
+ * Whether the open still waits for another tab to let the older version go (kenli F-011 T08
+ * correction: the start's loading screen keeps saying so instead of "an update is installing").
+ */
 export function dbWaitsForOtherTabs(): boolean {
   return waitingForOtherTabs;
 }

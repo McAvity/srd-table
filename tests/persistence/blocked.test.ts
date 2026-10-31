@@ -1,8 +1,7 @@
 /**
  * kenli F-011 T08 correction: another tab holding the older database keeps the upgrade waiting.
- * The start may open the database before its loading screen listens: a listener added while the
- * open is blocked is told at once, and `dbWaitsForOtherTabs()` says so until the open succeeds
- * (the loading screen then asks to close the other tabs instead of "an update is installing").
+ * `dbWaitsForOtherTabs()` says so from the "blocked" event until the open succeeds (the start's
+ * loading screen then keeps asking to close the other tabs instead of "an update is installing").
  */
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -33,21 +32,17 @@ const holdOld = () =>
   });
 
 describe("an upgrade blocked by another tab", () => {
-  it("tells a listener added after the block, and waits until the old tab lets go", async () => {
+  it("waits from the block until the old tab lets go", async () => {
     const old = await holdOld();
-    const opening = db();
-    await expect.poll(dbWaitsForOtherTabs).toBe(true);
     const told: string[] = [];
     const stop = onDbBlocked((why) => told.push(why));
+    const opening = db();
+    await expect.poll(dbWaitsForOtherTabs).toBe(true);
     expect(told).toEqual(["blocked"]);
     old.close();
     const opened = await opening;
     expect(opened.version).toBe(4);
     expect(dbWaitsForOtherTabs()).toBe(false);
-    // Once open, a new listener isn't told of a block that's over.
-    const later: string[] = [];
-    onDbBlocked((why) => later.push(why))();
-    expect(later).toEqual([]);
     stop();
   });
 
