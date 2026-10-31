@@ -147,7 +147,10 @@ test("@touch R03-09: two Magic Initiates of one name, each its own; Mage Hand fr
     .selectOption("free:feat:magic-initiate@species:human#versatile:free-cast");
   expect(await s.locator("select").last().inputValue()).toBe(sBefore);
   await button(h, "Roll").click();
-  await expect(page.getByTestId("history-entry").first()).toBeAttached();
+  // Only the Human one's free use is spent: its option now says why not, the Sage one's is left.
+  const option = (row: Locator) => row.locator('option[value^="free:"]');
+  await expect.poll(() => option(h).textContent()).not.toContain("1 of 1 left");
+  expect(await option(s).textContent()).toContain("1 of 1 left");
   await shot(page, "mira-spells-1024x768");
   const keys = await lines.evaluateAll((els) =>
     els.map((e) => (e as HTMLElement).dataset.spellKey),
