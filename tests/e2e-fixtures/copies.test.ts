@@ -1,7 +1,8 @@
 /**
  * kenli F-011 T04: the full copies the browser tests import (e2e/), made by the app's own export on
  * a fake installation: Aerin and Brann (Fighter 3, no portrait: the F-006 flows) and Cora (Fighter 3)
- * with a real PNG portrait, and Lirael (Wizard 3, the M1–M5 flows), all pinned to the SRD and the test pack. Runs only when the e2e global setup asks for it
+ * with a real PNG portrait, and Lirael (Wizard 3, the M1–M5 flows), all pinned to the SRD and the test pack;
+ * Nell and Mira (kenli F-011 R03-09) pinned to the SRD and the invented grants pack. Runs only when the e2e global setup asks for it
  * (`F011_E2E_FIXTURES` = the /tmp folder); a skipped test in the ordinary run.
  */
 
@@ -14,6 +15,7 @@ import { setImageDecoder } from "../../src/lib/image";
 import { useDocuments } from "../../src/store/documents";
 import { usePortraits } from "../../src/store/portraits";
 import { fighter, wizard } from "../fixtures/characters";
+import { elfSage, grantsContext, twoInitiates } from "../fixtures/grants";
 import { testContext } from "../fixtures/player-actions";
 import { headerDecoder, realPng } from "../helpers/images";
 import { addCharacter, bytesOf, Installations, ok, storeTestPack } from "../localCopy/helpers";
@@ -48,6 +50,25 @@ describe.runIf(out)("e2e copies", () => {
         await bytesOf(x.blob),
       );
       expect(useDocuments.getState().characters[id]?.build.name).toBe(name);
+    }
+  }, 120_000);
+
+  // kenli F-011 R03-09: grant provenance in the browser — Nell (Mage Hand from Elf and Sage) and
+  // Mira (two Magic Initiates), pinned to the SRD and the invented grants pack (in the copy).
+  it("Nell and Mira (spell grants)", async () => {
+    mkdirSync(out as string, { recursive: true });
+    if (!inst.current) await inst.open("E2E");
+    const ctx = await grantsContext(inst.fx.engine);
+    for (const [name, make] of [
+      ["Nell", elfSage],
+      ["Mira", twoInitiates],
+    ] as const) {
+      const id = await addCharacter(await make(inst.fx.engine, ctx, name), ctx, inst.fx.engine);
+      const x = ok(await exportLocalCopy(id));
+      writeFileSync(
+        join(out as string, `${name.toLowerCase()}.local-copy.json`),
+        await bytesOf(x.blob),
+      );
     }
   }, 120_000);
 });

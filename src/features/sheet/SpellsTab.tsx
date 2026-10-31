@@ -33,7 +33,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   // kenli F-011 T06 (AC-17): at most one description open in the whole tab.
   const [expanded, setExpanded] = useState<string | null>(null);
   const looks = useMemo(() => sourceLooks(sheet), [sheet]);
-  const keys = spellKeys(sheet.spells);
+  const rows = useMemo(() => grantRows(sheet.spells), [sheet.spells]);
 
   return (
     <div className="space-y-4">
@@ -42,8 +42,8 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
         <Section title={t("sheet.spellcasting")}>
           <ul className="grid gap-2 @min-[600px]:grid-cols-2">
             {sheet.spellcasting.map((sc) => (
-              <li key={sc.source} className="rounded border border-edge px-3 py-2">
-                <div className="font-semibold">{sc.source}</div>
+              <li key={sc.key ?? sc.source} className="rounded border border-edge px-3 py-2">
+                <div className="font-semibold">{grantLabel(sc)}</div>
                 <div className="text-sm text-ink-muted">
                   {sc.ability ? abilityName(sc.ability) : "—"}
                   {sc.save_dc !== null && ` · ${t("sheet.saveDc")} ${sc.save_dc}`}
@@ -104,12 +104,11 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
             title={level === 0 ? t("sheet.cantrips") : t("sheet.spellLevel", { level })}
           >
             <ul className="space-y-1.5">
-              {sheet.spells
-                .filter((s) => s.level === level)
-                .map((s) => {
+              {rows
+                .filter((r) => r.spell.level === level)
+                .map(({ key, spell: s, grant, cast }) => {
                   const def = byId.get(s.id);
-                  const key = keys.get(s) as string;
-                  const look = looks.get(s.source) ?? FALLBACK_LOOK;
+                  const look = looks.get(identityOf(grant)) ?? FALLBACK_LOOK;
                   const open = expanded === key;
                   const descId = `spell-desc-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
                   return (
@@ -156,7 +155,8 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                             />
                           )}
                           <RollSpell
-                            spell={s}
+                            spell={cast}
+                            rowKey={key}
                             busy={busy}
                             onRoll={(pay, spellcasting) =>
                               void roll(
@@ -190,7 +190,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                           data-testid="spell-source"
                           data-look={look.index}
                         >
-                          {s.source}
+                          {grantLabel(grant)}
                         </span>
                         {def && (
                           <span>
@@ -234,10 +234,13 @@ export type SpellPay =
 
 function RollSpell({
   spell,
+  rowKey,
   busy,
   onRoll,
 }: {
   spell: PlaySpellLine;
+  /** The row's grant key (several rows can show one spell). */
+  rowKey: string;
   busy: boolean;
   onRoll: (pay: SpellPay | null, spellcasting: string | null) => void;
 }) {
@@ -299,7 +302,7 @@ function RollSpell({
           ? (picked0.reason?.text ?? slotReason)
           : null;
   const reason = blocking ?? warning;
-  const reasonId = `cast-${spell.id}-${spell.source}`;
+  const reasonId = `cast-${rowKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   return (
     <>
       {sources.length > 1 && (
@@ -363,17 +366,21 @@ function RollSpell({
 }
 
 /**
- * kenli F-011 T06 (AC-18): each spell source its look, from the data. Sources in the order the
- * character's spellcasting features list them, then any other source of its spells in their first
- * order; the palette's colours by that index, its later rounds with a dashed then dotted edge (two
- * sources never share both colour and edge before 18 of them), and the source's name always shown
- * as text. The same source keeps its look in every level group and render (not a hash of a name).
+ * kenli F-011 T06 (AC-18), review03 R03-09: rows and looks from the engine's provenance
+ * (`SpellLine.grants`, `SpellcastingLine.key`), never from display names. A row is one actual grant
+ * of a spell: the same spell from Elf and from Sage is two rows; two Magic Initiates of one name
+ * are two identities. A row's identity (its colour) is the spellcasting feature it's cast with
+ * through that grant (`spellcasting_key`), else the grant itself; its label the source's name and,
+ * when known, what granted it ("Magic Initiate · Human"). Looks follow the character's own
+ * spellcasting order, then other grants in their first order; the palette, then dashed/dotted edges
+ * past it; the label always shown. The same identity keeps its look in every group and render.
  */
 export interface SourceLook {
   readonly index: number;
   readonly edge: string;
   readonly chip: string;
 }
+type Grant = PlaySpellLine["grants"][number];
 const PALETTE = [
   { edge: "border-l-blue", chip: "border-blue text-blue" },
   { edge: "border-l-green", chip: "border-green text-green" },
@@ -385,34 +392,72 @@ const PALETTE = [
 const ROUNDS = ["", "[border-left-style:dashed]", "[border-left-style:dotted]"] as const;
 const FALLBACK_LOOK: SourceLook = { index: -1, edge: "border-l-edge", chip: "border-edge" };
 
+/** A spell line from an engine without grants (older): its one source as a grant. */
+const grantsOf = (s: PlaySpellLine): readonly Grant[] =>
+  s.grants?.length
+    ? s.grants
+    : [
+        {
+          key: s.source,
+          source: s.source,
+          granted_by: "",
+          spellcasting: s.spellcasting?.[0] ?? null,
+          spellcasting_key: null,
+          always_prepared: s.always_prepared ?? false,
+        },
+      ];
+export const identityOf = (g: Pick<Grant, "key" | "spellcasting_key">): string =>
+  g.spellcasting_key ?? g.key;
+export const grantLabel = (g: { source: string; granted_by?: string }): string =>
+  g.granted_by ? `${g.source} · ${g.granted_by}` : g.source;
+
 export function sourceLooks(
   sheet: Pick<PlaySheet, "spellcasting" | "spells">,
 ): Map<string, SourceLook> {
   const order: string[] = [];
-  for (const sc of sheet.spellcasting) if (!order.includes(sc.source)) order.push(sc.source);
-  for (const sp of sheet.spells) if (!order.includes(sp.source)) order.push(sp.source);
+  for (const sc of sheet.spellcasting) {
+    const id = sc.key ?? sc.source;
+    if (!order.includes(id)) order.push(id);
+  }
+  for (const sp of sheet.spells)
+    for (const g of grantsOf(sp)) if (!order.includes(identityOf(g))) order.push(identityOf(g));
   const out = new Map<string, SourceLook>();
-  order.forEach((source, index) => {
+  order.forEach((id, index) => {
     const colour = PALETTE[index % PALETTE.length] as (typeof PALETTE)[number];
     const round = ROUNDS[Math.floor(index / PALETTE.length) % ROUNDS.length] as string;
-    out.set(source, { index, edge: cx(colour.edge, round), chip: colour.chip });
+    out.set(id, { index, edge: cx(colour.edge, round), chip: colour.chip });
   });
   return out;
 }
 
 /**
- * A spell line's identity in the tab: its source, the spellcasting feature(s) it's cast with and
- * the spell (the same spell from two sources is two lines with their own choices and costs); an
- * exact repeat gets its occurrence.
+ * One row per grant of each spell, keyed by the grant's key and the spell (stable across renders
+ * and reloads). `cast` is the line as that row casts it: through its grant's spellcasting feature
+ * (none named: the engine's default), with the free casts that grant gives — or any free cast no
+ * grant of the line gives, on every row. Slots stay the character's one pool. No rule is decided
+ * here: these are the engine's fields, filtered by its own keys.
  */
-export function spellKeys(spells: readonly PlaySpellLine[]): Map<PlaySpellLine, string> {
-  const seen = new Map<string, number>();
-  const out = new Map<PlaySpellLine, string>();
-  for (const s of spells) {
-    const base = `${s.source}|${s.spellcasting.join("+")}|${s.id}`;
-    const n = seen.get(base) ?? 0;
-    seen.set(base, n + 1);
-    out.set(s, n ? `${base}#${n}` : base);
-  }
-  return out;
+export function grantRows(spells: readonly PlaySpellLine[]): {
+  key: string;
+  spell: PlaySpellLine;
+  grant: Grant;
+  cast: PlaySpellLine;
+}[] {
+  return spells.flatMap((spell) => {
+    const grants = grantsOf(spell);
+    const keys = new Set(grants.map((g) => g.key));
+    return grants.map((grant) => ({
+      key: `${grant.key}|${spell.id}`,
+      spell,
+      grant,
+      cast: {
+        ...spell,
+        spellcasting: grant.spellcasting === null ? [] : [grant.spellcasting],
+        free: spell.free.filter(
+          (f) =>
+            f.source_key === undefined || f.source_key === grant.key || !keys.has(f.source_key),
+        ),
+      },
+    }));
+  });
 }

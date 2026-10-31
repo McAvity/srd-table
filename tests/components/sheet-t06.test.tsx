@@ -187,7 +187,13 @@ describe("Spells: sources, one description at a time, controls apart", () => {
       seen.set(name as string, look as string);
     }
     expect([...seen.keys()]).toEqual(
-      expect.arrayContaining(["Wizard", "Magic Initiate", "Drow (Elf)", "Sage"]),
+      expect.arrayContaining([
+        "Wizard",
+        // R03-09: a feat's source names what granted it (two Magic Initiates stay apart).
+        "Magic Initiate · Sage",
+        "Drow (Elf)",
+        "Sage",
+      ]),
     );
     expect(new Set(seen.values()).size).toBe(seen.size); // distinct sources, distinct looks
     // Another render (tab away and back): the same looks.

@@ -216,7 +216,7 @@ describe("sheet", () => {
     }
   });
 
-  it("asks which spellcasting feature casts a spell given twice, and sends the one picked", async () => {
+  it("a spell given twice (Sorcerer and Bard): a row per grant, each sending its own spellcasting", async () => {
     const sent: RollWhat[] = [];
     const rollByHand = engine.rollByHand;
     engine.rollByHand = (build, state, what, force) => {
@@ -252,20 +252,29 @@ describe("sheet", () => {
         { name: line?.level === 0 ? "Cantrips" : `Level ${line?.level}` },
         { timeout: 10_000 },
       );
-      const row = within(region)
-        .getByText(line?.name as string)
-        .closest("li") as HTMLElement;
-      const roll = within(row).getByRole("button", { name: "Roll" });
-      expect(roll).toBeDisabled();
-      expect(row).toHaveTextContent("Choose the spellcasting feature to cast it with.");
-      await userEvent.selectOptions(
-        within(row).getByRole("combobox", { name: /Spellcasting feature to cast/ }),
+      // kenli F-011 R03-09: one row per actual grant (the engine's `grants`): the Sorcerer's and
+      // the Bard's, each casting through its own feature — nothing to pick, nothing lost.
+      expect(line?.grants.map((g) => g.spellcasting)).toEqual(["Sorcerer", "Bard"]);
+      const rows = within(region)
+        .getAllByText(line?.name as string)
+        .map((n) => n.closest("li") as HTMLElement);
+      expect(rows).toHaveLength(2);
+      expect(rows.map((r) => within(r).getByTestId("spell-source").textContent)).toEqual([
+        "Sorcerer",
         "Bard",
-      );
+      ]);
+      expect(
+        within(region).queryByRole("combobox", { name: /Spellcasting feature to cast/ }),
+      ).toBeNull();
+      const roll = within(rows[1] as HTMLElement).getByRole("button", { name: "Roll" });
       expect(roll).toBeEnabled();
       await userEvent.click(roll);
       await waitFor(() =>
         expect(sent.at(-1)).toMatchObject({ spell: twice, spellcasting: "Bard" }),
+      );
+      await userEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: "Roll" }));
+      await waitFor(() =>
+        expect(sent.at(-1)).toMatchObject({ spell: twice, spellcasting: "Sorcerer" }),
       );
     } finally {
       engine.rollByHand = rollByHand;
