@@ -51,13 +51,22 @@ import { bytesMatch, cacheNameOf, completeKeyOf, UPDATE_PROTO } from "./sw-core"
 export const UPDATE_KEY = "offline.update.v1";
 export const UPDATE_SCHEMA = "srd-table.update-state/1";
 /** The data this release reads and writes (as its descriptor declares them, §2.2). */
+/**
+ * What this release's data is (kenli F-011, contracts/changes.md §7): the database and journal
+ * family stay F-007's (`kenli.history/1`, so an installed F-007 release still accepts this one);
+ * the journal holds `/1` and `/2` entries, states up to version 3, origins of `/1` and `/2` copies.
+ */
 export const OWN_DATA = {
   db_version: 4,
   history_schema: "kenli.history/1",
   history_meta_schema: "kenli.history-meta/1",
   transfer_formats: ["srd-table.transfer/1"],
-  local_copy_formats: ["srd-table.local-copy/1"],
+  local_copy_formats: ["srd-table.local-copy/1", "srd-table.local-copy/2"],
+  history_entry_schemas: ["kenli.history/1", "kenli.history/2"],
+  state_versions: [1, 2, 3],
 } as const;
+/** A release before F-011 declares neither list: what its data was. */
+const PRE_F011 = { history_entry_schemas: ["kenli.history/1"], state_versions: [1, 2] } as const;
 const FREEZE_TIMEOUT_MS = 5_000;
 /** Poll step of the activation wait (300 steps); tests shorten it. */
 let ACTIVATE_POLL_MS = 100;
@@ -600,13 +609,24 @@ export async function updatesApply(): Promise<boolean> {
   return (await observeRelease()).active === RELEASE_ID;
 }
 
-const compatible = (data: ReleaseDescriptor["inputs"]["data"] | undefined): boolean =>
+/**
+ * Whether a candidate can read this release's data (§7): the same database and journal family, and
+ * every format, entry schema and state version this release may have written (a release that
+ * can't — an older one, or one without `/2` entries or version 3 states — is never offered).
+ */
+export const compatible = (data: ReleaseDescriptor["inputs"]["data"] | undefined): boolean =>
   !!data &&
   data.db_version === OWN_DATA.db_version &&
   data.history_schema === OWN_DATA.history_schema &&
   data.history_meta_schema === OWN_DATA.history_meta_schema &&
   OWN_DATA.transfer_formats.every((f) => data.transfer_formats.includes(f)) &&
-  OWN_DATA.local_copy_formats.every((f) => data.local_copy_formats.includes(f));
+  OWN_DATA.local_copy_formats.every((f) => data.local_copy_formats.includes(f)) &&
+  OWN_DATA.history_entry_schemas.every((f) =>
+    (data.history_entry_schemas ?? PRE_F011.history_entry_schemas).includes(f),
+  ) &&
+  OWN_DATA.state_versions.every((v) =>
+    (data.state_versions ?? PRE_F011.state_versions).includes(v),
+  );
 
 /** A candidate's descriptor, from the network, checked against the pointer's hash and its inputs. */
 async function candidateDescriptor(

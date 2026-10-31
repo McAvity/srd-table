@@ -115,7 +115,11 @@ const inputs: ReleaseInputs = {
     history_schema: "kenli.history/1",
     history_meta_schema: "kenli.history-meta/1",
     transfer_formats: ["srd-table.transfer/1"],
-    local_copy_formats: ["srd-table.local-copy/1"],
+    // kenli F-011 (contracts/changes.md §7): additive, the journal family unchanged so an installed
+    // F-007 release accepts this one; /1 origins still read, /2 copies, /2 entries, v3 states.
+    local_copy_formats: ["srd-table.local-copy/1", "srd-table.local-copy/2"],
+    history_entry_schemas: ["kenli.history/1", "kenli.history/2"],
+    state_versions: [1, 2, 3],
   },
   toolchain: { bun: bunVersion, vite: viteVersion },
   ...(args.variant ? { variant: args.variant as string } : {}),

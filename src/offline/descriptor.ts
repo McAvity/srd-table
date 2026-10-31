@@ -33,7 +33,14 @@ export interface ReleaseInputs {
     readonly history_schema: string;
     readonly history_meta_schema: string;
     readonly transfer_formats: readonly string[];
+    /** Formats whose traces (a record's `origin…local_copy`) the release reads (F-011: `/1`, `/2`). */
     readonly local_copy_formats: readonly string[];
+    /**
+     * kenli F-011 (contracts/changes.md §7), additive: journal entry schemas the release reads and
+     * writes, and play state versions. Absent (a release before F-011): `["kenli.history/1"]`, `[1, 2]`.
+     */
+    readonly history_entry_schemas?: readonly string[];
+    readonly state_versions?: readonly number[];
   };
   readonly toolchain: { readonly bun: string; readonly vite: string };
   /** A named variant of the same inputs (probes); absent in a normal release. */
@@ -153,6 +160,43 @@ export function swReleaseOf(d: ReleaseDescriptor): SwRelease {
   };
 }
 
+const strings = (v: unknown) =>
+  Array.isArray(v) && v.every((x) => typeof x === "string" && x.length > 0 && x.length <= 120);
+/**
+ * kenli F-011 §7: the data a release declares — exactly the known fields, typed; the two additive
+ * lists optional (a release before F-011 has neither). A malformed declaration is a bad descriptor.
+ */
+export function dataProblems(data: unknown): string[] {
+  const out: string[] = [];
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return ["not an object"];
+  const o = data as Record<string, unknown>;
+  const known = [
+    "db_version",
+    "history_schema",
+    "history_meta_schema",
+    "transfer_formats",
+    "local_copy_formats",
+    "history_entry_schemas",
+    "state_versions",
+  ];
+  for (const k of Object.keys(o)) if (!known.includes(k)) out.push(`unknown field ${k}`);
+  if (!Number.isSafeInteger(o.db_version) || (o.db_version as number) < 1) out.push("db_version");
+  for (const k of ["history_schema", "history_meta_schema"])
+    if (typeof o[k] !== "string" || !(o[k] as string)) out.push(k);
+  for (const k of ["transfer_formats", "local_copy_formats"]) if (!strings(o[k])) out.push(k);
+  if (o.history_entry_schemas !== undefined && !strings(o.history_entry_schemas))
+    out.push("history_entry_schemas");
+  if (
+    o.state_versions !== undefined &&
+    !(
+      Array.isArray(o.state_versions) &&
+      o.state_versions.every((x) => Number.isSafeInteger(x) && (x as number) >= 1)
+    )
+  )
+    out.push("state_versions");
+  return out;
+}
+
 /** Contract checks of a descriptor (offline.md §2.2–2.4); `[]` when valid. */
 export function descriptorProblems(
   d: ReleaseDescriptor,
@@ -170,6 +214,7 @@ export function descriptorProblems(
     !/^[0-9a-f]{40}$/.test(d.inputs.engine_commit)
   )
     bad("release_inputs", "commits");
+  for (const problem of dataProblems(d.inputs?.data)) bad("release_data", problem);
   if (d.sw.path !== swPathOf(d.release_id)) bad("release_sw_path", d.sw.path);
   if (d.html.path !== htmlPathOf(d.release_id)) bad("release_html_path", d.html.path);
   if (d.webmanifest.path !== manifestPathOf(d.release_id))
