@@ -2,7 +2,8 @@
  * The engine commit the app builds against, and the check that `../srd-rules-engine-main` is it.
  *
  *   npm run engine:verify   # the worktree is at ENGINE_COMMIT, clean, built; prints a hash of dist/
- *   npm run engine:update   # move it to ENGINE_COMMIT, npm ci, build dist/, verify (then content)
+ *   npm run engine:update   # move it to ENGINE_COMMIT, build dist/ with Bun from its installed
+ *                           # node_modules (no new install), verify (then content)
  *
  * A branch name isn't a version: the engine's `main` moves, so the app pins one commit and changes
  * it here, on purpose, with the engine's CHANGELOG read. The dist hash is the sha256 of
@@ -15,7 +16,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const ENGINE_COMMIT = "925570adf107e83b4fa2f8aef71f94292fb90529";
+export const ENGINE_COMMIT = "20302454efa590afd2a5215850bb1a7bb3c0ab3f";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const engineDir = join(root, "..", "srd-rules-engine-main");
@@ -58,8 +59,10 @@ function verify(): void {
 const command = process.argv[2];
 if (command === "update") {
   git("checkout", "-q", "--detach", ENGINE_COMMIT);
-  run("npm", ["ci", "--no-audit", "--no-fund"]);
-  run("npx", ["tsdown", "--config-loader", "tsx"]);
+  // kenli F-002 T02: Bun and the worktree's existing dependencies (no npm ci, no new packages).
+  if (!existsSync(join(engineDir, "node_modules", ".bin", "tsdown")))
+    throw new Error(`No installed engine dependencies in ${engineDir}/node_modules`);
+  run("bun", ["--bun", join("node_modules", ".bin", "tsdown")]);
   verify();
 } else if (command === "verify") {
   verify();
