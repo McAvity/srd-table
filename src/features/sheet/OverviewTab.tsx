@@ -71,7 +71,7 @@ export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const toolName = useNames("tools", { character: id });
   const languageName = useNames("languages", { character: id });
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-4 @min-[1180px]:grid-cols-2">
       <Section title={t("sheet.abilities")}>
         <p className="mb-1 flex items-center gap-2">
           <span className="font-semibold">{t("summary.initiative")}</span>
@@ -139,7 +139,7 @@ export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
       </Section>
 
       <Section title={t("sheet.skills")}>
-        <ul className="grid gap-x-4 sm:grid-cols-2">
+        <ul className="grid gap-x-4 @min-[600px]:grid-cols-2">
           {sheet.skills.map((s) => (
             <li key={s.skill} className="flex items-center gap-2 border-b border-edge/60 py-0.5">
               <span
@@ -165,8 +165,8 @@ export function OverviewTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
         </ul>
       </Section>
 
-      <Section title={t("sheet.proficiencies")} className="xl:col-span-2">
-        <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <Section title={t("sheet.proficiencies")} className="@min-[1180px]:col-span-2">
+        <dl className="grid gap-x-6 gap-y-2 text-sm @min-[600px]:grid-cols-2">
           <Row label={t("sheet.armorTraining")} items={sheet.armor_training.map(titleCase)} />
           <Row label={t("sheet.weapons")} items={sheet.weapon_proficiencies.map(titleCase)} />
           <Row label={t("sheet.tools")} items={Object.keys(sheet.tools).map(toolName)} />

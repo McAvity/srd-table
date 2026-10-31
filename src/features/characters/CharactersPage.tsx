@@ -32,7 +32,7 @@ export function CharactersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-4 sm:p-6">
+    <div className="mx-auto max-w-6xl p-4 @min-[600px]:p-6">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1">
           <PageTitle sub={t("characters.sub")}>{t("characters.title")}</PageTitle>
@@ -53,7 +53,7 @@ export function CharactersPage() {
       ) : (
         <>
           <p className="mb-2 text-sm text-ink-muted">{tn("characters.count", list.length)}</p>
-          <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid gap-3 @min-[600px]:grid-cols-2 @min-[960px]:grid-cols-3">
             {list.map((c) => (
               <li key={c.id}>
                 <CharacterCard record={c} />

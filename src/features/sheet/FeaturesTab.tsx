@@ -16,7 +16,7 @@ export function FeaturesTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
       <RestChoices id={id} />
       {(sheet.resources.length > 0 || sheet.weapon_masteries.length > 0) && (
         <Section title={t("sheet.resources")}>
-          <dl className="grid gap-2 sm:grid-cols-3">
+          <dl className="grid gap-2 @min-[600px]:grid-cols-3">
             {sheet.resources.map((r) => (
               <div
                 key={`${r.class_id}|${r.name}`}
@@ -27,7 +27,7 @@ export function FeaturesTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
               </div>
             ))}
             {sheet.weapon_masteries.length > 0 && (
-              <div className="rounded border border-edge bg-card-2 px-3 py-1.5 sm:col-span-3">
+              <div className="rounded border border-edge bg-card-2 px-3 py-1.5 @min-[600px]:col-span-3">
                 <dt className="text-[13px] text-ink-muted">{t("compendium.table.masteries")}</dt>
                 <dd>{sheet.weapon_masteries.map(masteryName).join(", ")}</dd>
               </div>

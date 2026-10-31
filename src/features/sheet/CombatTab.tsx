@@ -22,7 +22,7 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
   return (
     <div className="space-y-4">
       <Attacks id={id} sheet={sheet} />
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid gap-4 @min-[1180px]:grid-cols-2">
         <FeatureActions id={id} sheet={sheet} />
         <Toggles id={id} sheet={sheet} />
         <Uses id={id} sheet={sheet} />

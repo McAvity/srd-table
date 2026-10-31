@@ -54,35 +54,59 @@ import {
 
 const PAGE = 50;
 
-/** The top bar's toggle and the panel it opens (one Radix dialog, so focus returns to the toggle). */
-export function HistoryControl() {
+/**
+ * kenli F-011 T05: the History panel is a column of the layout, left of the game (no portal, no
+ * overlay): `HistoryRoot` wraps the shell (one non-modal Radix dialog, so Esc closes it and focus
+ * goes back to the toggle), `HistoryControl` is the toggle in the top bar and `HistoryPanel` the
+ * column the shell puts beside `<main>`. The game stays mounted while it opens and closes.
+ */
+export function HistoryRoot({ children }: { children: ReactNode }) {
   const open = useUi((s) => s.history.open);
   const setHistory = useUi((s) => s.setHistory);
   return (
     <RDialog.Root open={open} onOpenChange={(o) => setHistory({ open: o })} modal={false}>
-      <RDialog.Trigger asChild>
-        <button
-          type="button"
-          className="btn"
-          data-on={open ? "true" : undefined}
-          aria-label={t("history.toggle")}
-          title={t("history.toggle")}
-        >
-          <Icon name="scroll" />
-          <span className="hidden text-[15px] sm:inline">{t("history.title")}</span>
-        </button>
-      </RDialog.Trigger>
-      <RDialog.Portal>
-        <RDialog.Content
-          // A side panel to play beside: clicks outside keep it open.
-          onInteractOutside={(e) => e.preventDefault()}
-          className="panel fixed top-0 right-0 z-40 flex h-full w-full max-w-[440px] flex-col border-l border-edge-strong shadow-panel"
-          aria-describedby={undefined}
-        >
-          {open && <HistoryBody />}
-        </RDialog.Content>
-      </RDialog.Portal>
+      {children}
     </RDialog.Root>
+  );
+}
+
+/** The top bar's toggle. */
+export function HistoryControl() {
+  const open = useUi((s) => s.history.open);
+  return (
+    <RDialog.Trigger asChild>
+      <button
+        type="button"
+        className="btn"
+        data-on={open ? "true" : undefined}
+        aria-label={t("history.toggle")}
+        title={t("history.toggle")}
+      >
+        <Icon name="scroll" />
+        <span className="hidden text-[15px] sm:inline">{t("history.title")}</span>
+      </button>
+    </RDialog.Trigger>
+  );
+}
+
+/**
+ * The panel: a left column with its own scroll (the game's scroll is `<main>`'s). Its width is a
+ * share of the screen (iPad portrait leaves the game ~470 px); below 640 px it takes the screen
+ * and the game, still mounted, is hidden until it closes.
+ */
+export function HistoryPanel() {
+  const open = useUi((s) => s.history.open);
+  if (!open) return null;
+  return (
+    <RDialog.Content
+      // A side panel to play beside: clicks outside keep it open.
+      onInteractOutside={(e) => e.preventDefault()}
+      className="panel relative flex min-h-0 w-full flex-none flex-col border-r border-edge-strong sm:w-[clamp(280px,36vw,420px)]"
+      aria-describedby={undefined}
+      data-testid="history-panel"
+    >
+      <HistoryBody />
+    </RDialog.Content>
   );
 }
 
@@ -109,7 +133,71 @@ function useSubject(): { id: string | null; party: string[] } {
   return { id: candidates.find((c): c is string => !!c && !!characters[c]) ?? null, party };
 }
 
+/**
+ * kenli F-011 T05: reading older entries never jumps. While the panel is scrolled away from the
+ * top (newest first), the first entry in view is the anchor: after any change of the list (a new
+ * entry above, a page below, a group growing) the scroll is moved so it stays where it was. At the
+ * top it follows the newest. The browser's own anchoring is off (Safari has none; two would fight).
+ */
+function useScrollAnchor(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const box = ref.current;
+    if (!box) return;
+    let anchor: { key: string; top: number } | null = null;
+    // Our own correction scrolls too: that scroll keeps the anchor (re-picking it would add the
+    // pixel rounding of each correction to the next one — WebKit rounds scrollTop).
+    let ours = false;
+    const boxTop = () => box.getBoundingClientRect().top;
+    const onScroll = () => {
+      if (ours) {
+        ours = false;
+        return;
+      }
+      pick();
+    };
+    const pick = () => {
+      anchor = null;
+      if (box.scrollTop <= 4) return; // at the newest: follow it
+      const top = boxTop();
+      for (const el of box.querySelectorAll<HTMLElement>("[data-anchor]")) {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > top) {
+          anchor = { key: el.dataset.anchor as string, top: r.top - top };
+          return;
+        }
+      }
+    };
+    const restore = () => {
+      if (anchor) {
+        const key = anchor.key;
+        const el = [...box.querySelectorAll<HTMLElement>("[data-anchor]")].find(
+          (x) => x.dataset.anchor === key,
+        );
+        if (el) {
+          const moved = el.getBoundingClientRect().top - boxTop() - anchor.top;
+          if (Math.abs(moved) >= 0.5) {
+            ours = true;
+            box.scrollTop += moved;
+          }
+          return; // the same anchor, aimed at its first place again next time
+        }
+      }
+      pick();
+    };
+    box.addEventListener("scroll", onScroll, { passive: true });
+    const watch = new MutationObserver(restore);
+    watch.observe(box, { childList: true, subtree: true, characterData: true });
+    pick();
+    return () => {
+      box.removeEventListener("scroll", onScroll);
+      watch.disconnect();
+    };
+  }, [ref]);
+}
+
 function HistoryBody() {
+  const box = useRef<HTMLDivElement>(null);
+  useScrollAnchor(box);
   const { id, party } = useSubject();
   const characters = useDocuments((s) => s.characters);
   const setHistory = useUi((s) => s.setHistory);
@@ -130,7 +218,11 @@ function HistoryBody() {
           <Button variant="ghost" icon="x" iconOnly label={t("history.close")} />
         </RDialog.Close>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+      <div
+        ref={box}
+        className="relative min-h-0 flex-1 space-y-3 overflow-y-auto p-3 [overflow-anchor:none]"
+        data-testid="history-scroll"
+      >
         {ordered.length === 0 ? (
           <Empty icon="sheet">{t("history.noCharacters")}</Empty>
         ) : (
@@ -198,11 +290,20 @@ function useJournal(id: string, dayId: string | null, limit: number): Loaded | n
   const session = useHistory((s) => s.entries);
   const head = useHistory((s) => s.meta[id]);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  // kenli F-011 T05: what was read last (same character and day), so new entries add to the page
+  // instead of pushing the oldest shown ones off it while someone reads them.
+  const last = useRef<{ key: string; shown: number; total: number } | null>(null);
   // biome-ignore lint/correctness/useExhaustiveDependencies: the session and head are triggers to read again
   useEffect(() => {
     let live = true;
     void (async () => {
-      const rows = await page(id, { limit, ...(dayId ? { dayId } : {}) });
+      const key = `${id}#${dayId ?? ""}`;
+      const before = last.current?.key === key ? last.current : null;
+      const total0 = await entryCount(id);
+      const grown = before
+        ? Math.max(limit, before.shown + Math.max(0, total0 - before.total))
+        : limit;
+      const rows = await page(id, { limit: grown, ...(dayId ? { dayId } : {}) });
       const roots = new Map<string, HistoryEntry>();
       for (const e of rows) if (e.operation_id === e.group_id) roots.set(e.group_id, e);
       const missing = [...new Set(rows.map((e) => e.group_id))].filter((g) => !roots.has(g));
@@ -225,7 +326,17 @@ function useJournal(id: string, dayId: string | null, limit: number): Loaded | n
       const linked: Record<string, HistoryEntry | null> = {};
       for (const op of links) linked[op] = found.find((e) => e.operation_id === op) ?? null;
       const [total, rests] = await Promise.all([entryCount(id), longRests(id)]);
-      if (live) setLoaded({ groups, shown: rows.length, limit, total, rests, linked });
+      if (!live) return;
+      last.current = { key, shown: rows.length, total };
+      // `limit`: the page asked for ("older" compares with it); `grown` may hold more.
+      setLoaded({
+        groups,
+        shown: rows.length,
+        limit: Math.min(limit, grown),
+        total,
+        rests,
+        linked,
+      });
     })();
     return () => {
       live = false;
@@ -391,6 +502,7 @@ function Group({
         root.status === "undone" && "opacity-80",
       )}
       data-testid="history-group"
+      data-anchor={root.group_id}
     >
       {isRoll && (
         <p className="mb-1 text-sm font-semibold" data-testid="history-current">

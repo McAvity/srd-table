@@ -86,7 +86,7 @@ function Sheet({
   useEffect(() => useUi.getState().opened("character", id), [id]);
 
   return (
-    <div className="mx-auto max-w-[1400px] p-3 sm:p-5">
+    <div className="mx-auto max-w-[1400px] p-3 @min-[600px]:p-5">
       <div className="mb-1">
         <BackLink to="/characters" />
       </div>
@@ -161,7 +161,7 @@ function Sheet({
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-4 @min-[860px]:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <HitPointsPanel id={id} sheet={sheet} />
           <RollFollowUps id={id} sheet={sheet} />

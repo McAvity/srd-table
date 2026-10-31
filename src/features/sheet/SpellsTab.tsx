@@ -36,7 +36,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
       <Reasons reasons={reasons} />
       {sheet.spellcasting.length > 0 && (
         <Section title={t("sheet.spellcasting")}>
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid gap-2 @min-[600px]:grid-cols-2">
             {sheet.spellcasting.map((sc) => (
               <li key={sc.source} className="rounded border border-edge px-3 py-2">
                 <div className="font-semibold">{sc.source}</div>
@@ -107,9 +107,9 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                   return (
                     <li
                       key={`${s.id}|${s.source}`}
-                      className="flex items-center gap-2 rounded border border-edge px-2 py-1.5"
+                      className="flex flex-wrap items-center gap-2 rounded border border-edge px-2 py-1.5"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-[1_1_14rem]">
                         <div className="flex flex-wrap items-baseline gap-x-2">
                           <span className="font-semibold">{s.name}</span>
                           {def?.concentration && (
@@ -258,7 +258,7 @@ function RollSpell({
     <>
       {sources.length > 1 && (
         <select
-          className="field w-auto py-1 text-sm"
+          className="field w-auto max-w-full min-w-0 py-1 text-sm"
           aria-label={t("sheet.castWith", { spell: spell.name })}
           value={castWith ?? ""}
           onChange={(e) => setCastWith(e.target.value || null)}
@@ -273,7 +273,7 @@ function RollSpell({
       )}
       {leveled && (
         <select
-          className="field w-auto py-1 text-sm"
+          className="field w-auto max-w-full min-w-0 py-1 text-sm"
           aria-label={t("sheet.castAt", { spell: spell.name })}
           value={picked}
           onChange={(e) => setPicked(e.target.value)}

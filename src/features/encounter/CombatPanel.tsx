@@ -183,7 +183,7 @@ function AddMonster({ record, onClose }: { record: EncounterRecord; onClose: () 
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
-      <div className="grid gap-3 md:grid-cols-[1fr_16rem]">
+      <div className="grid gap-3 @min-[720px]:grid-cols-[1fr_16rem]">
         <VirtualList
           items={list}
           estimate={44}

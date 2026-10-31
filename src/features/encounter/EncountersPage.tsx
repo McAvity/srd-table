@@ -29,7 +29,7 @@ export function EncountersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl p-4 sm:p-6">
+    <div className="mx-auto max-w-5xl p-4 @min-[600px]:p-6">
       <div className="flex flex-wrap items-start gap-3">
         <div className="flex-1">
           <PageTitle sub={t("encounters.sub")}>{t("encounters.title")}</PageTitle>

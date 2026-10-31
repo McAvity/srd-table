@@ -127,8 +127,8 @@ function Table({ record }: { record: EncounterRecord }) {
   }
 
   return (
-    <div className="grid gap-3 p-3 lg:h-full lg:min-h-0 lg:grid-cols-[250px_minmax(0,1fr)_340px]">
-      <aside className="flex max-h-[45vh] min-h-0 flex-col gap-2 lg:max-h-none">
+    <div className="grid gap-3 p-3 @min-[960px]:h-full @min-[960px]:min-h-0 @min-[960px]:grid-cols-[250px_minmax(0,1fr)_340px]">
+      <aside className="flex max-h-[45vh] min-h-0 flex-col gap-2 @min-[960px]:max-h-none">
         <div className="panel p-2">
           <BackLink to="/encounters" />
           <label className="sr-only" htmlFor="encounter-name">
@@ -251,7 +251,7 @@ function Table({ record }: { record: EncounterRecord }) {
         {!pending && actor && !options.data && options.isFetching && <Spinner />}
       </div>
 
-      <aside className="flex min-h-0 flex-col gap-3 lg:overflow-y-auto">
+      <aside className="flex min-h-0 flex-col gap-3 @min-[960px]:overflow-y-auto">
         <PointPanel encounterId={record.id} encounter={record.encounter} view={view} gm={gm} />
         {gm && <CombatPanel record={record} view={view} />}
         <SelectionPanel

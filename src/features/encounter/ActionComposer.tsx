@@ -390,7 +390,7 @@ export function ActionComposer({
             {allIds.length === 0 ? (
               <p className="text-sm text-ink-muted">{t("table.noTargets")}</p>
             ) : (
-              <ul className="grid gap-1.5 sm:grid-cols-2">
+              <ul className="grid gap-1.5 @min-[600px]:grid-cols-2">
                 {allIds.map(({ id, inRange }) => {
                   const c = view.combatants.find((x) => x.id === id);
                   const times = targets.filter((x) => x === id).length;

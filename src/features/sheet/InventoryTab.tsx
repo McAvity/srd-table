@@ -306,7 +306,7 @@ function AddItemDialog({ id, onClose }: { id: string; onClose: () => void }) {
           onChange={(e) => setQuery(e.target.value)}
         />
       </label>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 @min-[720px]:grid-cols-2">
         <VirtualList
           items={visible}
           estimate={40}
