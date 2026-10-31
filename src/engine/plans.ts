@@ -66,6 +66,7 @@ export type AddonCheckResult =
         | "bind_old_ref_changed"
         | "bind_context_mismatch"
         | "context_sources_mismatch"
+        | "pack_identity_mismatch"
         | "plan_pack_missing";
       readonly detail: string;
       /** The first differing paths (`addon_definition_changed`, `addon_sheet_changed`). */
@@ -108,13 +109,40 @@ const MAX_MEMO = 8;
 export function planMethods(content: ContentRegistry) {
   const memo = new Map<string, PlanCompileResult>();
 
-  /** A context's files: the extra ones by hash first, else registered or served here. */
-  async function filesOf(
+  /** The exact ref the files really are (`packRefOf`), once per files object. */
+  const identities = new WeakMap<object, Promise<PackRef>>();
+  const actualRef = (files: PackFiles): Promise<PackRef> => {
+    let ref = identities.get(files);
+    if (!ref) {
+      ref = packRefOf(files);
+      identities.set(files, ref);
+    }
+    return ref;
+  };
+
+  /**
+   * A context's files for an exact ref (§2.3): the call's own envelopes by hash first, else the
+   * ones registered or served here — and then, whatever their source, the ref they really are
+   * (`packRefOf`: manifest id and version, hash of the files) must be the requested one in all
+   * three fields. A hash alone never vouches for an id or a version; nothing is corrected.
+   */
+  async function exactFiles(
     ref: PackRef,
     extra: ReadonlyMap<string, PackFiles>,
-  ): Promise<PackFiles | null> {
-    return extra.get(ref.sha256) ?? (await content.localFiles(ref));
+  ): Promise<
+    | { readonly ok: true; readonly files: PackFiles }
+    | { readonly ok: false; readonly missing: true }
+    | { readonly ok: false; readonly missing: false; readonly actual: PackRef }
+  > {
+    const files = extra.get(ref.sha256) ?? (await content.localFiles(ref));
+    if (!files) return { ok: false, missing: true };
+    const actual = await actualRef(files);
+    if (actual.id !== ref.id || actual.version !== ref.version || actual.sha256 !== ref.sha256)
+      return { ok: false, missing: false, actual };
+    return { ok: true, files };
   }
+  const identityDetail = (ref: PackRef, actual: PackRef) =>
+    `requested ${refLabel(ref)}, the files are ${refLabel(actual)}`;
 
   async function catalogOf(ctx: ContentContext, files: readonly PackFiles[]): Promise<Catalog> {
     const packs = await Promise.all(
@@ -153,8 +181,14 @@ export function planMethods(content: ContentRegistry) {
     const files: PackFiles[] = [];
     const requires = new Map<string, readonly string[]>();
     for (const ref of plan.packs) {
-      const f = await filesOf(ref, extra);
-      if (!f) return refused({ code: "plan_pack_missing", detail: refLabel(ref) });
+      const found = await exactFiles(ref, extra);
+      if (!found.ok)
+        return refused(
+          found.missing
+            ? { code: "plan_pack_missing", detail: refLabel(ref) }
+            : { code: "plan_pack_identity", detail: identityDetail(ref, found.actual) },
+        );
+      const f = found.files;
       const m = (f["manifest.json"] as { manifest?: { requires?: unknown } } | undefined)?.manifest;
       requires.set(ref.id, Array.isArray(m?.requires) ? m.requires.map(String) : []);
       files.push(f);
@@ -207,15 +241,31 @@ export function planMethods(content: ContentRegistry) {
     const previous: { id: string; files: PackFiles }[] = [];
     const oldFiles: PackFiles[] = [];
     for (const ref of req.record.packs) {
-      const f = await filesOf(ref, extra);
-      if (!f) return { ok: false, code: "plan_pack_missing", detail: refLabel(ref) };
+      const found = await exactFiles(ref, extra);
+      if (!found.ok)
+        return found.missing
+          ? { ok: false, code: "plan_pack_missing", detail: refLabel(ref) }
+          : {
+              ok: false,
+              code: "pack_identity_mismatch",
+              detail: identityDetail(ref, found.actual),
+            };
+      const f = found.files;
       previous.push({ id: ref.id, files: f });
       oldFiles.push(f);
     }
     const newFiles = [...oldFiles];
     for (const ref of cmp.extra) {
-      const f = await filesOf(ref, extra);
-      if (!f) return { ok: false, code: "plan_pack_missing", detail: refLabel(ref) };
+      const found = await exactFiles(ref, extra);
+      if (!found.ok)
+        return found.missing
+          ? { ok: false, code: "plan_pack_missing", detail: refLabel(ref) }
+          : {
+              ok: false,
+              code: "pack_identity_mismatch",
+              detail: identityDetail(ref, found.actual),
+            };
+      const f = found.files;
       const own = checkAddonSources(req.record.sources, f) ?? checkAddonFiles(previous, f);
       if (own) return { ok: false, ...own };
       previous.push({ id: ref.id, files: f });

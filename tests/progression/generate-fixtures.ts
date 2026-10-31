@@ -56,6 +56,8 @@ export async function buildFixtures(engine: EngineFacade = nodeFacade({ seed: 1 
   const wizard = (await planBody(engine, SPECS.wizard)).plan;
   const sorcererBard = (await planBody(engine, SPECS.sorcererBard)).plan;
   const wizardFighter = (await planBody(engine, SPECS.wizardFighter)).plan;
+  const warlock = (await planBody(engine, SPECS.warlock)).plan;
+  const conAsi = (await planBody(engine, SPECS.fighterConAsi)).plan;
   const [poolRef] = await engine.registerPacks([POOL_PACK]);
   if (!poolRef) throw new Error("pool pack");
   const poolEnv = await packEnvelope(POOL_PACK, [srd]);
@@ -94,6 +96,18 @@ export async function buildFixtures(engine: EngineFacade = nodeFacade({ seed: 1 
     "an invented feat's language pool grows at Fighter 6 (S-pool, no rest change), its pack carried as an envelope",
     pool,
     [poolEnv],
+  );
+  await add(
+    "warlock-1-2",
+    "ok",
+    "Warlock 1–2: Eldritch Invocations (feature options) next to class traits",
+    warlock,
+  );
+  await add(
+    "fighter-con-asi-1-4",
+    "ok",
+    "Constitution +2 at Fighter 4: HP raised for every level (retroactive)",
+    conAsi,
   );
   const partial = clone(fighter);
   partial.levels = partial.levels.slice(0, 2);

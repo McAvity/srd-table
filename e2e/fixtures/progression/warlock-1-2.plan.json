@@ -1,0 +1,225 @@
+{
+  "format": "srd-table.progression-plan/1",
+  "plan_sha256": "bf514642e075beeb51df7784f74b15759baab34940076ef2473a41e63ffb7b65",
+  "plan": {
+    "id": "test-warlock",
+    "revision": 1,
+    "title": "Warlock 1–2 (Eldritch Invocations: feature options)",
+    "language": "en",
+    "authorship": {
+      "source": "invented test plan",
+      "adaptation": "none",
+      "author": "srd-table tests"
+    },
+    "packs": [
+      {
+        "id": "srd-5.2.1",
+        "version": "5.2.1",
+        "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+      }
+    ],
+    "sources": null,
+    "start": {
+      "equipment": "starting",
+      "ops": [
+        {
+          "op": "class",
+          "id": "warlock",
+          "origin": "author"
+        },
+        {
+          "op": "species",
+          "id": "human",
+          "origin": "author"
+        },
+        {
+          "op": "background",
+          "id": "acolyte",
+          "origin": "author"
+        },
+        {
+          "op": "ability_method",
+          "method": "standard_array",
+          "origin": "author"
+        },
+        {
+          "op": "base_scores",
+          "scores": {
+            "str": 8,
+            "dex": 14,
+            "con": 13,
+            "int": 10,
+            "wis": 12,
+            "cha": 15
+          },
+          "origin": "author"
+        },
+        {
+          "op": "background_bonus",
+          "bonus": {
+            "cha": 2,
+            "wis": 1
+          },
+          "origin": "author"
+        },
+        {
+          "op": "name",
+          "name": "Vex",
+          "origin": "author"
+        },
+        {
+          "op": "alignment",
+          "alignment": "CN",
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "creation#languages",
+          "values": [
+            "common-sign-language",
+            "draconic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:warlock#skills",
+          "values": [
+            "arcana",
+            "deception"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:warlock#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:warlock#cantrips",
+          "values": [
+            "chill-touch",
+            "eldritch-blast"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:warlock#invocation",
+          "values": [
+            "armor-of-shadows"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:warlock#prepared",
+          "values": [
+            "bane",
+            "charm-person"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#size",
+          "values": [
+            "medium"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#skillful",
+          "values": [
+            "acrobatics"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#versatile",
+          "values": [
+            "alert"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#spellcasting_ability",
+          "values": [
+            "int"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#cantrips",
+          "values": [
+            "guidance",
+            "light"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#spell",
+          "values": [
+            "bless"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:acolyte#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        }
+      ]
+    },
+    "levels": [
+      {
+        "level": 2,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "warlock",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:warlock:2#prepared",
+            "values": [
+              "comprehend-languages"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:warlock:2#invocations",
+            "values": [
+              "agonizing-blast",
+              "devils-sight"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feature:agonizing-blast@class:warlock:2#invocations#cantrip",
+            "values": [
+              "chill-touch"
+            ],
+            "origin": "author"
+          }
+        ]
+      }
+    ]
+  }
+}

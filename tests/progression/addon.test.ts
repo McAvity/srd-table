@@ -248,3 +248,27 @@ describe("add-on bind checks (§6.3)", () => {
     expect(dup?.code).toBe("addon_id_collision");
   });
 });
+
+describe("add-on check: exact pack identity (R05-02)", () => {
+  it("an add-on or an old pack named under another version or id: pack_identity_mismatch, nothing registered", async () => {
+    const s = await setup();
+    const fake = { ...s.addon, version: "not-installed" };
+    const r = await check(s, { plan: { ...s.plan, packs: [s.srd, s.base, fake] } });
+    expect(r.ok ? "ok" : r.code).toBe("pack_identity_mismatch");
+    const nullVersion = { ...s.base, version: null };
+    const old = await check(s, {
+      record: { ...s.record, packs: [s.srd, nullVersion] },
+      plan: { ...s.plan, packs: [s.srd, nullVersion, s.addon] },
+    });
+    expect(old.ok ? "ok" : old.code).toBe("pack_identity_mismatch");
+    const aliasSrd = { ...s.srd, id: "test-srd-alias" };
+    const alias = await check(s, {
+      record: { ...s.record, packs: [aliasSrd, s.base] },
+      plan: { ...s.plan, packs: [aliasSrd, s.base, s.addon] },
+    });
+    expect(alias.ok).toBe(false);
+    expect(await s.e.localPackFiles(fake)).toEqual({ ok: false, code: "context_unavailable" });
+    // The exact refs still pass.
+    expect((await check(s)).ok).toBe(true);
+  });
+});

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
 import { nodeFacade } from "../src/engine/node";
 import { canonicalJson } from "../src/lib/canonical";
+import { EXPECTED_STATS } from "../tests/progression/expected-stats";
 
 const DIR = join(dirname(fileURLToPath(import.meta.url)), "fixtures/progression");
 const index = JSON.parse(readFileSync(join(DIR, "index.json"), "utf8")) as {
@@ -61,6 +62,23 @@ test("browser worker and Node facade compile every fixture identically", async (
     expect(b.ok ? "ok" : b.problem?.code, f.file).toBe(f.expect);
     expect(canonicalJson(b), f.file).toBe(canonicalJson(expected[i]));
   }
+  // Independent numbers too (worked out by hand), so a mapping wrong in both places still fails.
+  let checked = 0;
+  for (const [i, f] of fixtures.entries()) {
+    const want = EXPECTED_STATS[f.file];
+    if (!want) continue;
+    const b = browser.results[i] as {
+      checkpoints: { stats: { max_hp: number; armor_class: number; initiative: number } }[];
+    };
+    expect(
+      b.checkpoints.map((c) => [c.stats.max_hp, c.stats.armor_class, c.stats.initiative]),
+      f.file,
+    ).toEqual(want.map((x) => [x.hp, x.ac, x.initiative]));
+    checked += want.length;
+  }
+  console.log(
+    `independent stats: ${checked} checkpoints in ${Object.keys(EXPECTED_STATS).length} fixtures`,
+  );
   console.log(
     `parity: ${fixtures.length} fixtures (${fixtures.filter((f) => f.expect === "ok").length} positive) identical`,
   );

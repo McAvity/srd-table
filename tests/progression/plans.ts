@@ -198,6 +198,16 @@ const SORCERER_START: readonly BuildEdit[] = [
   { type: "name", name: "Kai" },
   { type: "alignment", alignment: "NG" },
 ];
+const WARLOCK_START: readonly BuildEdit[] = [
+  { type: "class", id: "warlock" },
+  { type: "species", id: "human" },
+  { type: "background", id: "acolyte" },
+  { type: "ability_method", method: "standard_array" },
+  { type: "base_scores", scores: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 } },
+  { type: "background_bonus", bonus: { cha: 2, wis: 1 } },
+  { type: "name", name: "Vex" },
+  { type: "alignment", alignment: "CN" },
+];
 const times = (n: number, class_id: string) => Array.from({ length: n }, () => ({ class_id }));
 
 export const SPECS = {
@@ -224,6 +234,32 @@ export const SPECS = {
     title: "Wizard 1 / Fighter 1",
     start: WIZARD_START,
     levels: times(1, "fighter"),
+  },
+  warlock: {
+    id: "test-warlock",
+    title: "Warlock 1–2 (Eldritch Invocations: feature options)",
+    start: WARLOCK_START,
+    levels: times(1, "warlock"),
+  },
+  fighterConAsi: {
+    id: "test-fighter-con-asi",
+    title: "Fighter 1–4, Constitution +2 at 4 (HP raised for every level)",
+    start: FIGHTER_START,
+    levels: [
+      { class_id: "fighter" },
+      { class_id: "fighter" },
+      {
+        class_id: "fighter",
+        edits: [
+          { type: "choice", key: "class:fighter:4#feat", values: ["ability-score-improvement"] },
+          {
+            type: "choice",
+            key: "feat:ability-score-improvement@class:fighter:4#feat#increase",
+            values: ["con", "con"],
+          },
+        ],
+      },
+    ],
   },
 } as const satisfies Record<string, PlanSpec>;
 

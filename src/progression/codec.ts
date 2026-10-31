@@ -56,6 +56,8 @@ export type PlanCode =
   | "plan_field_invalid"
   | "plan_hash_mismatch"
   | "plan_pack_missing"
+  /** A pack's files aren't the exact ref the plan names (id, version and hash). */
+  | "plan_pack_identity"
   | "plan_pack_invalid"
   | "plan_pack_unreferenced"
   | "plan_pack_order"

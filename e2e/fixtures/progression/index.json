@@ -32,6 +32,18 @@
       "levels": 6
     },
     {
+      "file": "warlock-1-2.plan.json",
+      "expect": "ok",
+      "why": "Warlock 1–2: Eldritch Invocations (feature options) next to class traits",
+      "levels": 2
+    },
+    {
+      "file": "fighter-con-asi-1-4.plan.json",
+      "expect": "ok",
+      "why": "Constitution +2 at Fighter 4: HP raised for every level (retroactive)",
+      "levels": 4
+    },
+    {
       "file": "fighter-partial-1-3.plan.json",
       "expect": "ok",
       "why": "a partial plan (1–3) is legal",

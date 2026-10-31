@@ -9,8 +9,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { nodeFacade } from "@/engine/node";
-import { canonicalJson } from "@/lib/canonical";
+import { canonicalJson, contentSha } from "@/lib/canonical";
 import { prefixSha256 } from "@/progression/prefix";
+import { EXPECTED_FEATURE_OPTIONS, EXPECTED_STATS } from "./expected-stats";
 import { buildFixtures, FIXTURE_DIR, type FixtureCase } from "./generate-fixtures";
 import { clone, type J, POOL_PACK, planBody, SPECS } from "./plans";
 
@@ -190,5 +191,146 @@ describe("nextStep (for T04's preview)", () => {
       code: "plan_not_compiled",
       detail: "plan_hash_mismatch",
     });
+  });
+});
+
+describe("checkpoint statistics (R05-01): the sheet's real totals, against numbers worked out by hand", () => {
+  it.each(Object.keys(EXPECTED_STATS).map((f) => [f] as const))(
+    "%s: every level's HP, AC, initiative, PB, slots and new traits",
+    async (name) => {
+      const e = nodeFacade({ seed: 1 });
+      const r = await e.compilePlan(read(name));
+      if (!r.ok) throw new Error(r.problem.detail);
+      const want = EXPECTED_STATS[name] ?? [];
+      expect(r.checkpoints).toHaveLength(want.length);
+      for (const [i, cp] of r.checkpoints.entries()) {
+        const x = want[i];
+        if (!x) throw new Error(`no expectation for ${name} L${i + 1}`);
+        const at = `${name} L${cp.level}`;
+        expect(cp.stats.max_hp, at).toBe(x.hp);
+        expect(cp.stats.armor_class, at).toBe(x.ac);
+        expect(cp.stats.initiative, at).toBe(x.initiative);
+        expect(cp.stats.proficiency_bonus, at).toBe(x.pb);
+        if (x.slots) expect(cp.stats.spell_slots, at).toEqual(x.slots);
+        // Gained traits: in the diff from the previous level (level 1: on the sheet).
+        const gained =
+          i === 0
+            ? cp.stats.traits
+            : ((cp.changes.find((c) => c.field === "traits")?.after as string[] | undefined) ?? []);
+        for (const t of x.traits ?? []) expect(gained, `${at} gains ${t}`).toContain(t);
+        // The diff carries the HP and initiative changes with their real numbers.
+        const prev = want[i - 1];
+        if (prev && prev.hp !== x.hp)
+          expect(
+            cp.changes.find((c) => c.field === "max_hp"),
+            at,
+          ).toEqual({ field: "max_hp", before: prev.hp, after: x.hp });
+        if (prev && prev.initiative !== x.initiative)
+          expect(
+            cp.changes.find((c) => c.field === "initiative"),
+            at,
+          ).toEqual({ field: "initiative", before: prev.initiative, after: x.initiative });
+      }
+    },
+  );
+
+  it("a Constitution increase raises HP for every earlier level (28 → 40 at Fighter 4, not 36)", async () => {
+    const e = nodeFacade({ seed: 1 });
+    const r = await e.compilePlan(read("fighter-con-asi-1-4.plan.json"));
+    if (!r.ok) throw new Error(r.problem.detail);
+    const l4 = r.checkpoints[3];
+    expect(l4?.changes).toContainEqual({ field: "max_hp", before: 28, after: 40 });
+    expect(l4?.changes).toContainEqual({ field: "scores.con", before: 14, after: 16 });
+  });
+
+  it("feature options (Eldritch Invocations) and class traits are both kept", async () => {
+    const e = nodeFacade({ seed: 1 });
+    const r = await e.compilePlan(read("warlock-1-2.plan.json"));
+    if (!r.ok) throw new Error(r.problem.detail);
+    const opts = EXPECTED_FEATURE_OPTIONS["warlock-1-2.plan.json"] ?? [];
+    for (const [i, cp] of r.checkpoints.entries()) expect(cp.stats.features).toEqual(opts[i]);
+    const l2 = r.checkpoints[1];
+    expect(l2?.changes.find((c) => c.field === "features")?.after).toEqual([
+      "Agonizing Blast",
+      "Devil's Sight",
+    ]);
+    expect(l2?.changes.find((c) => c.field === "traits")?.after).toContain("Magical Cunning");
+  });
+
+  it("stats are typed numbers or null, never a zero standing in for a Stat object", async () => {
+    const e = nodeFacade({ seed: 1 });
+    for (const name of Object.keys(EXPECTED_STATS)) {
+      const r = await e.compilePlan(read(name));
+      if (!r.ok) continue;
+      for (const cp of r.checkpoints) {
+        expect(typeof cp.stats.max_hp).toBe("number");
+        expect(cp.stats.max_hp).toBeGreaterThan(0);
+        expect(cp.stats.armor_class).toBeGreaterThanOrEqual(10);
+        expect(cp.stats.traits.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe("exact pack identity (R05-02): the files must be the ref the plan names — id, version and hash", () => {
+  const withRefs = async (name: string, change: (packs: J[]) => void, keepEnvelopes = false) => {
+    const f = clone(read(name));
+    if (!keepEnvelopes) delete f.packs;
+    change(f.plan.packs);
+    f.plan_sha256 = await contentSha(f.plan);
+    return f;
+  };
+  const code = (r: { ok: boolean; problem?: { code: string } }) => (r.ok ? "ok" : r.problem?.code);
+
+  it("the served SRD under another version, a null version or another id: refused, not corrected", async () => {
+    const e = nodeFacade({ seed: 1 });
+    for (const change of [
+      (p: J[]) => {
+        p[0].version = "never-released";
+      },
+      (p: J[]) => {
+        p[0].version = null;
+      },
+    ]) {
+      const r = await e.compilePlan(await withRefs("fighter-1-6.plan.json", change));
+      expect(code(r)).toBe("plan_pack_identity");
+      if (!r.ok) expect(r.problem.detail).toMatch(/the files are srd-5\.2\.1@5\.2\.1#/);
+    }
+  });
+
+  it("a registered pack under an alias id or another version: refused (cold and warm memo)", async () => {
+    const e = nodeFacade({ seed: 1 });
+    await e.registerPacks([POOL_PACK]);
+    const alias = await withRefs("pool-feat-1-6.plan.json", (p) => {
+      p[1].id = "test-alias";
+    });
+    const version = await withRefs("pool-feat-1-6.plan.json", (p) => {
+      p[1].version = "9.9.9";
+    });
+    const exact = clone(read("pool-feat-1-6.plan.json"));
+    delete exact.packs;
+    // Cold: refused before anything is compiled or memoised.
+    expect(code(await e.compilePlan(alias))).toBe("plan_pack_identity");
+    // The exact refs compile (and warm the memo and the identity cache)…
+    expect(code(await e.compilePlan(exact))).toBe("ok");
+    // …and the wrong ones are still refused afterwards.
+    expect(code(await e.compilePlan(alias))).toBe("plan_pack_identity");
+    expect(code(await e.compilePlan(version))).toBe("plan_pack_identity");
+  });
+
+  it("an envelope's pack named under another id or version: refused", async () => {
+    const e = nodeFacade({ seed: 1 });
+    for (const change of [
+      (p: J[]) => {
+        p[1].id = "test-alias";
+      },
+      (p: J[]) => {
+        p[1].version = null;
+      },
+    ]) {
+      const r = await e.compilePlan(await withRefs("pool-feat-1-6.plan.json", change, true));
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(["plan_pack_unreferenced", "plan_pack_identity"]).toContain(r.problem.code);
+    }
   });
 });

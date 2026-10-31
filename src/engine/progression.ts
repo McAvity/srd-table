@@ -16,6 +16,7 @@ import {
   type CharacterBuild,
   characterLevel,
   createBuild,
+  type DerivedSheet,
   evaluate,
   lookup,
   resolve,
@@ -49,11 +50,16 @@ export interface ReadableOp {
   readonly value?: string;
 }
 
-/** The numbers a checkpoint shows, from the engine's sheet (nothing computed here). */
+/**
+ * The numbers a checkpoint shows, read from the engine's typed `DerivedSheet` of the checkpoint's
+ * build (nothing computed here). The build's sheet: the starting equipment the build itself takes,
+ * never the armor a played state bought or wears (T04 previews that from the record's state).
+ */
 export interface CheckpointStats {
   readonly level: number;
   readonly classes: readonly { readonly class_id: string; readonly level: number }[];
-  readonly max_hp: number;
+  /** `max_hp.total`; `null` only when the engine has no HP yet (scores incomplete). */
+  readonly max_hp: number | null;
   readonly armor_class: number;
   readonly proficiency_bonus: number;
   readonly initiative: number;
@@ -62,7 +68,10 @@ export interface CheckpointStats {
   readonly scores: Readonly<Record<string, number>>;
   readonly spell_slots: readonly number[];
   readonly feats: readonly string[];
+  /** Chosen class feature options (Eldritch Invocations, Metamagic). */
   readonly features: readonly string[];
+  /** Class, subclass, species and feat traits gained (Extra Attack, Action Surge…), by name. */
+  readonly traits: readonly string[];
   readonly spells: readonly string[];
 }
 
@@ -248,42 +257,37 @@ function choiceStep(
   };
 }
 
-const names = (list: unknown): string[] =>
-  Array.isArray(list)
-    ? list.map((x) =>
-        typeof x === "object" && x !== null
-          ? String((x as { name?: unknown; id?: unknown }).name ?? (x as { id?: unknown }).id ?? "")
-          : String(x),
-      )
-    : [];
-
 function statsOf(build: CharacterBuild, catalog: Catalog): CheckpointStats {
-  const s = evaluate(build, catalog).sheet as unknown as Record<string, unknown>;
-  const num = (k: string) => (typeof s[k] === "number" ? (s[k] as number) : 0);
-  const classes = Array.isArray(s.classes)
-    ? (s.classes as { class_id?: string; id?: string; level?: number }[]).map((c) => ({
-        class_id: String(c.class_id ?? c.id ?? ""),
-        level: Number(c.level ?? 0),
-      }))
-    : [];
-  const slots = Array.isArray(s.spell_slots)
-    ? (s.spell_slots as unknown[]).map((x) => Number(x) || 0)
-    : [];
+  const s: DerivedSheet = evaluate(build, catalog).sheet;
   return {
-    level: num("level"),
-    classes,
-    max_hp: num("max_hp"),
-    armor_class: num("armor_class"),
-    proficiency_bonus: num("proficiency_bonus"),
-    initiative: num("initiative"),
-    passive_perception: num("passive_perception"),
-    attacks_per_action: num("attacks_per_action"),
-    scores: { ...((s.scores as Record<string, number>) ?? {}) },
-    spell_slots: slots,
-    feats: names(s.feats),
-    features: names(s.features),
-    spells: names(s.spells),
+    level: s.level,
+    classes: s.classes.map((c) => ({ class_id: c.class_id, level: c.level })),
+    max_hp: s.max_hp ? s.max_hp.total : null,
+    armor_class: s.armor_class.total,
+    proficiency_bonus: s.proficiency_bonus,
+    initiative: s.initiative.total,
+    passive_perception: s.passive_perception,
+    attacks_per_action: s.attacks_per_action,
+    scores: { ...s.scores },
+    spell_slots: [...s.spell_slots],
+    feats: [...s.feats],
+    features: [...s.features],
+    traits: s.traits.map((t) => t.name),
+    spells: s.spells.map((x) => x.name),
   };
+}
+
+/** `after` minus `before` as multisets: a trait or feat gained twice shows twice. */
+function multisetMinus(after: readonly string[], before: readonly string[]): string[] {
+  const left = new Map<string, number>();
+  for (const x of before) left.set(x, (left.get(x) ?? 0) + 1);
+  const out: string[] = [];
+  for (const x of after) {
+    const n = left.get(x) ?? 0;
+    if (n > 0) left.set(x, n - 1);
+    else out.push(x);
+  }
+  return out;
 }
 
 function changesOf(before: CheckpointStats | null, after: CheckpointStats): StatChange[] {
@@ -308,9 +312,9 @@ function changesOf(before: CheckpointStats | null, after: CheckpointStats): Stat
       });
   if (JSON.stringify(before.spell_slots) !== JSON.stringify(after.spell_slots))
     out.push({ field: "spell_slots", before: before.spell_slots, after: after.spell_slots });
-  for (const k of ["feats", "features", "spells"] as const) {
-    const added = after[k].filter((x) => !before[k].includes(x));
-    const removed = before[k].filter((x) => !after[k].includes(x));
+  for (const k of ["feats", "features", "traits", "spells"] as const) {
+    const added = multisetMinus(after[k], before[k]);
+    const removed = multisetMinus(before[k], after[k]);
     if (added.length || removed.length) out.push({ field: k, before: removed, after: added });
   }
   return out;
