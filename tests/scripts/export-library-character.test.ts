@@ -75,18 +75,21 @@ const copyRequest = (over: Record<string, unknown> = {}) => ({
   character: character(over),
 });
 let spent: Loose;
+let fresh: Loose;
+let maxHp: number;
 
 beforeAll(async () => {
   const f = nodeFacade({ seed: 1 });
   build = await fighter(f, 3);
   srd = (await f.servedPackFiles("srd-5.2.1")).ref;
-  const fresh = await f.createState(build);
+  fresh = await f.createState(build);
   const hurt = await f.applyPlayAction(build, fresh, [
     { type: "damage", amount: 5 },
     { type: "add_custom_item", name: "Lucky coin", description: "A coin.", weight_lb: null },
   ] as never);
   if (!hurt.ok) throw new Error(hurt.reasons.join("; "));
   spent = hurt.state;
+  maxHp = (await f.playSheet(build, fresh)).sheet.play.hp.max;
 }, 120_000);
 
 /** The CLI's adapter (Node's engine, header-only portrait) and the browser's (an app engine, a decoder). */
@@ -180,6 +183,67 @@ describe("character-copy", () => {
     const read = await bothRead(new TextEncoder().encode(JSON.stringify(copy)));
     expect(read.cli).toEqual({ ok: false, code: "hash_mismatch" });
     expect(read.browser).toEqual(read.cli);
+  }, 120_000);
+});
+
+describe("a new session: full HP as null or as the engine's maximum (review R03-13)", () => {
+  const withHp = (current: number | null, temp = 0) => ({ ...fresh, hp: { current, temp } });
+  it("an explicit full HP (the engine's maximum) is a new session, kept as supplied", () => {
+    const r = cli("character-copy", copyRequest({ state: withHp(maxHp) }));
+    expect(r.status).toBe(0);
+    const p = JSON.parse(new TextDecoder().decode(r.bytes as Uint8Array)).payload;
+    expect(p.character.state.hp).toEqual({ current: maxHp, temp: 0 });
+    expect(p.character.state_origin).toEqual({ kind: "new_session" });
+  }, 120_000);
+  it("wounded, temporary HP or spent: not a new session (state_not_fresh); above the maximum is refused too", () => {
+    expect(cli("character-copy", copyRequest({ state: withHp(maxHp - 1) })).code).toBe(
+      "state_not_fresh",
+    );
+    expect(cli("character-copy", copyRequest({ state: withHp(null, 3) })).code).toBe(
+      "state_not_fresh",
+    );
+    expect(
+      cli(
+        "character-copy",
+        copyRequest({ state: { ...fresh, uses_spent: { "fighter:second-wind": 1 } } }),
+      ).code,
+    ).toBe("state_not_fresh");
+    const above = cli("character-copy", copyRequest({ state: withHp(maxHp + 1) }));
+    expect(above.status).toBe(3);
+    expect(["state_not_fresh", "state_invalid"]).toContain(above.code);
+  }, 120_000);
+  it("a fresh SRD character can be a party member: made by the engine (state null) or as given with full HP", () => {
+    for (const state of [null, withHp(maxHp)]) {
+      const request = {
+        format: "dnd5.library-export-request/1",
+        mode: "encounter-transfer",
+        packs: [],
+        encounter: {
+          slug: "fresh-duel",
+          id: "dnd5/fresh-duel",
+          title: "Fresh duel",
+          revision: null,
+          name: "Fresh duel",
+          world: context(),
+          from: {
+            kind: "setup",
+            decisions: "auto",
+            actions: [{ type: "add_character", character: "hero", side: "party" }],
+          },
+          party: [{ key: "hero", character: character({ state }) }],
+        },
+      };
+      const r = cli("encounter-transfer", request);
+      expect(r.status).toBe(0);
+      const out = JSON.parse(new TextDecoder().decode(r.bytes as Uint8Array));
+      const member = out.characters[0].content;
+      // transfer/1 has no "new_session": an exported state with a note saying it is one, no history.
+      expect(member.state_origin).toEqual({
+        kind: "exported",
+        note: "new session: full resources, no play (dnd5 library)",
+      });
+      expect(member.state).toEqual(state ?? fresh);
+    }
   }, 120_000);
 });
 

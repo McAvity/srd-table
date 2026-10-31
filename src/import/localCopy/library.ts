@@ -317,6 +317,8 @@ const packDep = (p: PackRef): DependencyRef => ({
   href: null,
   bytes_sha256: null,
 });
+/** The internal party transfer's note for a new session (no play, made or checked by the engine). */
+export const NEW_SESSION_NOTE = "new session: full resources, no play (dnd5 library)";
 export const LIBRARY_PROVENANCE = {
   publisher: "dnd5",
   generator: { name: LIBRARY_TOOL, version: "1" },
@@ -382,14 +384,18 @@ export async function contextPacks(
   return out;
 }
 
-/** §9.2 `new_session` with a state: as a new session starts — nothing spent, used or going on. */
-export function checkFresh(state: CharacterState, where: string): void {
+/**
+ * §9.2 `new_session` with a state: as a new session starts — HP at its maximum (`null`, or exactly
+ * the engine's derived maximum `hpMax`; kept as supplied), no temporary HP, nothing spent, used or
+ * going on. kenli F-011 T09 correction (review R03-13): an explicit full HP is fresh too.
+ */
+export function checkFresh(state: CharacterState, where: string, hpMax: number): void {
   const s = state as unknown as Record<string, unknown>;
   const zeroValues = (v: unknown) => !isObj(v) || Object.values(v).every((x) => x === 0);
   const hp = s.hp as { current: number | null; temp: number } | undefined;
   const problems: string[] = [];
-  if (hp && hp.current !== null)
-    problems.push("hp.current is set (a new session has full HP: null)");
+  if (hp && hp.current !== null && hp.current !== hpMax)
+    problems.push(`hp.current ${hp.current} (a new session has full HP: null or ${hpMax})`);
   if (hp && hp.temp !== 0) problems.push("temporary HP");
   if (Array.isArray(s.spell_slots_spent) && s.spell_slots_spent.some((x) => x !== 0))
     problems.push("spent slots");
@@ -421,7 +427,8 @@ async function characterDocs(
   if (c.state === null) state = await f.createState(build, c.context);
   else {
     state = checked.state ?? refuse("state_invalid", `${where}: the engine read nothing`);
-    if (c.state_origin.kind === "new_session") checkFresh(state, where);
+    if (c.state_origin.kind === "new_session")
+      checkFresh(state, where, (await f.playSheet(build, state, c.context)).sheet.play.hp.max);
   }
   return { build: json(build), state: json(state) };
 }
@@ -542,20 +549,20 @@ export async function makeEncounterTransfer(
   for (const [i, m] of e.party.entries()) {
     const c = m.character;
     const where = `encounter.party.${i}`;
-    if (c.state_origin.kind === "new_session")
-      refuse(
-        "request_invalid",
-        `${where}: a party member joins with its own state (synthetic or exported)`,
-      );
     await contextPacks(f, c.context, given, where);
     const { build, state } = await characterDocs(f, c, where);
     const content = {
       build,
       state,
+      // A transfer/1 character's origin (F-008): `synthetic`, `exported` (with a note) or `none`
+      // (no state at all). A new session's state is the engine's own, with no play: said so in an
+      // `exported` note, never as a played session (R03-13).
       state_origin:
         c.state_origin.kind === "synthetic"
           ? { kind: "synthetic", fixture: c.state_origin.fixture }
-          : json(c.state_origin),
+          : c.state_origin.kind === "new_session"
+            ? { kind: "exported", note: NEW_SESSION_NOTE }
+            : json(c.state_origin),
       context: json(c.context),
     };
     const env: Envelope = {
