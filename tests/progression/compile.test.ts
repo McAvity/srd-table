@@ -170,3 +170,25 @@ describe("compilePlan: checkpoints", () => {
     if (!r.ok) expect(r.problem).toMatchObject({ level: 4, code: "plan_step_illegal" });
   });
 });
+
+describe("nextStep (for T04's preview)", () => {
+  it("the checkpoint after the character's level; done at the last; refused outside the range", async () => {
+    const { nextStep } = await import("@/progression/steps");
+    const e = nodeFacade({ seed: 1 });
+    const r = await e.compilePlan(read("fighter-partial-1-3.plan.json"));
+    const n = nextStep(r, 2);
+    expect(n.kind).toBe("step");
+    if (n.kind === "step") {
+      expect(n.to.level).toBe(3);
+      expect(n.to.ops[0]).toMatchObject({ op: "level_up", class_id: "fighter" });
+    }
+    expect(nextStep(r, 3)).toEqual({ kind: "done", level: 3 });
+    expect(nextStep(r, 4)).toMatchObject({ kind: "refused", code: "plan_level_out_of_range" });
+    const bad = await e.compilePlan(read("fighter-hash-tampered.plan.json"));
+    expect(nextStep(bad, 1)).toMatchObject({
+      kind: "refused",
+      code: "plan_not_compiled",
+      detail: "plan_hash_mismatch",
+    });
+  });
+});
