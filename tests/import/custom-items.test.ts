@@ -125,8 +125,8 @@ describe("custom items in the app", () => {
     }
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  // F-011 §8 (T04), review03 R03-07: retired — a standalone character transfer is no import root. The
+  // custom line and state v3 kept exactly: tests/localCopy/t04.test.ts ("state v3 with custom items").
   it.skip("a character transfer keeps the custom line and version 3", async () => {
     const { id } = await aFighter();
     await docs().playAction(id, {

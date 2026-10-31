@@ -973,6 +973,7 @@ export const en = {
   "localCopy.undone": "Import of {name} undone: the copy and its history are gone (packs kept).",
   "localCopy.problem.other": "Refused ({code}).",
   "localCopy.problem.malformed": "The file's history or structure is malformed ({code}).",
+  "localCopy.problem.file_read_failed": "The file couldn't be read: nothing was written.",
   "localCopy.problem.limit_copy_bytes": "The copy is larger than 20 MiB.",
   "localCopy.problem.limit_json_depth": "The file is nested too deeply.",
   "localCopy.problem.limit_packs": "More than 64 packs.",

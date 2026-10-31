@@ -7,7 +7,13 @@
  */
 
 import { deflateSync } from "node:zlib";
-import { headerSize, type ImageDecoder, sniff } from "../../src/lib/image";
+import {
+  displaySize,
+  exifOrientation,
+  headerSize,
+  type ImageDecoder,
+  sniff,
+} from "../../src/lib/image";
 
 const crcTable = (() => {
   const t = new Uint32Array(256);
@@ -157,3 +163,45 @@ export function spyDecoder(answer?: { width: number; height: number }) {
 }
 
 export const bytesOfBlob = async (b: Blob) => new Uint8Array(await b.arrayBuffer());
+
+/**
+ * kenli F-011 R03-06: a JPEG with an EXIF APP1 right after SOI whose IFD0 holds the orientation
+ * (tag 0x0112, SHORT), little-endian (`II`, as the reviewer's probe) or big-endian (`MM`).
+ */
+export function withExif(
+  jpegBytes: Uint8Array,
+  orientation: number,
+  order: "II" | "MM" = "II",
+): Uint8Array<ArrayBuffer> {
+  const le = order === "II";
+  const u16 = (n: number) => (le ? [n & 255, n >> 8] : [n >> 8, n & 255]);
+  const u32 = (n: number) =>
+    le
+      ? [n & 255, (n >> 8) & 255, (n >> 16) & 255, n >>> 24]
+      : [n >>> 24, (n >> 16) & 255, (n >> 8) & 255, n & 255];
+  const tiff = [
+    ...ascii(order),
+    ...u16(42),
+    ...u32(8),
+    ...u16(1),
+    ...u16(0x0112),
+    ...u16(3),
+    ...u32(1),
+    ...u16(orientation),
+    0,
+    0,
+    ...u32(0),
+  ];
+  const body = [...ascii("Exif\0\0"), ...tiff];
+  const app1 = [0xff, 0xe1, (body.length + 2) >> 8, (body.length + 2) & 255, ...body];
+  return new Uint8Array([...jpegBytes.subarray(0, 2), ...app1, ...jpegBytes.subarray(2)]);
+}
+
+/** A test decoder that answers as Chromium and WebKit did (review03 probe): the shown size. */
+export const orientedDecoder: ImageDecoder = async (blob) => {
+  const b = new Uint8Array(await blob.arrayBuffer());
+  const kind = sniff(b);
+  if (kind !== "png" && kind !== "jpeg" && kind !== "webp")
+    throw new Error(`not an image: ${kind}`);
+  return displaySize({ ...headerSize(kind, b), orientation: exifOrientation(b) });
+};

@@ -33,6 +33,7 @@ import { lockDocuments, useDocuments } from "../../src/store/documents";
 import { useUi } from "../../src/store/ui";
 import { resetStores } from "../helpers/app";
 import {
+  asParty,
   engineWithDice,
   entranceFor,
   fileOf,
@@ -40,10 +41,12 @@ import {
   LIB,
   libraryFetch,
   refs,
-  snapshot,
 } from "../helpers/transfer";
 
 const docs = () => useDocuments.getState();
+// F-011 R03-07: the library snapshots these tests used (wren r2, sable r1), as internal parties.
+const WREN = "characters/wren.r2.transfer.json";
+const SABLE = "characters/sable.r1.transfer.json";
 let stop: (() => void) | null = null;
 
 beforeEach(async () => {
@@ -83,8 +86,8 @@ const byName = (name: string) =>
   Object.values(docs().characters).find((c) => c.build.name === name);
 const codes = (r: Awaited<ReturnType<typeof commitPlan>>) =>
   r.ok ? [] : r.problems.map((p) => p.code);
-const replaceWith = async (title: string, url: string, target: string) => {
-  const p = await preview({ url });
+const replaceWith = async (title: string, files: Source & { files: unknown }, target: string) => {
+  const p = await preview(files);
   return commitPlan(p, choose(p, { [title]: { kind: "replace", target, confirmed: true } }));
 };
 const replacedText = "replaced by an import";
@@ -125,14 +128,14 @@ function failWrites(store: string): () => void {
 }
 
 describe("R03-02: undo and redo restore the whole record", () => {
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("a legacy character replaced by a pinned one: back and forth, a new revision and generation each time", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("a legacy character replaced by a pinned one: back and forth, a new revision and generation each time", async () => {
     const id = await docs().createCharacter();
     const legacy = docs().characters[id];
     if (!legacy) throw new Error("no character");
     expect(legacy.content).toBeUndefined();
-    expect((await replaceWith("Sable", snapshot("sable"), id)).ok).toBe(true);
+    expect((await replaceWith("Sable", { files: await asParty(SABLE) }, id)).ok).toBe(true);
     const pinned = docs().characters[id];
     if (!pinned) throw new Error("no character");
     expect(pinned.content).toEqual(refs.context_v2);
@@ -169,14 +172,14 @@ describe("R03-02: undo and redo restore the whole record", () => {
     expect(docs().characters[id]?.content).toBeUndefined();
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("play steps on both sides of a replacement keep their own version", async () => {
-    await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("play steps on both sides of a replacement keep their own version", async () => {
+    await commitPlan(await preview({ files: await asParty(WREN) }), { characters: {} });
     const id = byName("Wren")?.id as string;
     const wren = docs().characters[id];
     await docs().playAction(id, { type: "damage", amount: 1 });
-    expect((await replaceWith("Sable", snapshot("sable"), id)).ok).toBe(true);
+    expect((await replaceWith("Sable", { files: await asParty(SABLE) }, id)).ok).toBe(true);
     await docs().playAction(id, { type: "damage", amount: 2 });
     expect(docs().characters[id]?.state.hp.current).toBe(6);
 
@@ -206,12 +209,12 @@ describe("R03-02: undo and redo restore the whole record", () => {
     expect(docs().characters[id]?.gen).toBe(3);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("a change asked for before an undo changed the version is refused, not applied to the other one", async () => {
-    await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("a change asked for before an undo changed the version is refused, not applied to the other one", async () => {
+    await commitPlan(await preview({ files: await asParty(WREN) }), { characters: {} });
     const id = byName("Wren")?.id as string;
-    expect((await replaceWith("Sable", snapshot("sable"), id)).ok).toBe(true);
+    expect((await replaceWith("Sable", { files: await asParty(SABLE) }, id)).ok).toBe(true);
     const held = gate();
     const holding = lockDocuments([id], () => held.closed);
     const undo = docs().undo(id);
@@ -262,10 +265,10 @@ describe("R03-02: undo and redo restore the whole record", () => {
     expect(again?.gen).toBe(3);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("undoing an encounter step leaves a party member an import replaced since as it is", async () => {
-    await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("undoing an encounter step leaves a party member an import replaced since as it is", async () => {
+    await commitPlan(await preview({ files: await asParty(WREN) }), { characters: {} });
     const id = byName("Wren")?.id as string;
     const eid = await docs().createEncounter("Step");
     expect(
@@ -281,7 +284,7 @@ describe("R03-02: undo and redo restore the whole record", () => {
       ).ok,
     ).toBe(true);
     expect(docs().characters[id]?.state.hp.current).toBe(4);
-    expect((await replaceWith("Sable", snapshot("sable"), id)).ok).toBe(true);
+    expect((await replaceWith("Sable", { files: await asParty(SABLE) }, id)).ok).toBe(true);
     await docs().undo(eid);
     // The encounter goes back; Sable keeps her own state (not the old Wren's HP 5).
     expect(docs().characters[id]?.build.name).toBe("Sable");
@@ -312,11 +315,11 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
   }
 
   async function setup() {
-    await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
+    await commitPlan(await preview({ files: await asParty(WREN) }), { characters: {} });
     const id = byName("Wren")?.id as string;
     const eid = await docs().createEncounter("Race");
     await flushNow();
-    return { id, eid, plan: await preview({ url: snapshot("sable") }) };
+    return { id, eid, plan: await preview({ files: await asParty(SABLE) }) };
   }
   const damage: EncounterAction = {
     type: "effects",
@@ -324,9 +327,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     actions: [{ type: "damage", amount: 1 }],
   };
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("an action already running for a character who just joined: the import waits for it and is refused, the action stays", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("an action already running for a character who just joined: the import waits for it and is refused, the action stays", async () => {
     const { id, eid, plan } = await setup();
     const { gates, started } = heldEngine();
     const join = docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
@@ -352,9 +355,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     expect((stored?.state as { hp: { current: number } } | undefined)?.hp.current).toBe(4);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("an action waiting while the character joins, an import queued too: the import first, the action refused", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("an action waiting while the character joins, an import queued too: the import first, the action refused", async () => {
     const { id, eid, plan } = await setup();
     const { gates } = heldEngine();
     const join = docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
@@ -379,9 +382,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     ).toBeNull();
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("the same, the import failing (full disk): the action then applies to the joined character", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("the same, the import failing (full disk): the action then applies to the joined character", async () => {
     const { id, eid, plan } = await setup();
     const { gates } = heldEngine();
     const join = docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
@@ -402,9 +405,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     expect(docs().characters[id]?.state.hp.current).toBe(4);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("a queued undo takes the party of the step on top when it runs: refused after an import replaced it meanwhile", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("a queued undo takes the party of the step on top when it runs: refused after an import replaced it meanwhile", async () => {
     const { id, eid, plan } = await setup();
     const { gates } = heldEngine();
     const join = docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
@@ -427,9 +430,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     );
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("the same, the import failing: the queued undo then takes the join back", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("the same, the import failing: the queued undo then takes the join back", async () => {
     const { id, eid, plan } = await setup();
     const { gates } = heldEngine();
     const join = docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
@@ -450,9 +453,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     expect(docs().characters[id]?.state.hp.current).toBe(5);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("an undo asked for first runs first: the import after it finds the record changed", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("an undo asked for first runs first: the import after it finds the record changed", async () => {
     const { id, eid, plan } = await setup();
     await docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
     await docs().encounterAction(eid, damage);
@@ -471,9 +474,9 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
     expect(codes(await committing)).toEqual(["target_changed"]);
     expect(docs().characters[id]?.state.hp.current).toBe(5);
   });
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("a character who left the encounter is not held: an import of her runs while the encounter is busy", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("a character who left the encounter is not held: an import of her runs while the encounter is busy", async () => {
     const { id, eid, plan } = await setup();
     await docs().encounterAction(eid, { type: "add_character", character: id, id: "wren" });
     expect((await docs().encounterAction(eid, { type: "remove", id: "wren" })).ok).toBe(true);
@@ -506,10 +509,10 @@ describe("R03-04: one version of a pack is one set of bytes, checked in the comm
     expect(keys).toEqual([packKey(refs["synthetic-a@1.0.0"])]);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("other bytes installed by another connection after the preview: nothing of the graph is written", async () => {
-    const plan = await preview({ url: snapshot("wren") });
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("other bytes installed by another connection after the preview: nothing of the graph is written", async () => {
+    const plan = await preview({ files: await asParty(WREN) });
     const other = (
       fixtureJson("negative/pack-same-version-other-bytes.transfer.json") as {
         content: { files: Record<string, unknown> };
@@ -563,11 +566,11 @@ describe("R03-05: the served SRD kept in storage", () => {
     expect((await docs().playAction(id, { type: "damage", amount: 1 })).ok).toBe(true);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("read from storage by a new worker with the host gone: pinned and campaign documents, an import", async () => {
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("read from storage by a new worker with the host gone: pinned and campaign documents, an import", async () => {
     await persistBundled();
-    await commitPlan(await preview({ url: snapshot("sable") }), { characters: {} });
+    await commitPlan(await preview({ files: await asParty(SABLE) }), { characters: {} });
     const legacy = await docs().createCharacter();
     await flushNow();
     let fetches = 0;
@@ -589,7 +592,7 @@ describe("R03-05: the served SRD kept in storage", () => {
     if (!campaign) throw new Error("not reloaded");
     expect((await engine().evaluate(campaign.build)).build).toEqual(campaign.build);
     expect(await engine().servedPack("srd-5.2.1")).toEqual(refs.srd);
-    const wren = await preview({ url: snapshot("wren") });
+    const wren = await preview({ files: await asParty(WREN) });
     expect(wren.present.map((p) => p.ref)).toContainEqual(refs.srd);
     expect((await commitPlan(wren, { characters: {} })).ok).toBe(true);
     expect(fetches).toBeGreaterThan(0); // tried, refused, served from storage
@@ -610,14 +613,14 @@ describe("autosave", () => {
 });
 
 describe("review 03 reproductions (the reviewer's assertions, unchanged)", () => {
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("REVIEW undo restores content as well as state", async () => {
-    await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} });
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("REVIEW undo restores content as well as state", async () => {
+    await commitPlan(await preview({ files: await asParty(WREN) }), { characters: {} });
     const id = byName("Wren")?.id as string;
     const old = docs().characters[id];
     if (!old) throw new Error("not imported");
-    const p = await preview({ url: snapshot("sable") });
+    const p = await preview({ files: await asParty(SABLE) });
     expect(
       (await commitPlan(p, choose(p, { Sable: { kind: "replace", target: id, confirmed: true } })))
         .ok,

@@ -4,7 +4,7 @@
  * ticked (Q-03), and Import stays disabled with the reason shown until then.
  */
 
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useDocuments } from "../../src/store/documents";
@@ -25,26 +25,55 @@ const asFile = (rel: string) => {
 };
 
 describe("import dialog", () => {
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("a library URL: preview, then Import writes the character with its content", async () => {
+  // F-011 §8, review03 R03-07: the library URL is an encounter's now (Encounters' entrance); its party
+  // arrives with its content, and a second import replaces a party member only when picked and
+  // confirmed in the dialog (the replacement path still offered for an internal party).
+  it("an encounter's library URL: preview, Import writes the party with its content; a party member replaced when confirmed", async () => {
     const user = userEvent.setup();
-    await renderApp("/characters");
-    await user.click(await screen.findByRole("button", { name: "Import…" }));
-    await user.type(screen.getByRole("textbox", { name: "URL" }), `${LIB}d/character/wren.json`);
-    await user.click(screen.getByRole("button", { name: "Fetch" }));
-    expect(await screen.findByTestId("import-character-Wren")).toBeInTheDocument();
+    const docs = () => useDocuments.getState();
+    const fetchIt = async () => {
+      await renderApp("/encounters");
+      await user.click(await screen.findByRole("button", { name: "Import…" }));
+      await user.type(
+        screen.getByRole("textbox", { name: "URL" }),
+        `${LIB}d/encounter/mixed-duel.json`,
+      );
+      await user.click(screen.getByRole("button", { name: "Fetch" }));
+      expect(await screen.findByTestId("import-character-Wren")).toBeInTheDocument();
+    };
+    await fetchIt();
     expect(screen.getByText(/synthetic-a 1.0.0.*will be installed/)).toBeInTheDocument();
-    expect(Object.keys(useDocuments.getState().characters)).toHaveLength(0);
+    expect(Object.keys(docs().characters)).toHaveLength(0);
     await user.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(Object.keys(useDocuments.getState().characters)).toHaveLength(1));
-    const wren = Object.values(useDocuments.getState().characters)[0];
+    await waitFor(() => expect(Object.keys(docs().characters)).toHaveLength(2), {
+      timeout: 15_000,
+    });
+    const wren = Object.values(docs().characters).find((c) => c.build.name === "Wren");
     expect(wren?.content?.packs.map((p) => p.id)).toEqual(["srd-5.2.1", "synthetic-a"]);
     expect(wren?.state.hp.current).toBe(5);
+    expect(wren?.gen ?? 0).toBe(0);
+    // Again: Wren as a replacement of the Wren here (needs the confirmation), Sable as is.
+    cleanup();
+    await fetchIt();
+    const wrenCard = screen.getByTestId("import-character-Wren");
+    await user.selectOptions(within(wrenCard).getByRole("combobox"), `replace:${wren?.id}`);
+    const sableCard = screen.getByTestId("import-character-Sable");
+    const sable = Object.values(docs().characters).find((c) => c.build.name === "Sable");
+    await user.selectOptions(within(sableCard).getByRole("combobox"), `use:${sable?.id}`);
+    const confirm = screen.getByRole("button", { name: "Import" });
+    expect(confirm).toBeDisabled(); // the replacement isn't confirmed yet
+    await user.click(within(wrenCard).getByRole("checkbox", { name: /Yes, replace Wren/ }));
+    await waitFor(() => expect(confirm).toBeEnabled());
+    await user.click(confirm);
+    await waitFor(() => expect(docs().characters[wren?.id as string]?.gen).toBe(1), {
+      timeout: 15_000,
+    });
+    expect(Object.keys(docs().characters)).toHaveLength(2); // replaced in place, Sable used
+    expect(Object.keys(docs().encounters)).toHaveLength(2);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  // F-011 §8 (T04), review03 R03-07: retired — a build-only character file came only through the
+  // removed character entrance; kept, not run, for the record.
   it.skip("files: a build without a state waits for its initialization to be ticked", async () => {
     const user = userEvent.setup();
     await renderApp("/characters");

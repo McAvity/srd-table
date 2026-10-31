@@ -31,7 +31,17 @@ import { type HistoryEntry, sessionEntries } from "../../src/store/history";
 import { usePortraits } from "../../src/store/portraits";
 import { rogue } from "../fixtures/characters";
 import { humanWizard, LUCK, testContext } from "../fixtures/player-actions";
-import { bytesOfBlob, gif, headerDecoder, jpeg, png, spyDecoder, webp } from "../helpers/images";
+import {
+  bytesOfBlob,
+  gif,
+  headerDecoder,
+  jpeg,
+  orientedDecoder,
+  png,
+  spyDecoder,
+  webp,
+  withExif,
+} from "../helpers/images";
 import {
   addCharacter,
   bytesOf,
@@ -142,6 +152,37 @@ describe("the portrait in a copy: exact bytes, or none", () => {
     expect(plan.summary.portrait).toBeNull();
     expect(await stored(r.recordId)).toBeNull();
   }, 60_000);
+});
+
+describe("an EXIF-oriented JPEG portrait (review03 R03-06)", () => {
+  it.each([6, 8])(
+    "orientation %i: set (decoded turned), exported and imported with the same bytes",
+    async (o) => {
+      setImageDecoder(orientedDecoder); // as Chromium and WebKit answer: the shown (turned) size
+      const image = withExif(jpeg(96, 64, o), o);
+      const id = await source(`X${o}`, image);
+      expect(await stored(id)).toEqual({ type: "image/jpeg", bytes: image }); // ≤ 512: kept raw
+      const x = await exported(id);
+      expect(x.copy.payload.character.portrait).toEqual({
+        mime: "image/jpeg",
+        bytes: image.length,
+        base64: toBase64(image),
+      });
+      const { r } = await importInto(`Y${o}`, x.bytes);
+      expect(await stored(r.recordId)).toEqual({ type: "image/jpeg", bytes: image });
+      // A decode turned without an EXIF reason is still refused.
+      setImageDecoder(spyDecoder({ width: 64, height: 96 }).decode);
+      const plain = await mutate(x.bytes, (c) => {
+        const j = jpeg(96, 64);
+        c.payload.character.portrait = { mime: "image/jpeg", bytes: j.length, base64: toBase64(j) };
+      });
+      expect(await validateLocalCopy(plain)).toMatchObject({
+        ok: false,
+        code: "portrait_decode_failed",
+      });
+    },
+    60_000,
+  );
 });
 
 describe("state v3 with custom items, exactly", () => {

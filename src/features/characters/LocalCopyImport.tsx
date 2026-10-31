@@ -24,7 +24,7 @@ import {
   undoLocalCopyImport,
   useLocalCopySession,
 } from "@/import/localCopy/commit";
-import { validateLocalCopy } from "@/import/localCopy/format";
+import { LOCAL_COPY_LIMITS, validateLocalCopy } from "@/import/localCopy/format";
 import { type LocalCopyPlan, planLocalCopy } from "@/import/localCopy/plan";
 import { checkCopyRoot, fetchCopy } from "@/import/localCopy/url";
 import { ImportError } from "@/import/transfer";
@@ -115,10 +115,28 @@ export function LocalCopyImport({
     const f = list?.[0];
     if (!f) return;
     reset();
+    if (file.current) file.current.value = "";
+    // F-011 R03-08: the copy's 20 MiB bound from the file's size, before it is read at all.
+    if (f.size > LOCAL_COPY_LIMITS.copyBytes) {
+      setProblem(
+        localCopyProblemText("limit_copy_bytes", `${f.size} > ${LOCAL_COPY_LIMITS.copyBytes}`),
+      );
+      return;
+    }
     const mine = run.current;
     setBusy("checking");
-    const bytes = new Uint8Array(await f.arrayBuffer());
-    if (file.current) file.current.value = "";
+    let bytes: Uint8Array;
+    try {
+      bytes = new Uint8Array(await f.arrayBuffer());
+    } catch (error) {
+      if (run.current !== mine) return; // closed or replaced meanwhile: nothing to say
+      setBusy(null);
+      setProblem(
+        localCopyProblemText("file_read_failed", error instanceof Error ? error.message : ""),
+      );
+      return;
+    }
+    if (run.current !== mine) return; // closed or replaced while reading: nothing was written
     await check(mine, bytes, f.name, null);
   }
 

@@ -6,7 +6,9 @@
  * made by this browser's own encoder above 512 px — shrunk, and stored as whatever the encoder
  * really returned (WebKit may answer PNG for WebP), read back from the character's export; a damaged
  * image refused by the real decoder with the old portrait kept; Undo/Redo of the import with the
- * portrait.
+ * portrait. Review03 R03-06: JPEGs made by this browser with EXIF orientation 6 or 8 — accepted by
+ * the real decoders, kept byte for byte up to 512 px and shown turned, shrunk above it with the
+ * turned shape; a copy carrying one imported with its exact bytes.
  */
 
 import { mkdtempSync, readFileSync } from "node:fs";
@@ -15,7 +17,7 @@ import { join } from "node:path";
 import { test as base, expect, type Page } from "@playwright/test";
 import { contentSha } from "../src/lib/canonical";
 import { checkImageBytes, toBase64 } from "../src/lib/image";
-import { realPng } from "../tests/helpers/images";
+import { realPng, withExif } from "../tests/helpers/images";
 import { FIXTURES } from "./global-setup";
 
 const COPY = join(FIXTURES, "cora.local-copy.json");
@@ -210,4 +212,104 @@ test("WebKit's ephemeral profile (as Private Browsing): no Blob in IndexedDB —
       }),
   );
   expect(count).toBe(0);
+});
+
+/** A JPEG made by this browser's encoder (`w`×`h`, two colours), its bytes. */
+async function pageJpeg(page: Page, w: number, h: number): Promise<Uint8Array<ArrayBuffer>> {
+  const b64 = await page.evaluate(
+    async ([width, height]) => {
+      const canvas = new OffscreenCanvas(width as number, height as number);
+      const g = canvas.getContext("2d") as OffscreenCanvasRenderingContext2D;
+      g.fillStyle = "#246";
+      g.fillRect(0, 0, width as number, height as number);
+      g.fillStyle = "#e93";
+      g.fillRect(0, 0, (width as number) / 2, (height as number) / 3);
+      const blob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.9 });
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let s = "";
+      for (const x of bytes) s += String.fromCharCode(x);
+      return btoa(s);
+    },
+    [w, h],
+  );
+  return new Uint8Array(Buffer.from(b64, "base64"));
+}
+
+test("R03-06: EXIF orientation 6 and 8 JPEGs accepted by the real decoders: up to 512 px kept byte for byte and shown turned, above shrunk with the turned shape", async ({
+  page,
+}, info) => {
+  await importCopy(page, COPY);
+  await expect(page.getByTestId("local-copy-preview")).toBeVisible({ timeout: 60_000 });
+  await button(page, "Create the copy").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Cora" })).toBeVisible();
+  for (const o of [6, 8]) {
+    const small = withExif(await pageJpeg(page, 96, 64), o);
+    expect(checkImageBytes(small)).toMatchObject({ width: 96, height: 64, orientation: o });
+    await portraitInput(page).setInputFiles({
+      name: `o${o}.jpg`,
+      mimeType: "image/jpeg",
+      buffer: Buffer.from(small),
+    });
+    await expect(page.getByTestId("portrait-problem")).toHaveCount(0);
+    await expect
+      .poll(async () => (await shownSize(page)).join("×"), { timeout: 20_000 })
+      .toBe("64×96");
+    const kept = (await exportedCopy(page)).payload.character.portrait;
+    expect(kept.mime).toBe("image/jpeg");
+    expect(kept.base64).toBe(toBase64(small)); // the raw bytes, EXIF included
+
+    const big = withExif(await pageJpeg(page, 1200, 800), o);
+    await portraitInput(page).setInputFiles({
+      name: `big-o${o}.jpg`,
+      mimeType: "image/jpeg",
+      buffer: Buffer.from(big),
+    });
+    await expect(page.getByTestId("portrait-problem")).toHaveCount(0);
+    await expect
+      .poll(async () => (await shownSize(page)).join("×"), { timeout: 20_000 })
+      .toBe("341×512");
+    const thumb = (await exportedCopy(page)).payload.character.portrait;
+    const header = checkImageBytes(new Uint8Array(Buffer.from(thumb.base64, "base64")), thumb.mime);
+    expect([header.width, header.height, header.orientation]).toEqual([341, 512, 1]);
+    console.log(
+      `[exif] ${info.project.name}: orientation ${o} → kept ${small.length} B raw; thumbnail ${thumb.mime} 341×512`,
+    );
+  }
+  // An ordinary JPEG (no EXIF) keeps its coded shape.
+  const plain = await pageJpeg(page, 1200, 800);
+  await portraitInput(page).setInputFiles({
+    name: "plain.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from(plain),
+  });
+  await expect
+    .poll(async () => (await shownSize(page)).join("×"), { timeout: 20_000 })
+    .toBe("512×341");
+});
+
+test("R03-06: a copy whose portrait is an EXIF-oriented JPEG imports with its exact bytes and shows turned", async ({
+  page,
+}) => {
+  await page.goto("/#/characters");
+  const image = withExif(await pageJpeg(page, 96, 64), 6);
+  const copy = JSON.parse(readFileSync(COPY, "utf8"));
+  copy.payload.character.portrait = {
+    mime: "image/jpeg",
+    bytes: image.length,
+    base64: toBase64(image),
+  };
+  copy.payload_sha256 = await contentSha(copy.payload);
+  await importCopy(page, {
+    name: "oriented.local-copy.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(copy)),
+  });
+  await expect(page.getByTestId("local-copy-portrait")).toHaveText(/Portrait: image\/jpeg/, {
+    timeout: 60_000,
+  });
+  await button(page, "Create the copy").click();
+  await expect(page.getByRole("heading", { level: 1, name: "Cora" })).toBeVisible();
+  expect(await shownSize(page)).toEqual([64, 96]);
+  const back = (await exportedCopy(page)).payload.character.portrait;
+  expect(back).toEqual({ mime: "image/jpeg", bytes: image.length, base64: toBase64(image) });
 });

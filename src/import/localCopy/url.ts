@@ -22,6 +22,12 @@ export interface FetchedCopy {
 }
 
 const formatOf = (bytes: Uint8Array): { format: unknown; value: Record<string, unknown> } => {
+  // F-011 R03-08: the copy's 20 MiB bound before the first decode or parse of the bytes.
+  if (bytes.byteLength > LOCAL_COPY_LIMITS.copyBytes)
+    throw new ImportError(
+      "limit_copy_bytes",
+      `${bytes.byteLength} > ${LOCAL_COPY_LIMITS.copyBytes}`,
+    );
   let value: unknown;
   try {
     const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);

@@ -597,9 +597,13 @@ function checkSource(v: unknown): void {
  * §2.2 steps 1–7: the portrait's shape, MIME, byte count, base64, the type from its bytes, the size
  * from its header and their limits — never decoding the pixels. Returns the bytes (or `null`).
  */
-export function checkPortrait(
-  v: unknown,
-): { mime: PortraitMime; bytes: Uint8Array; width: number; height: number } | null {
+export function checkPortrait(v: unknown): {
+  mime: PortraitMime;
+  bytes: Uint8Array;
+  width: number;
+  height: number;
+  orientation: number;
+} | null {
   if (v === null) return null;
   const I = "portrait_invalid";
   if (!isObj(v)) return refuse(I, "portrait: object | null");
@@ -613,8 +617,8 @@ export function checkPortrait(
   if (typeof v.base64 !== "string") refuse(I, "base64");
   try {
     const bytes = fromBase64(v.base64 as string, v.bytes as number);
-    const { mime, width, height } = checkImageBytes(bytes, v.mime as string);
-    return { mime, bytes, width, height };
+    const { mime, width, height, orientation } = checkImageBytes(bytes, v.mime as string);
+    return { mime, bytes, width, height, orientation };
   } catch (error) {
     if (error instanceof PortraitError) return refuse(error.code, error.detail);
     throw error;

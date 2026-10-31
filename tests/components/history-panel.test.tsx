@@ -15,11 +15,10 @@ import { db } from "../../src/persistence/db";
 import { flushNow, loadAll, startAutosave } from "../../src/persistence/sync";
 import { useDocuments } from "../../src/store/documents";
 import { type HistoryMeta, useHistory } from "../../src/store/history";
-import { useUi } from "../../src/store/ui";
 import { fighter } from "../fixtures/characters";
 import { humanWizard, RAY, storeCharacter, testContext } from "../fixtures/player-actions";
 import { installTestEngine, renderApp, resetStores } from "../helpers/app";
-import { engineWithDice, libraryFetch, snapshot } from "../helpers/transfer";
+import { asParty, engineWithDice, libraryFetch } from "../helpers/transfer";
 
 installTestEngine(5);
 const docs = () => useDocuments.getState();
@@ -214,14 +213,15 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     expect(within(panel).getByText(/^#1 ·/)).toBeInTheDocument();
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("an import boundary reads as such; exports say history stays here", async () => {
+  // F-011 §8, review03 R03-07: the replacement comes as an encounter's internal party (asParty). The
+  // old second half (the transfer export's "history stays here" notice) is retired with the removed
+  // character export; the full copy carries its history (tests/localCopy).
+  it("an import boundary reads as such", async () => {
     await loadAll();
     stop = startAutosave();
     const preview = async () => {
       const p = await previewImport(
-        { url: snapshot("wren") },
+        { files: await asParty("characters/wren.r2.transfer.json") },
         { allowed: "encounter", signal: new AbortController().signal, fetch: libraryFetch() },
       );
       if (!p.ok) throw new Error(p.problem.code);
@@ -243,27 +243,6 @@ describe("the History panel (AC-01, AC-02, AC-05, AC-06)", () => {
     expect(
       await within(panel).findByTestId("history-import", {}, { timeout: 10_000 }),
     ).toHaveTextContent("Replaced by an imported version (generation 0 → 1)");
-    cleanup();
-    // jsdom has no object URLs: the download itself is stubbed, the notice is the app's.
-    const { createObjectURL, revokeObjectURL } = URL;
-    URL.createObjectURL = () => "blob:test";
-    URL.revokeObjectURL = () => undefined;
-    try {
-      await renderApp("/characters");
-      await userEvent.click(
-        await screen.findByRole(
-          "button",
-          { name: "Export for another device (with its content's identity)" },
-          { timeout: 10_000 },
-        ),
-      );
-      const notice = "History stays on this device: it isn't exported or imported.";
-      await waitFor(() => expect(useUi.getState().toasts.at(-1)?.lines).toEqual([notice]));
-      expect(screen.getAllByText(notice).length).toBeGreaterThan(0);
-    } finally {
-      URL.createObjectURL = createObjectURL;
-      URL.revokeObjectURL = revokeObjectURL;
-    }
   });
 
   it("save states: pending, saved, failed with a retry, a conflict without one", async () => {

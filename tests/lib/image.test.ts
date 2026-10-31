@@ -10,6 +10,7 @@ import {
   browserDecoder,
   checkImageBytes,
   decodeChecked,
+  exifOrientation,
   fromBase64,
   headerSize,
   type ImageShrinker,
@@ -25,10 +26,12 @@ import {
   headerDecoder,
   heic,
   jpeg,
+  orientedDecoder,
   png,
   spyDecoder,
   svg,
   webp,
+  withExif,
 } from "../helpers/images";
 
 const code = async (f: () => unknown) => {
@@ -43,14 +46,18 @@ const code = async (f: () => unknown) => {
 
 describe("bytes and headers (§2.2 steps 3–7)", () => {
   it("PNG, JPEG and WebP (VP8, VP8L, VP8X): the type from the bytes, the size from the header", () => {
-    expect(checkImageBytes(png(40, 30))).toEqual({ mime: "image/png", width: 40, height: 30 });
-    expect(checkImageBytes(jpeg(640, 480))).toEqual({
+    expect(checkImageBytes(png(40, 30))).toMatchObject({
+      mime: "image/png",
+      width: 40,
+      height: 30,
+    });
+    expect(checkImageBytes(jpeg(640, 480))).toMatchObject({
       mime: "image/jpeg",
       width: 640,
       height: 480,
     });
     for (const k of ["VP8 ", "VP8L", "VP8X"] as const)
-      expect(checkImageBytes(webp(300, 200, k))).toEqual({
+      expect(checkImageBytes(webp(300, 200, k))).toMatchObject({
         mime: "image/webp",
         width: 300,
         height: 200,
@@ -211,5 +218,116 @@ describe("a new portrait (§3.5)", () => {
     };
     const ok: ImageShrinker = async (_b, w, h) => new Blob([png(w, h)]);
     expect(await code(() => prepareUpload(raw, second, ok))).toBe("portrait_decode_failed");
+  });
+});
+
+describe("EXIF orientation (review03 R03-06, contract §2.2.8 clarification)", () => {
+  it("read from a JPEG's APP1 (II and MM); none, other formats and a malformed EXIF are 1", () => {
+    for (const o of [1, 3, 6, 8]) {
+      expect(exifOrientation(withExif(jpeg(96, 64), o, "II"))).toBe(o);
+      expect(exifOrientation(withExif(jpeg(96, 64), o, "MM"))).toBe(o);
+    }
+    expect(exifOrientation(jpeg(96, 64))).toBe(1);
+    expect(exifOrientation(png(96, 64))).toBe(1);
+    expect(exifOrientation(withExif(jpeg(96, 64), 9))).toBe(1); // out of range
+    const cut = withExif(jpeg(96, 64), 6);
+    cut[5] = 200; // APP1 length beyond the file: malformed, ignored
+    expect(exifOrientation(cut)).toBe(1);
+    expect(checkImageBytes(withExif(jpeg(96, 64), 6))).toEqual({
+      mime: "image/jpeg",
+      width: 96,
+      height: 64,
+      orientation: 6,
+    });
+  });
+
+  it("the decoded size is the coded one or, for 5–8 only, the turned one; anything else is refused", async () => {
+    const six = withExif(jpeg(96, 64), 6);
+    const h6 = checkImageBytes(six);
+    expect(await decodeChecked(six, "image/jpeg", h6, orientedDecoder)).toEqual({
+      width: 64,
+      height: 96,
+    });
+    expect(await decodeChecked(six, "image/jpeg", h6, headerDecoder)).toEqual({
+      width: 96,
+      height: 64,
+    });
+    const eight = withExif(jpeg(96, 64), 8, "MM");
+    expect(
+      await decodeChecked(eight, "image/jpeg", checkImageBytes(eight), orientedDecoder),
+    ).toEqual({
+      width: 64,
+      height: 96,
+    });
+    // No orientation: a turned decode is a mismatch; a rotation 6 doesn't excuse another size.
+    const plain = jpeg(96, 64);
+    const turned = spyDecoder({ width: 64, height: 96 });
+    expect(
+      await code(() => decodeChecked(plain, "image/jpeg", checkImageBytes(plain), turned.decode)),
+    ).toBe("portrait_decode_failed");
+    const three = withExif(jpeg(96, 64), 3); // 180°: never turned
+    expect(
+      await code(() => decodeChecked(three, "image/jpeg", checkImageBytes(three), turned.decode)),
+    ).toBe("portrait_decode_failed");
+    const other = spyDecoder({ width: 63, height: 96 });
+    expect(await code(() => decodeChecked(six, "image/jpeg", h6, other.decode))).toBe(
+      "portrait_decode_failed",
+    );
+  });
+
+  it("limits stay on the coded header before any decoder; a damaged EXIF JPEG header is still refused", async () => {
+    const spy = spyDecoder();
+    const bomb = withExif(jpeg(5000, 4000), 6);
+    expect(await code(() => prepareUpload(new Blob([bomb]), spy.decode, null))).toBe(
+      "limit_portrait_pixels",
+    );
+    const side = withExif(jpeg(16_385, 10), 8);
+    expect(await code(() => prepareUpload(new Blob([side]), spy.decode, null))).toBe(
+      "limit_portrait_pixels",
+    );
+    const broken = withExif(jpeg(96, 64), 6);
+    const sos = broken.lastIndexOf(0xda) - 1;
+    const noFrame = new Uint8Array([
+      ...broken.subarray(0, broken.indexOf(0xc0) - 1),
+      ...broken.subarray(sos),
+    ]);
+    expect(await code(() => prepareUpload(new Blob([noFrame]), spy.decode, null))).toBe(
+      "portrait_malformed",
+    );
+    expect(spy.calls).toHaveLength(0);
+  });
+
+  it("upload: an oriented JPEG up to 512 px kept byte for byte; above, shrunk with the turned shape", async () => {
+    const small = withExif(jpeg(96, 64, 3), 6);
+    const kept = await prepareUpload(new Blob([small]), orientedDecoder, null);
+    expect(kept).toMatchObject({ mime: "image/jpeg", width: 64, height: 96 });
+    expect(await bytesOfBlob(kept.blob)).toEqual(small);
+    for (const o of [6, 8]) {
+      const asked: [number, number][] = [];
+      const shrink: ImageShrinker = async (_b, w, h) => {
+        asked.push([w, h]);
+        return new Blob([webp(w, h)], { type: "image/webp" });
+      };
+      const big = withExif(jpeg(1200, 800), o);
+      expect(await prepareUpload(new Blob([big]), orientedDecoder, shrink)).toMatchObject({
+        mime: "image/webp",
+        width: 341,
+        height: 512,
+      });
+      expect(asked).toEqual([[341, 512]]);
+    }
+    // An encoder that ignored the orientation (the coded shape): refused, not stored askew.
+    const askew: ImageShrinker = async () => new Blob([webp(512, 341)], { type: "image/webp" });
+    expect(
+      await code(() =>
+        prepareUpload(new Blob([withExif(jpeg(1200, 800), 6)]), orientedDecoder, askew),
+      ),
+    ).toBe("portrait_decode_failed");
+    // An ordinary JPEG is unchanged: the coded shape.
+    const plain: ImageShrinker = async (_b, w, h) => new Blob([webp(w, h)]);
+    expect(await prepareUpload(new Blob([jpeg(1200, 800)]), orientedDecoder, plain)).toMatchObject({
+      width: 512,
+      height: 341,
+    });
   });
 });

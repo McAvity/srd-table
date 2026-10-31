@@ -111,8 +111,8 @@ describe("stored items in the app", () => {
     expect(docs().characters[id]).toBe(after);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
+  // F-011 §8 (T04), review03 R03-07: retired — a standalone character transfer is no import root. The
+  // stored item through an import: the encounter-with-party test below and the full copy (tests/localCopy).
   it.skip("a character transfer keeps location and version 2: exported, imported elsewhere, the same state", async () => {
     const { id, sword } = await aFighter();
     await docs().playAction(id, { type: "store", id: sword, stored: true });

@@ -124,13 +124,59 @@ export function headerSize(
 }
 
 /**
+ * A JPEG's EXIF orientation (APP1 `Exif`, IFD0 tag 0x0112, 1–8), read before the first scan; none,
+ * another format or anything malformed is 1 (as browsers ignore a broken EXIF). Contract §2.2.8
+ * clarification (review03 R03-06): 5–8 swap the coded width and height for display.
+ */
+export function exifOrientation(b: Uint8Array): number {
+  if (sniff(b) !== "jpeg") return 1;
+  let i = 2;
+  while (i + 4 <= b.length && b[i] === 0xff) {
+    const m = b[i + 1] as number;
+    if (m === 0xda || m === 0xd9) return 1; // the scan: no EXIF before it
+    const len = u16be(b, i + 2);
+    if (len < 2 || i + 2 + len > b.length) return 1;
+    if (m === 0xe1 && len >= 16 && ascii(b, i + 4, 6) === "Exif\0\0") {
+      const t = i + 10; // the TIFF header
+      const le = ascii(b, t, 2) === "II";
+      if (!le && ascii(b, t, 2) !== "MM") return 1;
+      const u16 = (at: number) => (le ? (b[at] ?? 0) | ((b[at + 1] ?? 0) << 8) : u16be(b, at));
+      const u32 = (at: number) => (le ? u32le(b, at) : u32be(b, at));
+      const end = i + 2 + len;
+      if (u16(t + 2) !== 42) return 1;
+      const ifd = t + u32(t + 4);
+      if (ifd + 2 > end) return 1;
+      const n = u16(ifd);
+      for (let k = 0; k < n; k++) {
+        const e = ifd + 2 + k * 12;
+        if (e + 12 > end) return 1;
+        if (u16(e) === 0x0112) {
+          const v = u16(e) === 0x0112 && u16(e + 2) === 3 && u32(e + 4) === 1 ? u16(e + 8) : 1;
+          return v >= 1 && v <= 8 ? v : 1;
+        }
+      }
+      return 1;
+    }
+    i += 2 + len;
+  }
+  return 1;
+}
+
+/** The size an image is shown at: its coded size, turned for EXIF orientations 5–8. */
+export const displaySize = (h: { width: number; height: number; orientation?: number }) =>
+  (h.orientation ?? 1) >= 5
+    ? { width: h.height, height: h.width }
+    : { width: h.width, height: h.height };
+
+/**
  * §2.2 steps 3, 6, 7 (and §3.5 step 1) on bytes: the byte limit, the type from the bytes, the size
- * from the header and its limits. `declared`: the MIME the bytes must be (a copy's `mime`).
+ * from the header (coded) and its limits, and the JPEG's EXIF orientation. `declared`: the MIME the
+ * bytes must be (a copy's `mime`).
  */
 export function checkImageBytes(
   bytes: Uint8Array,
   declared?: string,
-): { mime: PortraitMime; width: number; height: number } {
+): { mime: PortraitMime; width: number; height: number; orientation: number } {
   if (bytes.length < 1) fail("portrait_invalid", "empty");
   if (bytes.length > PORTRAIT_LIMITS.bytes) fail("limit_portrait_bytes", String(bytes.length));
   const kind = sniff(bytes);
@@ -146,7 +192,7 @@ export function checkImageBytes(
     width * height > PORTRAIT_LIMITS.pixels
   )
     fail("limit_portrait_pixels", `${width}×${height}`);
-  return { mime, width, height };
+  return { mime, width, height, orientation: exifOrientation(bytes) };
 }
 
 // ───────────────────────── base64 (RFC 4648 §4, padded) ─────────────────────────
@@ -219,9 +265,12 @@ export const browserDecoder: ImageDecoder = async (blob) => {
   }
   const [first, second] = sizes;
   if (!first) return fail("portrait_decoder_unavailable", "no image decoder here");
-  if (second && (second.width !== first.width || second.height !== first.height))
+  // The same size, or (one honouring EXIF orientation, one not) the same size turned; then the
+  // `<img>`'s, as shown. `decodeChecked` still compares it with the header.
+  const turned = second && second.width === first.height && second.height === first.width;
+  if (second && !turned && (second.width !== first.width || second.height !== first.height))
     fail("portrait_decode_failed", "the decoders disagree on the size");
-  return first;
+  return second ?? first;
 };
 
 let current: ImageDecoder = browserDecoder;
@@ -235,9 +284,9 @@ export function setImageDecoder(d: ImageDecoder | null): void {
 export async function decodeChecked(
   bytes: Uint8Array,
   mime: PortraitMime,
-  header: { width: number; height: number },
+  header: { width: number; height: number; orientation?: number },
   decode: ImageDecoder = imageDecoder(),
-): Promise<void> {
+): Promise<{ width: number; height: number }> {
   let got: { width: number; height: number };
   try {
     got = await decode(new Blob([bytes as BlobPart], { type: mime }));
@@ -245,8 +294,16 @@ export async function decodeChecked(
     if (error instanceof PortraitError) throw error;
     return fail("portrait_decode_failed", error instanceof Error ? error.message : String(error));
   }
-  if (got.width !== header.width || got.height !== header.height)
-    fail("portrait_decode_failed", `decoded ${got.width}×${got.height} ≠ header`);
+  // The coded size, or (EXIF 5–8 only) the shown one: any other difference is refused.
+  const shown = displaySize(header);
+  const same = (x: { width: number; height: number }) =>
+    got.width === x.width && got.height === x.height;
+  if (!same(header) && !same(shown))
+    fail(
+      "portrait_decode_failed",
+      `decoded ${got.width}×${got.height} ≠ header ${header.width}×${header.height} (orientation ${header.orientation ?? 1})`,
+    );
+  return { width: got.width, height: got.height };
 }
 
 // ───────────────────────── shrinking (§3.5 step 3) ─────────────────────────
@@ -258,7 +315,7 @@ export type ImageShrinker = (blob: Blob, width: number, height: number) => Promi
 export const browserShrinker: ImageShrinker | null =
   typeof createImageBitmap === "function" && typeof OffscreenCanvas === "function"
     ? async (blob, width, height) => {
-        const bitmap = await createImageBitmap(blob);
+        const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
         const canvas = new OffscreenCanvas(width, height);
         canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height);
         bitmap.close?.();
@@ -288,22 +345,26 @@ export async function prepareUpload(
   if (file.size > PORTRAIT_LIMITS.bytes) fail("limit_portrait_bytes", String(file.size));
   const raw = new Uint8Array(await file.arrayBuffer());
   const head = checkImageBytes(raw);
-  await decodeChecked(raw, head.mime, head, decode);
-  const scale = Math.min(1, PORTRAIT_LIMITS.shrinkTo / Math.max(head.width, head.height));
+  // R03-06: the size as decoded (an EXIF-turned JPEG shows turned): the thumbnail keeps its shape.
+  const shown = await decodeChecked(raw, head.mime, head, decode);
+  const scale = Math.min(1, PORTRAIT_LIMITS.shrinkTo / Math.max(shown.width, shown.height));
   if (scale === 1 || !shrink)
-    return { blob: new Blob([raw as BlobPart], { type: head.mime }), ...head };
+    return { blob: new Blob([raw as BlobPart], { type: head.mime }), mime: head.mime, ...shown };
+  const width = Math.max(1, Math.round(shown.width * scale));
+  const height = Math.max(1, Math.round(shown.height * scale));
   let made: Blob;
   try {
-    made = await shrink(
-      new Blob([raw as BlobPart], { type: head.mime }),
-      Math.max(1, Math.round(head.width * scale)),
-      Math.max(1, Math.round(head.height * scale)),
-    );
+    made = await shrink(new Blob([raw as BlobPart], { type: head.mime }), width, height);
   } catch (error) {
     return fail("portrait_decode_failed", error instanceof Error ? error.message : String(error));
   }
   const out = new Uint8Array(await made.arrayBuffer());
   const got = checkImageBytes(out);
-  await decodeChecked(out, got.mime, got, decode);
-  return { blob: new Blob([out as BlobPart], { type: got.mime }), ...got };
+  const done = await decodeChecked(out, got.mime, got, decode);
+  if (done.width !== width || done.height !== height)
+    fail(
+      "portrait_decode_failed",
+      `shrunk to ${done.width}×${done.height}, not ${width}×${height}`,
+    );
+  return { blob: new Blob([out as BlobPart], { type: got.mime }), mime: got.mime, width, height };
 }

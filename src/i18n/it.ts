@@ -999,6 +999,7 @@ export const it: Messages = {
     "Importazione di {name} annullata: la copia e la sua cronologia non ci sono più (pacchetti conservati).",
   "localCopy.problem.other": "Rifiutato ({code}).",
   "localCopy.problem.malformed": "La cronologia o la struttura del file non è valida ({code}).",
+  "localCopy.problem.file_read_failed": "Impossibile leggere il file: non è stato scritto nulla.",
   "localCopy.problem.limit_copy_bytes": "La copia supera i 20 MiB.",
   "localCopy.problem.limit_json_depth": "Il file è annidato troppo in profondità.",
   "localCopy.problem.limit_packs": "Più di 64 pacchetti.",

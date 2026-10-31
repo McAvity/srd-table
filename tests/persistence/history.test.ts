@@ -28,7 +28,7 @@ import {
 } from "../../src/store/history";
 import { useUi } from "../../src/store/ui";
 import { resetStores } from "../helpers/app";
-import { engineWithDice, LIB, libraryFetch, snapshot } from "../helpers/transfer";
+import { asParty, engineWithDice, LIB, libraryFetch } from "../helpers/transfer";
 
 const docs = () => useDocuments.getState();
 const hist = () => useHistory.getState();
@@ -318,17 +318,22 @@ describe("import, copy, delete (R01-02, AC-06)", () => {
   const keyOf = (plan: Plan, title: string) =>
     plan.characters.find((c) => c.title === title)?.key as string;
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("replace keeps the journal and days, adds one boundary; its Undo is a status; all survives a reload", async () => {
-    ok(await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} }));
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("replace keeps the journal and days, adds one boundary; its Undo is a status; all survives a reload", async () => {
+    ok(
+      await commitPlan(
+        await preview({ files: await asParty("characters/wren.r2.transfer.json") }),
+        { characters: {} },
+      ),
+    );
     const id = byName("Wren")?.id as string;
     expect(await journal(id)).toEqual([]); // a new import starts empty
     ok(await docs().playAction(id, { type: "damage", amount: 1 }));
     ok(await docs().playAction(id, { type: "long_rest" }));
     hist().startNextDay(id, "Road");
     await flushNow();
-    const plan = await preview({ url: snapshot("wren") });
+    const plan = await preview({ files: await asParty("characters/wren.r2.transfer.json") });
     ok(
       await commitPlan(plan, {
         characters: { [keyOf(plan, "Wren")]: { kind: "replace", target: id, confirmed: true } },
@@ -358,15 +363,20 @@ describe("import, copy, delete (R01-02, AC-06)", () => {
     expect((await longRests(id)).total).toBe(1);
   });
 
-  // F-011 §8 (T04): superseded — a character transfer is no import root at any entrance any more
-  // (root_kind_not_allowed, tests/import/root-kinds.test.ts); kept, not run, for the record.
-  it.skip("an import refuses a character whose journal changed in another tab: nothing written", async () => {
-    ok(await commitPlan(await preview({ url: snapshot("wren") }), { characters: {} }));
+  // F-011 §8, review03 R03-07: the character comes as an encounter's internal party (asParty), the
+  // only root it may have now; the invariant tested is unchanged.
+  it("an import refuses a character whose journal changed in another tab: nothing written", async () => {
+    ok(
+      await commitPlan(
+        await preview({ files: await asParty("characters/wren.r2.transfer.json") }),
+        { characters: {} },
+      ),
+    );
     const id = byName("Wren")?.id as string;
     hist().ensureMeta(id);
     await flushNow();
     await otherTab(id, (m) => m);
-    const plan = await preview({ url: snapshot("wren") });
+    const plan = await preview({ files: await asParty("characters/wren.r2.transfer.json") });
     const r = await commitPlan(plan, {
       characters: { [keyOf(plan, "Wren")]: { kind: "replace", target: id, confirmed: true } },
     });
