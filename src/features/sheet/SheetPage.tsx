@@ -14,6 +14,7 @@ import { PortraitPicker } from "@/components/Portrait";
 import { Button, Empty, Spinner, StatBox, Tabs } from "@/components/ui";
 import { OfflineStatus } from "@/features/characters/OfflineStatus";
 import { UndoButton } from "@/features/history/UndoButton";
+import { PlanPanel } from "@/features/progression/PlanPanel";
 import { signed, t } from "@/i18n";
 import { usePlayView } from "@/queries";
 import { CharacterScope } from "@/queries/scope";
@@ -164,6 +165,7 @@ function Sheet({
       <div className="grid gap-4 @min-[860px]:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <HitPointsPanel id={id} sheet={sheet} />
+          <PlanPanel record={record} />
           <RollFollowUps id={id} sheet={sheet} />
           <RollOptions id={id} sheet={sheet} />
         </aside>

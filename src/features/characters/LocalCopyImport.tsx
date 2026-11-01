@@ -35,6 +35,8 @@ import { formatSize } from "./LocalCopyExport";
 
 /** A local-copy refusal in the app's words, then its technical detail (plain text). */
 export function localCopyProblemText(code: string, detail = ""): string {
+  // kenli F-002 T05: a progression plan opened here is routed to its own import.
+  if (detail.startsWith("srd-table.progression-plan/")) return t("import.problem.progressionPlan");
   const key = `localCopy.problem.${code}` as keyof typeof en;
   const malformed =
     /^(history_|external_|envelope_|source_invalid|character_invalid|context_|pack_)/.test(code);

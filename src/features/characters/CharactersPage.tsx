@@ -13,6 +13,7 @@ import { Icon } from "@/components/Icon";
 import { OptionButton } from "@/components/OptionButton";
 import { Portrait } from "@/components/Portrait";
 import { Button, Dialog, Empty, HpBar, PageTitle, Reasons } from "@/components/ui";
+import { PlanImportDialog } from "@/features/progression/PlanImportDialog";
 import { t, tn } from "@/i18n";
 import { installedPackContext } from "@/import/export";
 import { contentLabel } from "@/import/plan";
@@ -28,6 +29,7 @@ export function CharactersPage() {
   const create = useDocuments((s) => s.createCharacter);
   const navigate = useNavigate();
   const [loadingCopy, setLoadingCopy] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const list = Object.values(characters).sort((a, b) => b.updated - a.updated);
 
   const installed = useInstalledPacks();
@@ -67,6 +69,9 @@ export function CharactersPage() {
         <Button icon="upload" onClick={() => setLoadingCopy(true)} data-testid="local-copy-open">
           {t("localCopy.import")}
         </Button>
+        <Button icon="upload" onClick={() => setPlanOpen(true)} data-testid="plan-import-open">
+          {t("progression.importOpen")}
+        </Button>
       </div>
       <Dialog
         open={choosing}
@@ -98,6 +103,7 @@ export function CharactersPage() {
         </ul>
       </Dialog>
       <LocalCopyImport open={loadingCopy} onOpenChange={setLoadingCopy} />
+      <PlanImportDialog open={planOpen} onOpenChange={setPlanOpen} />
       <LocalCopyLast />
       {list.length === 0 ? (
         <div className="panel">

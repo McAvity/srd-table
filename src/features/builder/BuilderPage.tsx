@@ -12,6 +12,7 @@ import { Icon } from "@/components/Icon";
 import { Button, cx, Empty, Spinner } from "@/components/ui";
 import type { BuildEdit, BuildView } from "@/engine/facade";
 import { UndoButton } from "@/features/history/UndoButton";
+import { PlanBuilderNotice } from "@/features/progression/PlanBuilderNotice";
 import { t } from "@/i18n";
 import { useBuildView } from "@/queries";
 import { CharacterScope } from "@/queries/scope";
@@ -59,6 +60,7 @@ function Builder({ id, view, search }: { id: string; view: BuildView; search: Bu
   const { request, dialog } = usePreviewedEdit(id);
   const redo = useDocuments((s) => s.redo);
   const redoable = useDocuments((s) => canRedo(s, id));
+  const record = useDocuments((s) => s.characters[id]);
   const [levelUpOpen, setLevelUpOpen] = useState(false);
 
   const level = search.level && search.level <= view.level ? search.level : null;
@@ -99,6 +101,7 @@ function Builder({ id, view, search }: { id: string; view: BuildView; search: Bu
           </Link>
         </div>
       </header>
+      {record && <PlanBuilderNotice record={record} />}
 
       <nav aria-label={t("builder.levels")} className="mb-4 flex flex-wrap items-center gap-1.5">
         <Button size="sm" on={level === null} onClick={() => void goStep(step)}>

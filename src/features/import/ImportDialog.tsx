@@ -35,6 +35,9 @@ import { useUi } from "@/store/ui";
 
 /** A problem in the app's words (its code translated), then the technical detail. */
 export function problemText(p: Problem): string {
+  // kenli F-002 T05: a progression plan opened here is routed to where it is imported.
+  if (p.code === "format_unknown" && p.detail.startsWith("srd-table.progression-plan/"))
+    return t("import.problem.progressionPlan");
   const code = p.code.startsWith("envelope_") ? "envelope" : p.code;
   const key = `import.problem.${code}` as keyof typeof en;
   const text = key in en ? t(key) : t("import.problem.other", { code: p.code });

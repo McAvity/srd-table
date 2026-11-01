@@ -76,6 +76,18 @@ export function titleOf(
       return t("history.kind.longRest");
     case "import_boundary":
       return t("history.kind.import");
+    // kenli F-002 T05: a planned level gained, or a plan bound (no level gained, no roll, no rest).
+    case "level_up": {
+      const l = e.level_up;
+      if (!l) return t("history.kind.levelUp", { level: "?", class: "", classLevel: "" });
+      return l.mode === "bind"
+        ? t("history.kind.planBound", { level: l.to_level })
+        : t("history.kind.levelUp", {
+            level: l.to_level,
+            class: humanize(l.class_id).replace(/\b\w/g, (c) => c.toUpperCase()),
+            classLevel: l.class_level,
+          });
+    }
     case "refused":
       return t("history.kind.refused", { what: e.refusal?.label ?? "" });
     case "encounter": {
