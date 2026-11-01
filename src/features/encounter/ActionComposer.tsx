@@ -430,7 +430,12 @@ export function ActionComposer({
     }
   }
 
-  const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view) : [];
+  // kenli F-002 T12 B2a: with Distant Spell picked, creatures past the spell's usual range are
+  // offered too (marked out of range): the engine checks the doubled range.
+  const distantPicked = castOptions.some(
+    (k) => play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "distant",
+  );
+  const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view, distantPicked) : [];
   const odds = byHand ? null : oddsText(entry);
 
   return (
@@ -1055,12 +1060,16 @@ export function ActionComposer({
   );
 }
 
-/** The engine's candidates (enemies first, nearest first), else everyone who's still in it. */
-function orderedCandidates(ids: readonly string[], view: EncounterView) {
+/**
+ * The engine's candidates (enemies first, nearest first), else everyone who's still in it; with
+ * `beyond` (a range-changing cast option), the others too, after them.
+ */
+function orderedCandidates(ids: readonly string[], view: EncounterView, beyond = false) {
   const listed = ids.map((id) => ({ id, inRange: true }));
-  return listed.length
-    ? listed
-    : view.combatants.filter((c) => !c.defeated).map((c) => ({ id: c.id, inRange: false }));
+  const others = view.combatants
+    .filter((c) => !c.defeated && !ids.includes(c.id))
+    .map((c) => ({ id: c.id, inRange: false }));
+  return listed.length ? (beyond ? [...listed, ...others] : listed) : others;
 }
 
 function initialTargets(action: EncounterAction): string[] {
