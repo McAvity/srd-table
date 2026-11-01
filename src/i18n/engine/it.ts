@@ -915,6 +915,20 @@ export const ENGINE_IT = {
   "refusal.armor_untrained_no_spellcasting":
     "{name} non può lanciare incantesimi in {armor} senza addestramento",
   "play.feature_restores": "{feature}: recuperato un uso di {use}",
+  "play.pool_created": "{use}: creato a {max}",
+  "play.pool_restored": "{use}: +{amount} ({current} su {max})",
+  "play.pool_used": "{use}: −{amount} ({current} su {max})",
+  "play.temp_hp_gained": "{feature}: {amount} punti ferita temporanei",
+  "play.feature_temp_hp_kept":
+    "{feature}: {amount} punti ferita temporanei, ma i {temp} che hai sono di più e restano",
+  "refusal.pool_not_created":
+    "{use} non c'è: si crea lanciando un incantesimo di {school} con uno slot incantesimo",
+  "refusal.pool_already_created": "{use} è già stato creato: di nuovo solo dopo un riposo lungo",
+  "refusal.pool_full": "{use} è pieno ({max})",
+  "refusal.pool_low": "A {use} restano {current}",
+  "refusal.trigger_needs_slotted_school":
+    "{trigger}: serve un incantesimo di {school} lanciato con uno slot incantesimo",
+  "refusal.no_cast_trigger": "Nessun effetto al lancio {key}",
   "play.forced": "{feature}: usato comunque (decisione del GM)",
   "feature.manual_effect": "{feature}: il suo effetto lo risolve il tavolo",
   "cast.ritual": "{spell} lanciato come rituale: nessuno slot, 10 minuti in più",

@@ -965,6 +965,16 @@ export const en = {
   "sheet.payWithUse": "Its use",
   "sheet.castFree": "Free: {use}",
   "sheet.castRitual": "As a ritual (no slot, 10 minutes longer)",
+  "sheet.castTrigger": "{trigger} with this cast",
+  "sheet.castTriggerNone": "{trigger}: nothing",
+  "sheet.castTriggerCreate": "{trigger}: create",
+  "sheet.castTriggerRestore": "{trigger}: restore",
+  "sheet.pool.notCreated": "Not created · maximum {max}",
+  "sheet.pool.current": "{current} of {max}",
+  "sheet.pool.amount": "{pool}: amount absorbed",
+  "sheet.pool.absorb": "Absorb",
+  "sheet.pool.howTo":
+    "Damage to you: (1) apply your Resistance, Vulnerability or Immunity to it; (2) this absorbs up to what it has left — enter that amount and Absorb; (3) take the rest with Damage without a damage type (Temporary Hit Points first, then Hit Points), or, with a Resistance or Vulnerability to all damage, set Temporary Hit Points and Hit Points directly. Created and restored with an Abjuration spell cast with a slot (Spells), restored with its Bonus Action (Features); a Long Rest ends it.",
   "sheet.shortRestSequential":
     "Roll Hit Point Dice one at a time; decide on the next after seeing it. Nothing is saved until you confirm.",
   "sheet.hitDiceRolled": "Rolled: {dice}",

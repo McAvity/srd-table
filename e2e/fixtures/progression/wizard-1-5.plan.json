@@ -1,6 +1,6 @@
 {
   "format": "srd-table.progression-plan/1",
-  "plan_sha256": "c77ed3a3ea607aba6a46be9986958cdd483649c4829c331608272bb9e2106db3",
+  "plan_sha256": "959fbdab85b21a0da56fe91c6d63e548fcfbd8522f87ac040d2f8cf48a60f49e",
   "plan": {
     "id": "test-wizard",
     "revision": 1,
@@ -227,8 +227,8 @@
             "op": "choice",
             "key": "class:wizard:2#spellbook",
             "values": [
-              "disguise-self",
-              "expeditious-retreat"
+              "detect-magic",
+              "disguise-self"
             ],
             "origin": "author"
           },
@@ -276,8 +276,8 @@
             "op": "choice",
             "key": "class:wizard:3#spellbook",
             "values": [
-              "false-life",
-              "feather-fall"
+              "expeditious-retreat",
+              "false-life"
             ],
             "origin": "author"
           },
@@ -338,8 +338,8 @@
             "op": "choice",
             "key": "class:wizard:4#spellbook",
             "values": [
-              "find-familiar",
-              "floating-disk"
+              "feather-fall",
+              "find-familiar"
             ],
             "origin": "author"
           }
@@ -374,8 +374,8 @@
             "op": "choice",
             "key": "class:wizard:5#spellbook",
             "values": [
-              "fog-cloud",
-              "grease"
+              "floating-disk",
+              "fog-cloud"
             ],
             "origin": "author"
           },

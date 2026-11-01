@@ -158,7 +158,12 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                             spell={cast}
                             rowKey={key}
                             busy={busy}
-                            onRoll={(pay, spellcasting) =>
+                            triggers={
+                              def && def.level > 0
+                                ? sheet.cast_triggers.filter((tr) => tr.school === def.school)
+                                : []
+                            }
+                            onRoll={(pay, spellcasting, triggers) =>
                               void roll(
                                 {
                                   type: "cast",
@@ -172,6 +177,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                                     ? { payment: { type: "ritual" } }
                                     : {}),
                                   ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
+                                  ...(triggers.length ? { triggers } : {}),
                                   ...attackDm(additions),
                                 } as RollWhat,
                                 declaredLucky(additions, sheet),
@@ -232,18 +238,31 @@ export type SpellPay =
   | { readonly kind: "free"; readonly use: string }
   | { readonly kind: "ritual" };
 
+type Triggered = { key: string; mode: "create" | "restore" };
 function RollSpell({
   spell,
   rowKey,
   busy,
+  triggers = [],
   onRoll,
 }: {
   spell: PlaySpellLine;
   /** The row's grant key (several rows can show one spell). */
   rowKey: string;
   busy: boolean;
-  onRoll: (pay: SpellPay | null, spellcasting: string | null) => void;
+  /**
+   * kenli F-002 T10 (H2): what casting it with a slot can do to a tracked pool (the sheet's
+   * `cast_triggers` of the spell's school: Arcane Ward), the player's pick sent with the cast; the
+   * engine refuses it without a slot (a ritual, a free cast) or when it can't (already created).
+   */
+  triggers?: PlaySheet["cast_triggers"];
+  onRoll: (pay: SpellPay | null, spellcasting: string | null, triggers: Triggered[]) => void;
 }) {
+  const [modes, setModes] = useState<Record<string, "" | "create" | "restore">>({});
+  const triggered: Triggered[] = triggers.flatMap((tr) => {
+    const mode = modes[tr.key] ?? "";
+    return mode ? [{ key: tr.key, mode }] : [];
+  });
   const key = (slot: SpellSlotChoice) => `${slot.pact ? "pact" : "slot"}:${slot.level}`;
   const first = spell.slots.find((slot) => slot.available);
   const free = spell.free.find((f) => f.available);
@@ -346,6 +365,26 @@ function RollSpell({
           {spell.ritual && <option value="ritual">{t("sheet.castRitual")}</option>}
         </select>
       )}
+      {triggers.map((tr) => (
+        <select
+          key={tr.key}
+          className="field w-auto max-w-[min(15rem,100%)] min-w-0 py-1 text-sm"
+          aria-label={t("sheet.castTrigger", { trigger: tr.name })}
+          data-testid="cast-trigger"
+          value={modes[tr.key] ?? ""}
+          onChange={(e) =>
+            setModes({ ...modes, [tr.key]: e.target.value as "" | "create" | "restore" })
+          }
+        >
+          <option value="">{t("sheet.castTriggerNone", { trigger: tr.name })}</option>
+          {tr.create && (
+            <option value="create">{t("sheet.castTriggerCreate", { trigger: tr.name })}</option>
+          )}
+          {tr.restore_per_slot_level > 0 && (
+            <option value="restore">{t("sheet.castTriggerRestore", { trigger: tr.name })}</option>
+          )}
+        </select>
+      ))}
       {reason && (
         <span id={reasonId} className="text-[13px] text-ink-muted italic">
           {reason}
@@ -357,7 +396,7 @@ function RollSpell({
         title={t("sheet.rollSpellHint")}
         disabled={busy || blocking !== null}
         aria-describedby={reason ? reasonId : undefined}
-        onClick={() => onRoll(leveled ? pay : null, spellcasting)}
+        onClick={() => onRoll(leveled ? pay : null, spellcasting, triggered)}
       >
         {t("sheet.rollByHand")}
       </Button>

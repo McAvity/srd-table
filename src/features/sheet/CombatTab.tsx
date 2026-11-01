@@ -427,7 +427,9 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
               />
             </div>
             {info === u.key && <UseInfo id={id} sheet={sheet} use={u} />}
-            {u.max <= 12 ? (
+            {u.tracked ? (
+              <TrackedPool use={u} act={act} />
+            ) : u.max <= 12 ? (
               <Gems
                 total={u.max}
                 spent={u.spent}
@@ -479,6 +481,49 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
 }
 
 type PlayUse = PlaySheet["play"]["uses"][number];
+
+/**
+ * kenli F-002 T10 (H2): a tracked pool (Arcane Ward) — created or not, its current value of its
+ * maximum (the engine's), the amount it absorbs spent with `use` (the engine refuses more than it
+ * has, or before it's created), and the order of applying damage to it (contracts/automation.md H2:
+ * the split is the table's, with these controls; no automatic absorber).
+ */
+function TrackedPool({ use, act }: { use: PlayUse; act: ReturnType<typeof usePlay>["act"] }) {
+  const [amount, setAmount] = useState("");
+  const n = Number.parseInt(amount, 10);
+  return (
+    <div className="space-y-1" data-testid={`pool-${use.key}`}>
+      <p className="tabular-nums" data-testid="pool-status">
+        {use.created
+          ? t("sheet.pool.current", { current: use.current ?? 0, max: use.max })
+          : t("sheet.pool.notCreated", { max: use.max })}
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          className="field w-20"
+          inputMode="numeric"
+          aria-label={t("sheet.pool.amount", { pool: use.name })}
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9]/g, ""))}
+        />
+        <Button
+          size="sm"
+          icon="minus"
+          disabled={!(n > 0)}
+          onClick={() =>
+            void act({ type: "use", key: use.key, amount: n }, undefined, undefined, {
+              command: "sheet_use",
+              label: use.name,
+            }).then((ok) => ok && setAmount(""))
+          }
+        >
+          {t("sheet.pool.absorb")}
+        </Button>
+      </div>
+      <p className="text-[13px] text-ink-muted">{t("sheet.pool.howTo")}</p>
+    </div>
+  );
+}
 const norm = (s: string) => s.trim().toLowerCase();
 const infoId = (key: string) => `use-info-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 

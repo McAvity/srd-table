@@ -990,6 +990,16 @@ export const it: Messages = {
   "sheet.payWithUse": "Il suo uso",
   "sheet.castFree": "Gratis: {use}",
   "sheet.castRitual": "Come rituale (nessuno slot, 10 minuti in più)",
+  "sheet.castTrigger": "{trigger} con questo lancio",
+  "sheet.castTriggerNone": "{trigger}: niente",
+  "sheet.castTriggerCreate": "{trigger}: crea",
+  "sheet.castTriggerRestore": "{trigger}: ricarica",
+  "sheet.pool.notCreated": "Non creato · massimo {max}",
+  "sheet.pool.current": "{current} su {max}",
+  "sheet.pool.amount": "{pool}: quantità assorbita",
+  "sheet.pool.absorb": "Assorbi",
+  "sheet.pool.howTo":
+    "Danni a te: (1) applica la tua resistenza, vulnerabilità o immunità; (2) questo assorbe fino a quanto gli resta — inserisci la quantità e Assorbi; (3) subisci il resto con Danni senza tipo (prima i punti ferita temporanei, poi i punti ferita) o, con resistenza o vulnerabilità a tutti i danni, imposta direttamente punti ferita temporanei e punti ferita. Si crea e si ricarica con un incantesimo di abiurazione lanciato con uno slot (Incantesimi), si ricarica con la sua azione bonus (Privilegi); un riposo lungo lo termina.",
   "sheet.shortRestSequential":
     "Tira i Dadi Vita uno alla volta; decidi il prossimo dopo averlo visto. Nulla viene salvato finché non confermi.",
   "sheet.hitDiceRolled": "Tirati: {dice}",
