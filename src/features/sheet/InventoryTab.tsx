@@ -6,16 +6,15 @@
  * what a stored item can't do (its weight, attacks and magic are the engine's too).
  */
 
-import { useMemo, useState } from "react";
-import type { CURRENCIES, MagicItemDef, PlaySheet, TableName } from "srd-rules-engine";
+import { useState } from "react";
+import type { CURRENCIES, MagicItemDef, PlaySheet } from "srd-rules-engine";
 import { Icon } from "@/components/Icon";
-import { SrdText } from "@/components/SrdText";
 import { Button, cx, Dialog, Empty, Reasons, Section } from "@/components/ui";
-import { VirtualList } from "@/components/VirtualList";
 import { constants } from "@/engine/constants";
 import { formatList, formatNumber, t } from "@/i18n";
 import { titleCase } from "@/lib/format";
-import { useMagicItemBases, useStartingEquipment, useTable } from "@/queries";
+import { useStartingEquipment, useTable } from "@/queries";
+import { AddItemDialog } from "./AddItemDialog";
 import { usePlay } from "./usePlay";
 
 type Currency = (typeof CURRENCIES)[number];
@@ -268,194 +267,6 @@ function Coins({ id, sheet }: { id: string; sheet: PlaySheet }) {
   );
 }
 
-interface Pickable {
-  readonly id: string;
-  readonly name: string;
-  readonly description: string;
-  readonly table: TableName;
-  /** The catalog's price (`15 gp`), when the item has one. */
-  readonly cost?: string | null;
-}
-
-const ITEM_TABLES = ["weapons", "armor", "gear", "tools", "magic_items"] as const;
-
-function AddItemDialog({ id, onClose }: { id: string; onClose: () => void }) {
-  const { act, reasons, busy } = usePlay(id);
-  const weapons = useTable<Pickable>("weapons", { character: id });
-  const armor = useTable<Pickable>("armor", { character: id });
-  const gear = useTable<Pickable>("gear", { character: id });
-  const tools = useTable<Pickable>("tools", { character: id });
-  const magic = useTable<MagicItemDef>("magic_items", { character: id });
-  const [query, setQuery] = useState("");
-  const [picked, setPicked] = useState<Pickable | null>(null);
-  const [base, setBase] = useState("");
-  const [variant, setVariant] = useState("");
-  const [qty, setQty] = useState("1");
-
-  const all = useMemo(() => {
-    const tables = [weapons.data, armor.data, gear.data, tools.data, magic.data];
-    return tables.flatMap((rows, i) =>
-      (rows ?? []).map((r) => ({
-        id: r.id,
-        name: r.name,
-        description: r.description,
-        table: ITEM_TABLES[i] as TableName,
-        cost: "cost" in r ? (r.cost as string | null | undefined) : null,
-      })),
-    );
-  }, [weapons.data, armor.data, gear.data, tools.data, magic.data]);
-  const q = query.trim().toLowerCase();
-  const visible = (q ? all.filter((i) => i.name.toLowerCase().includes(q)) : all).sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-  const magicDef =
-    picked?.table === "magic_items" ? magic.data?.find((m) => m.id === picked.id) : undefined;
-  // A magic item made from a mundane one: the items the engine says it can be made from.
-  const baseIds = useMagicItemBases(magicDef?.base ? magicDef.id : null, id).data;
-  const bases = useMemo(() => {
-    if (!baseIds?.length) return null;
-    const ids = new Set(baseIds);
-    return [...(weapons.data ?? []), ...(armor.data ?? []), ...(gear.data ?? [])].filter((r) =>
-      ids.has(r.id),
-    );
-  }, [baseIds, weapons.data, armor.data, gear.data]);
-  const count = Number.parseInt(qty, 10);
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()} title={t("sheet.addItem")} wide>
-      <Reasons reasons={reasons} className="mb-2" />
-      <label className="mb-2 flex items-center gap-2">
-        <Icon name="search" className="text-ink-muted" />
-        <span className="sr-only">{t("sheet.itemSearch")}</span>
-        <input
-          className="field"
-          type="search"
-          placeholder={t("sheet.itemSearch")}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      </label>
-      <div className="grid gap-3 md:grid-cols-2">
-        <VirtualList
-          items={visible}
-          estimate={40}
-          className="h-[22rem] rounded border border-edge"
-          label={t("sheet.addItem")}
-          getKey={(i) => `${i.table}:${i.id}`}
-          render={(i) => (
-            <button
-              type="button"
-              onClick={() => {
-                setPicked(i);
-                setBase("");
-                setVariant("");
-              }}
-              className={cx(
-                "flex w-full items-baseline gap-2 border-b border-edge/60 px-2 py-2 text-left hover:bg-card-2",
-                picked?.id === i.id && picked.table === i.table && "bg-hl text-hl-ink",
-              )}
-            >
-              <span className="flex-1">{i.name}</span>
-              <span className="text-[13px] text-ink-faint">
-                {t(`compendium.table.${i.table}` as const)}
-              </span>
-            </button>
-          )}
-        />
-        <div className="space-y-2">
-          {picked ? (
-            <>
-              <h3 className="font-display text-xl text-ink">{picked.name}</h3>
-              {bases && (
-                <label className="flex flex-col gap-1 text-sm">
-                  {t("sheet.base")}
-                  <select className="field" value={base} onChange={(e) => setBase(e.target.value)}>
-                    <option value="">—</option>
-                    {[...bases]
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
-              )}
-              {magicDef && magicDef.variants.length > 0 && (
-                <label className="flex flex-col gap-1 text-sm">
-                  {t("sheet.variant")}
-                  <select
-                    className="field"
-                    value={variant}
-                    onChange={(e) => setVariant(e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {magicDef.variants.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="flex items-center gap-2 text-sm">
-                {t("sheet.amount")}
-                <input
-                  className="field w-20"
-                  inputMode="numeric"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value.replace(/[^0-9]/g, ""))}
-                />
-              </label>
-              <Button
-                variant="primary"
-                icon="plus"
-                disabled={busy || !(count > 0)}
-                onClick={async () => {
-                  const ok = await act({
-                    type: "add_item",
-                    item: picked.id,
-                    qty: count,
-                    ...(base ? { base } : {}),
-                    ...(variant ? { variant } : {}),
-                  });
-                  if (ok) onClose();
-                }}
-              >
-                {t("common.add")}
-              </Button>
-              <Button
-                icon="coin"
-                disabled={busy || !(count > 0)}
-                onClick={async () => {
-                  const ok = await act({
-                    type: "buy",
-                    item: picked.id,
-                    qty: count,
-                    ...(base ? { base } : {}),
-                    ...(variant ? { variant } : {}),
-                  });
-                  if (ok) onClose();
-                }}
-              >
-                {t("sheet.buy")}
-              </Button>
-              {picked.cost && (
-                <p className="text-sm text-ink-muted">{t("sheet.price", { price: picked.cost })}</p>
-              )}
-              {picked.description && (
-                <SrdText text={picked.description} className="max-h-60 overflow-y-auto text-sm" />
-              )}
-            </>
-          ) : (
-            <Empty icon="bag">{t("compendium.pick")}</Empty>
-          )}
-        </div>
-      </div>
-    </Dialog>
-  );
-}
-
 /**
  * The build's starting equipment, not in the inventory yet (a character created before its
  * equipment was picked): what it holds, and a button to take it.
@@ -539,6 +350,8 @@ function CustomItemDialog({ id, onClose }: { id: string; onClose: () => void }) 
     >
       <div className="space-y-3 text-sm" data-testid="custom-item-form">
         <Reasons reasons={reasons} />
+        {/* kenli F-013 T03: no catalog data, so no assessment — said, not faked. */}
+        <p className="text-[13px] text-ink-muted">{t("sheet.custom.noAssessment")}</p>
         <div className="flex flex-col gap-1">
           <label className="flex flex-col gap-1">
             <span>{t("sheet.custom.name")}</span>

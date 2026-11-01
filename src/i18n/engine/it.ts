@@ -976,6 +976,52 @@ export const ENGINE_IT = {
     "La descrizione di un oggetto personalizzato ha al massimo {max} caratteri",
   "refusal.custom_item_weight": "Il peso è un numero di libbre, 0 o più, oppure sconosciuto",
   "state.stored_equipped": "{item} è riposto ma segnato come indossato",
+  // kenli F-013 T03: the engine's item assessment (`assessInventoryItems`).
+  "item.proficient_weapon":
+    "Competenza con {item} ({via}): aggiungi il tuo bonus di competenza (+{bonus}) ai tiri per colpire",
+  "item.not_proficient_weapon": "Nessuna competenza con {item}",
+  "item.trained_armor":
+    "Addestramento nelle armature {category}: puoi indossare {item} senza penalità",
+  "item.untrained_armor": "Nessun addestramento nelle armature {category} per {item}",
+  "item.trained_shield":
+    "Addestramento negli scudi: {item} aggiunge la sua Classe Armatura mentre lo impugni",
+  "item.untrained_shield": "Nessun addestramento negli scudi per {item}",
+  "item.proficient_tool":
+    "Competenza con {item} ({via}): aggiungi il tuo bonus di competenza (+{bonus}) alle prove di caratteristica che lo usano",
+  "item.not_proficient_tool": "Nessuna competenza con {item}",
+  "item.no_proficiency_needed": "Nessuna competenza riguarda {item}",
+  "item.choose_base":
+    "{item}: scegli l'oggetto ({kind}) da cui è ricavato ({proficient} su {count} con la tua competenza)",
+  "item.mastery_yes": "Padronanza delle armi: puoi usare la proprietà {mastery} di {item}",
+  "item.mastery_no": "Nessuna padronanza con {item} (la sua proprietà: {mastery})",
+  "item.mastery_not_applicable": "{item} non ha una proprietà di padronanza",
+  "item.base_not_used": "{item} non è ricavato da un altro oggetto: {base} viene ignorato",
+  "item.variant_not_used": "{item} non ha tipi da scegliere: {variant} viene ignorato",
+  "item.restriction.weapon_not_proficient":
+    "Attaccando con {item}: nessun bonus di competenza al tiro per colpire",
+  "item.restriction.heavy_weapon":
+    "Pesante: Svantaggio ai tiri per colpire con {item} ({ability} {score}, sotto 13)",
+  "item.restriction.two_handed_with_shield":
+    "A due mani: attaccare con {item} richiede entrambe le mani, e stai impugnando {shield}",
+  "item.restriction.armor_untrained":
+    "Indossando {item} senza addestramento: Svantaggio alle prove con il d20 che usano Forza o Destrezza, e non puoi lanciare incantesimi",
+  "item.restriction.armor_strength":
+    "Indossando {item}: la tua velocità diminuisce di 10 piedi (richiede Forza {strength}, la tua è {score})",
+  "item.restriction.armor_stealth":
+    "Indossando {item}: Svantaggio alle prove di Destrezza (Furtività)",
+  "item.restriction.shield_untrained":
+    "Impugnando {item} senza addestramento negli scudi: non ti dà Classe Armatura",
+  "item.restriction.tool_not_proficient":
+    "Prove di caratteristica con {item}: nessun bonus di competenza",
+  "item.restriction.tool_activity":
+    "La prova e la CD dipendono da cosa fai con {item}: controlla l'attività. Se si applica anche un'abilità in cui hai competenza, hai Vantaggio alla prova",
+  "item.restriction.attunement_required":
+    "{item} richiede sintonia: la sua magia funziona solo mentre sei in sintonia con esso",
+  "item.restriction.attunement_not_allowed": "Non puoi entrare in sintonia con {item}: {reason}",
+  "item.restriction.attunement_manual":
+    "La sintonia con {item} richiede {by}: il tavolo valuta se hai i requisiti",
+  "item.restriction.attunement_limit":
+    "Sei in sintonia con {count} oggetti, il massimo ({max}): termina prima una sintonia",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */

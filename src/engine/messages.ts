@@ -53,6 +53,21 @@ function render(message: Message, language: EngineLanguage): string {
   return renderMessage(message, language.messages, { locale: language.locale });
 }
 
+/**
+ * kenli F-013 T03: `value` with every message's own `text` rendered in `language` (a copy), for a
+ * result that carries messages without a separate text field (an item assessment).
+ */
+export function renderTexts<T>(value: T, language: EngineLanguage | null): T {
+  if (!language) return value;
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (typeof v !== "object" || v === null) return v;
+    if (isMessage(v)) return { ...v, text: render(v, language) };
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)]));
+  };
+  return walk(value) as T;
+}
+
 /** `value` with every engine text in `language` (a copy; `value` itself is left alone). */
 export function localize<T>(value: T, language: EngineLanguage | null): T {
   if (!language) return value;

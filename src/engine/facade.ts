@@ -23,6 +23,7 @@ import {
   type AttackDice,
   abilityModifier,
   addAdvantageDie,
+  assessInventoryItems,
   BuildError,
   type ByHandRoll,
   builder,
@@ -63,8 +64,11 @@ import {
   setCritical as engineSetCritical,
   zoneSquares as engineZoneSquares,
   evaluate,
+  formatCp,
   gridDistance,
   type Issue,
+  type ItemAssessment,
+  type ItemAssessmentRequest,
   issuesForLevel,
   issuesForStep,
   lookup,
@@ -88,6 +92,7 @@ import {
   parseState,
   playBuild,
   pointBuyStatus,
+  purseValue,
   type Reachable,
   type RerollTarget,
   type Rng,
@@ -130,7 +135,7 @@ import {
   type StoredPackRow,
   type StoredPackStatus,
 } from "./content";
-import { engineLanguage, localize, renderAll } from "./messages";
+import { engineLanguage, localize, renderAll, renderTexts } from "./messages";
 import {
   type AddonCheckRequest,
   type AddonCheckResult,
@@ -285,6 +290,19 @@ export interface PlayView {
   readonly sheet: PlaySheet;
   readonly issues: readonly StateIssue[];
 }
+
+/**
+ * kenli F-013 T03: catalog items assessed for a character now (`assessInventoryItems`), one per
+ * request in order, every message's `text` in the app's language; and the character's coins in
+ * copper (`purseValue`), for comparing with `price_cp`. A read: nothing is bought or changed.
+ */
+export interface ItemAssessmentView {
+  readonly items: readonly AssessedItem[];
+  readonly purse_cp: number;
+}
+
+/** An assessment with its listed price as the engine writes coins (`formatCp`: `35 GP`). */
+export type AssessedItem = ItemAssessment & { readonly price_text: string | null };
 
 export interface PlayChange {
   readonly state: CharacterState;
@@ -530,6 +548,13 @@ export interface EngineFacade {
   setCritical(attack: AttackDice, critical: boolean): Promise<Outcome<{ roll: AttackDice }>>;
   /** The catalog items a magic item can be made from (`[]`: none, or no base). */
   magicItemBases(magicItemId: string, content?: ContentContext): Promise<readonly string[]>;
+  /** Catalog items assessed for the character as they are now: one batch, read only. */
+  assessItems(
+    build: CharacterBuild,
+    state: CharacterState,
+    requests: readonly ItemAssessmentRequest[],
+    content?: ContentContext,
+  ): Promise<ItemAssessmentView>;
   /** What `take_starting_equipment` adds: the build's starting equipment and gold. */
   startingEquipment(build: CharacterBuild, content?: ContentContext): Promise<StartingEquipment>;
   playSheet(
@@ -825,6 +850,17 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     setCritical: async (attack, critical) =>
       attempt(() => ({ roll: engineSetCritical(attack, critical, { rng }) })),
     magicItemBases: (id, ctx) => content.run(ctx, "play", (catalog) => magicItemBases(catalog, id)),
+    assessItems: (build, state, requests, ctx) =>
+      content.run(ctx, "play", (catalog) => ({
+        items: renderTexts(
+          assessInventoryItems(build, state, catalog, requests).map((a) => ({
+            ...a,
+            price_text: a.price_cp === null ? null : formatCp(a.price_cp),
+          })),
+          language,
+        ),
+        purse_cp: purseValue(state.currency),
+      })),
     startingEquipment: (build, ctx) =>
       content.run(ctx, "play", (catalog) => startingEquipment(build, catalog)),
     playSheet: (build, state, ctx) =>

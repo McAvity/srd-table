@@ -5,7 +5,14 @@
  */
 
 import { keepPreviousData, QueryClient, useQuery } from "@tanstack/react-query";
-import type { AreaRequest, Encounter, EncounterAction, Message, TableName } from "srd-rules-engine";
+import type {
+  AreaRequest,
+  Encounter,
+  EncounterAction,
+  ItemAssessmentRequest,
+  Message,
+  TableName,
+} from "srd-rules-engine";
 import { engine } from "@/engine/client";
 import { type ContentContext, contextKey } from "@/lib/canonical";
 import { db } from "@/persistence/db";
@@ -107,6 +114,29 @@ export function useMagicItemBases(magicItemId: string | null, characterId?: stri
     queryKey: ["magic-bases", magicItemId, content],
     queryFn: () => engine().magicItemBases(magicItemId as string, own),
     enabled: magicItemId !== null,
+  });
+}
+
+/**
+ * kenli F-013 T03: catalog items assessed for a character as they are now (`assessItems`), one
+ * batch for the whole list. Keyed by the character, its revision, content and language and the
+ * requests (base, kind); no placeholder, so another character, revision or base never shows the
+ * previous answer while the next one computes.
+ */
+export function useItemAssessments(id: string, requests: readonly ItemAssessmentRequest[] | null) {
+  const content = useDocumentContentKey(useCharacterContent(id));
+  const rev = useRev(id);
+  const record = useDocuments((s) => s.characters[id]);
+  const asked = requests
+    ?.map((r) => `${r.table}:${r.item}@${r.base ?? ""}#${r.variant ?? ""}`)
+    .join(",");
+  return useQuery({
+    queryKey: ["item-assessments", id, rev, content, asked],
+    queryFn: () => {
+      if (!record || !requests) throw new Error("no character");
+      return engine().assessItems(record.build, record.state, requests, record.content);
+    },
+    enabled: record !== undefined && requests !== null && requests.length > 0,
   });
 }
 
