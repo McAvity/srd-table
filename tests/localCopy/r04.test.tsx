@@ -155,6 +155,9 @@ describe("R04-01: a publication is whole or not shown", () => {
     await inst.open("P-newer-dest");
     const plan = await planOf(src.copy);
     const id = ok(await commitLocalCopy(plan)).recordId;
+    // kenli F-002 T08: the autosave's delay now runs from the first unsaved change (never re-armed),
+    // so nothing from the commit may still be due on a real timer when the fake ones take over.
+    await flushNow();
     // The play stays unsaved until the retry is checked: the autosave's delay never ends inside
     // this window, however slow the machine (a full parallel run outlasted it); flushNow saves it.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });

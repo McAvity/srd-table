@@ -41,6 +41,12 @@ import { db, newInstallationId, onDbBlocked, packKey, type StoredPack } from "./
 
 const SETTINGS_KEY = "campaign";
 const INSTALLATION_KEY = "installation";
+/**
+ * Changes made close together are saved together (one transaction). kenli F-002 T08 (durability):
+ * the delay runs from the FIRST unsaved change — a later change never postpones a save already
+ * due (it was a re-armed debounce, so steady play could stay unsaved indefinitely) — and leaving
+ * the page meanwhile asks first (`beforeunload` below); hiding it saves at once.
+ */
 const SAVE_DELAY_MS = 300;
 
 let writes: Promise<unknown> = Promise.resolve();
@@ -603,14 +609,23 @@ export function startAutosave(): () => void {
     }
   }
 
+  /** Saves due or being written (the `beforeunload` question below). */
+  let writing = 0;
   const schedule = () => {
-    if (timer) clearTimeout(timer);
+    // Already due: it will take this change too (written when it runs, never postponed).
+    if (timer) return;
     timer = setTimeout(() => {
       timer = null;
-      state.flush().catch((error: unknown) => {
-        useHistory.getState().setSaveState({ status: "failed", reason: String(error) });
-        useUi.getState().toast([String(error)], "error", t("persistence.saveFailed"));
-      });
+      writing++;
+      state
+        .flush()
+        .catch((error: unknown) => {
+          useHistory.getState().setSaveState({ status: "failed", reason: String(error) });
+          useUi.getState().toast([String(error)], "error", t("persistence.saveFailed"));
+        })
+        .finally(() => {
+          writing--;
+        });
     }, SAVE_DELAY_MS);
   };
   const unsubscribeDocs = useDocuments.subscribe(schedule);
@@ -628,10 +643,31 @@ export function startAutosave(): () => void {
     if (timer) {
       clearTimeout(timer);
       timer = null;
-      void state.flush();
+      writing++;
+      void state
+        .flush()
+        .catch(() => undefined) // a failure is already the save state (flush sets it)
+        .finally(() => {
+          writing--;
+        });
     }
   };
   addEventListener("pagehide", onHide);
+  // kenli F-002 T08: a page put in the background (another app, a closed lid) saves now, while it
+  // still runs, instead of after the delay.
+  const onVisibility = () => {
+    if (document.visibilityState === "hidden") onHide();
+  };
+  addEventListener("visibilitychange", onVisibility);
+  // kenli F-002 T08: leaving while a change isn't written yet asks first (the browser's own
+  // "Leave site?"); staying lets the save finish. A forced close can still lose that last change.
+  const onBeforeUnload = (event: BeforeUnloadEvent) => {
+    if (timer || writing > 0) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  };
+  addEventListener("beforeunload", onBeforeUnload);
   active = state;
   return () => {
     unsubscribeDocs();
@@ -639,6 +675,8 @@ export function startAutosave(): () => void {
     unsubscribeHistory();
     unsubscribeBlocked();
     removeEventListener("pagehide", onHide);
+    removeEventListener("beforeunload", onBeforeUnload);
+    removeEventListener("visibilitychange", onVisibility);
     onHide();
     if (active === state) active = null;
   };
