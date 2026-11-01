@@ -374,6 +374,7 @@ export const en = {
   "sheet.useInfo.luckyGo": "Go to “Advantage declared with” in Roll options",
   "sheet.useInfo.disadvantageHow":
     "It can also impose Disadvantage on a roll against you, from that roll's follow-ups.",
+  "sheet.damageTypeAs": "Damage as",
   "sheet.rollAttackHint": "Attack roll and damage with the engine's dice; nothing is applied.",
   "sheet.rollSpellHint":
     "The spell's dice (attack rolls, damage, healing, its DC), its slot spent; nothing else is applied.",
@@ -509,6 +510,8 @@ export const en = {
   "table.slotLevel": "Slot level",
   "table.freeCast": "{name}: free cast ({left} left)",
   "table.freeCastAtWill": "{name}: at will (no slot)",
+  "table.featureSlot": "Paid with a spell slot",
+  "table.featureForm": "Form",
   "table.pactSlot": "Pact slot (level {level})",
   "table.mode": "Roll",
   "table.mode.normal": "Normal",

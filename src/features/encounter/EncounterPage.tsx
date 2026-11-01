@@ -243,7 +243,7 @@ function Table({ record }: { record: EncounterRecord }) {
               needsComposer={(entry: OptionEntry, w: PlayWay) =>
                 w === "manual" && entry.rollable
                   ? needsComposerByHand(entry, actorSheet)
-                  : needsComposer(entry)
+                  : needsComposer(entry, actorSheet)
               }
             />
           </>

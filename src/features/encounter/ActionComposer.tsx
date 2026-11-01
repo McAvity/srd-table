@@ -19,6 +19,7 @@ import type {
   DamageType,
   EncounterAction,
   OptionEntry,
+  PlaySheet,
   Skill,
   SpellDef,
   StrikeOption,
@@ -54,8 +55,14 @@ const COMPOSED: ReadonlySet<EncounterAction["type"]> = new Set([
 ]);
 
 /** Does this option need anything filled in before it can be sent? */
-export function needsComposer(entry: OptionEntry): boolean {
+export function needsComposer(entry: OptionEntry, sheet?: PlaySheet | null): boolean {
   if (entry.targets && entry.targets.kind !== "self") return true;
+  // kenli F-002 T12 B1: a feature paid with a spell slot (Wild Resurgence) or taking a form.
+  const a = entry.action;
+  if (a.type === "feature" && sheet) {
+    const line = sheet.actions.find((x) => x.key === a.feature);
+    if (line?.slot_payment || line?.shape) return true;
+  }
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
   // kenli F-002 T12 (review14 R14-02): a free cast or a slot is the player's choice.
   if (entry.free_casts?.length && (entry.slot_levels.length || entry.free_casts.length > 1))
@@ -127,6 +134,8 @@ export function ActionComposer({
   const [strikes, setStrikes] = useState<string[]>([]);
   const [twoHanded, setTwoHanded] = useState(false);
   const [damageType, setDamageType] = useState("");
+  const [featurePay, setFeaturePay] = useState("");
+  const [featureForm, setFeatureForm] = useState("");
   const [skill, setSkill] = useState(() =>
     "skill" in base && typeof base.skill === "string" ? base.skill : "",
   );
@@ -177,7 +186,39 @@ export function ActionComposer({
     const mode = castModes[tr.key] ?? "";
     return mode ? [{ key: tr.key, mode }] : [];
   });
-  const damageTypes = spell?.mechanics?.damage_types ?? [];
+  // kenli F-002 T12 B1: an attack line's other damage types (Lunar Radiance, Exceptional Training).
+  const damageTypes =
+    base.type === "attack"
+      ? (line?.damage_types?.length ?? 0) > 1
+        ? (line?.damage_types ?? [])
+        : []
+      : (spell?.mechanics?.damage_types ?? []);
+  // kenli F-002 T12 B1: a feature paid with a spell slot (Wild Resurgence) or taking a form.
+  const featureLine =
+    base.type === "feature"
+      ? play.data?.sheet.actions.find((a) => a.key === base.feature)
+      : undefined;
+  const featureSlots = featureLine?.slot_payment
+    ? [
+        ...(play.data?.sheet.play.spell_slots ?? []).map((x) => ({
+          value: `slot:${x.level}`,
+          label: t("sheet.slotLevel", { level: x.level }),
+          left: x.total - x.spent,
+          total: x.total,
+        })),
+        ...(play.data?.sheet.play.pact_magic
+          ? [
+              {
+                value: "pact",
+                label: t("table.pactSlot", { level: play.data.sheet.play.pact_magic.slot_level }),
+                left: play.data.sheet.play.pact_magic.slots - play.data.sheet.play.pact_magic.spent,
+                total: play.data.sheet.play.pact_magic.slots,
+              },
+            ]
+          : []),
+      ]
+    : [];
+  const featureForms = featureLine?.shape?.forms ?? [];
   const designate = spell?.mechanics?.zone?.designate === true;
   const wallDef = spell?.mechanics?.wall ?? null;
   // Without positions an area can't be aimed: the caller names who's in it (`targets`).
@@ -258,6 +299,8 @@ export function ActionComposer({
             : null,
         unaffected,
         triggers: triggered,
+        featurePay,
+        featureForm,
       }),
     [
       base,
@@ -283,6 +326,8 @@ export function ActionComposer({
       wall,
       unaffected,
       triggered,
+      featurePay,
+      featureForm,
     ],
   );
   const played = playedAs(action, as, entry.rollable);
@@ -746,6 +791,45 @@ export function ActionComposer({
           </fieldset>
         )}
 
+        {featureSlots.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            {t("table.featureSlot")}
+            <select
+              className="field max-w-xs"
+              value={featurePay}
+              data-testid="feature-slot"
+              onChange={(e) => setFeaturePay(e.target.value)}
+            >
+              <option value="">—</option>
+              {featureSlots.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label} · {t("common.left", { left: x.left, total: x.total })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {featureForms.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            {t("table.featureForm")}
+            <select
+              className="field max-w-xs"
+              value={featureForm}
+              data-testid="feature-form"
+              onChange={(e) => setFeatureForm(e.target.value)}
+            >
+              <option value="">—</option>
+              {featureForms.map((x) => (
+                <option key={x.id} value={x.id} disabled={!!x.unavailable}>
+                  {x.name}
+                  {x.unavailable ? ` · ${x.unavailable}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {damageTypes.length > 0 && (
           <label className="flex flex-col gap-1 text-sm text-ink-muted">
             {t("table.damageType")}
@@ -958,6 +1042,9 @@ interface Fields {
   unaffected: readonly string[];
   /** kenli F-002 T12 (D016): cast triggers paid with a cast. */
   triggers: readonly { key: string; mode: "create" | "restore" }[];
+  /** kenli F-002 T12 B1: a feature's slot payment (`slot:N` / `pact`) and form. */
+  featurePay: string;
+  featureForm: string;
 }
 
 /**
@@ -1006,6 +1093,7 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...withStrikes(f),
         ...(f.twoHanded ? { two_handed: true } : {}),
         ...(f.masteryAs ? { mastery_as: f.masteryAs as "push" | "sap" | "slow" } : {}),
+        ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
       };
     case "cast": {
       const { slot_level: _s, pact: _p, payment: _f, ...rest } = base;
@@ -1048,12 +1136,22 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.targets.length && !("targets" in base) ? { target: firstTarget } : {}),
         ...(f.mode !== "normal" ? { mode: f.mode } : {}),
       };
-    case "feature":
+    case "feature": {
+      const paid = {
+        ...base,
+        ...(f.featurePay === "pact"
+          ? { payment: { type: "pact" as const } }
+          : f.featurePay.startsWith("slot:")
+            ? { payment: { type: "slot" as const, level: Number(f.featurePay.slice(5)) } }
+            : {}),
+        ...(f.featureForm ? { form: f.featureForm } : {}),
+      };
       return f.targets.length > 1 || ("targets" in base && base.targets)
-        ? { ...base, targets: [...f.targets] }
+        ? { ...paid, targets: [...f.targets] }
         : firstTarget
-          ? { ...base, target: firstTarget }
-          : base;
+          ? { ...paid, target: firstTarget }
+          : paid;
+    }
     case "help":
       return { ...base, target: firstTarget, ...(f.skill ? { skill: f.skill as Skill } : {}) };
     case "unarmed":

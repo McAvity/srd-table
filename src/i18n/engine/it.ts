@@ -330,7 +330,17 @@ export const ENGINE_IT = {
   "refusal.after_roll_needs_dc": "{feature}: indica la CD o la CA contro cui il tiro è fallito",
   "refusal.after_roll_not_failed": "{feature}: il tiro non è fallito",
   "refusal.after_roll_used": "{feature}: già usato su questo tiro",
-  "note.defeated_this_action": "{name} è già sconfitto da questa azione: il resto dei suoi danni su di lui non ha effetto",
+  "refusal.restores_when_empty": "{feature}: solo quando non resta alcun {use} ({left} rimasti)",
+  "play.feature_slot_back": "{feature}: uno slot incantesimo di livello {level} recuperato",
+  "refusal.needs_feature_first": "{feature}: solo dopo {after} in questo turno",
+  "refusal.companion_strike_once":
+    "{name} ha già rinunciato a un attacco di questa azione di Attacco per il colpo del compagno",
+  "attack.damage_as": "{attack}: i suoi danni inflitti come {type}",
+  "attack.rider_condition": "{target}: {conditions} ({rider})",
+  "attack.rider_condition_size": "{target} è troppo grande per {conditions} di {rider}",
+  "rule.damage_type_not_allowed": "{attack} non può infliggere danni {type} (solo {types})",
+  "note.defeated_this_action":
+    "{name} è già sconfitto da questa azione: il resto dei suoi danni su di lui non ha effetto",
   "after_roll.succeeds":
     "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: riesce, un utilizzo speso",
   "after_roll.still_fails":

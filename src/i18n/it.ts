@@ -392,6 +392,7 @@ export const it: Messages = {
   "sheet.useInfo.luckyGo": "Vai a “Vantaggio dichiarato con” nelle opzioni di tiro",
   "sheet.useInfo.disadvantageHow":
     "Può anche imporre svantaggio a un tiro contro di te, tra le azioni successive di quel tiro.",
+  "sheet.damageTypeAs": "Danni come",
   "sheet.rollAttackHint":
     "Tiro per colpire e danni con i dadi del motore; non viene applicato nulla.",
   "sheet.rollSpellHint":
@@ -529,6 +530,8 @@ export const it: Messages = {
   "table.slotLevel": "Livello dello slot",
   "table.freeCast": "{name}: lancio gratuito ({left} rimasti)",
   "table.freeCastAtWill": "{name}: a volontà (nessuno slot)",
+  "table.featureSlot": "Pagato con uno slot incantesimo",
+  "table.featureForm": "Forma",
   "table.pactSlot": "Slot del patto (livello {level})",
   "table.mode": "Tiro",
   "table.mode.normal": "Normale",

@@ -94,6 +94,17 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const pickedFor = (a: (typeof sheet.attacks)[number]) =>
     (lines[a.name] ?? []).filter((r) => a.riders.some((x) => x.id === r));
   const setPicked = (next: Record<string, readonly string[]>) => setPickedBy({ id, lines: next });
+  /** kenli F-002 T12 B1: the damage type chosen per line (Lunar Radiance, Exceptional Training). */
+  const [typesBy, setTypesBy] = useState<{ id: string; lines: Record<string, string> }>({
+    id,
+    lines: {},
+  });
+  const typeFor = (a: (typeof sheet.attacks)[number]) => {
+    const picked = typesBy.id === id ? typesBy.lines[a.name] : undefined;
+    return picked && a.damage_types?.includes(picked) && picked !== a.damage_type
+      ? picked
+      : undefined;
+  };
   const test = useRoller(id, sheet);
   if (!sheet.attacks.length) return null;
   return (
@@ -158,7 +169,32 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                 </th>
                 <td className="py-2 pr-2 font-semibold tabular-nums">{signed(a.attack_bonus)}</td>
                 <td className="py-2 pr-2">
-                  {a.damage} {a.damage_type}
+                  {a.damage} {typeFor(a) ?? a.damage_type}
+                  {a.damage_types && a.damage_types.length > 1 && (
+                    <label className="mt-1 block text-[13px] text-ink-muted">
+                      {t("sheet.damageTypeAs")}
+                      <select
+                        className="field ml-1"
+                        value={typeFor(a) ?? a.damage_type}
+                        data-testid={`attack-damage-type-${a.name}`}
+                        onChange={(e) =>
+                          setTypesBy({
+                            id,
+                            lines: {
+                              ...(typesBy.id === id ? typesBy.lines : {}),
+                              [a.name]: e.target.value,
+                            },
+                          })
+                        }
+                      >
+                        {a.damage_types.map((x) => (
+                          <option key={x} value={x}>
+                            {x}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                 </td>
                 <td className="py-2">
                   <div className="flex justify-end gap-1">
@@ -175,6 +211,7 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                             ...(pickedFor(a).length
                               ? { riders: pickedFor(a).map((rider) => ({ rider })) }
                               : {}),
+                            ...(typeFor(a) ? { damage_type: typeFor(a) } : {}),
                             ...attackDm(additions),
                           } as RollWhat,
                           declaredLucky(additions, sheet),
