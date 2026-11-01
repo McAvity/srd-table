@@ -235,6 +235,30 @@ export const SPECS = {
     start: WIZARD_START,
     levels: times(1, "fighter"),
   },
+  fighter20: {
+    id: "test-fighter-20",
+    title: "Wojownik 1–20 — „próba” *pełna*",
+    start: FIGHTER_START,
+    levels: times(19, "fighter"),
+  },
+  sorcererBardReplace: {
+    id: "test-sorcerer-bard-replace",
+    title: "Sorcerer 1 / Bard 2 with a prepared-spell replacement",
+    start: SORCERER_START,
+    levels: [
+      { class_id: "bard" },
+      {
+        class_id: "bard",
+        edits: [
+          {
+            type: "choice",
+            key: "class:bard:2#replace:bard:bard-prepared",
+            values: ["command", "dissonant-whispers"],
+          },
+        ],
+      },
+    ],
+  },
   warlock: {
     id: "test-warlock",
     title: "Warlock 1–2 (Eldritch Invocations: feature options)",

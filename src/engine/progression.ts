@@ -20,6 +20,7 @@ import {
   evaluate,
   lookup,
   resolve,
+  skillName,
 } from "srd-rules-engine";
 import type { ContentContext } from "@/lib/canonical";
 import type { ChoiceOp, LevelUpOp, ParsedPlan, PlanProblem, StartOp } from "@/progression/codec";
@@ -48,6 +49,13 @@ export interface ReadableOp {
   readonly hp?: number | null;
   /** Anything else (`class`, `species`, `name`…): the op's value as text. */
   readonly value?: string;
+  /** kenli F-002 T06: `class`/`species`/`background`: the entity's name in the plan's catalog. */
+  readonly value_name?: string;
+  /**
+   * kenli F-002 T06: `choice`: what grants the choice (its resolved source's name: a class
+   * level, a feat, the background…), from the engine's resolution, not the key's text.
+   */
+  readonly source?: string;
 }
 
 /**
@@ -73,6 +81,10 @@ export interface CheckpointStats {
   /** Class, subclass, species and feat traits gained (Extra Attack, Action Surge…), by name. */
   readonly traits: readonly string[];
   readonly spells: readonly string[];
+  /** kenli F-002 T06: proficient skills, those with Expertise, and languages, by name. */
+  readonly skills: readonly string[];
+  readonly expertise: readonly string[];
+  readonly languages: readonly string[];
 }
 
 export interface StatChange {
@@ -253,6 +265,7 @@ function choiceStep(
       rule,
       values: op.values,
       names: namesOf(res, ch, op.values),
+      source: ch.source.name,
     },
   };
 }
@@ -274,6 +287,9 @@ function statsOf(build: CharacterBuild, catalog: Catalog): CheckpointStats {
     features: [...s.features],
     traits: s.traits.map((t) => t.name),
     spells: s.spells.map((x) => x.name),
+    skills: s.skills.filter((x) => x.proficient_from !== null).map((x) => skillName(x.skill)),
+    expertise: s.skills.filter((x) => x.expertise).map((x) => skillName(x.skill)),
+    languages: Object.keys(s.languages).map((id) => lookup(catalog.languages, id)?.name ?? id),
   };
 }
 
@@ -312,7 +328,15 @@ function changesOf(before: CheckpointStats | null, after: CheckpointStats): Stat
       });
   if (JSON.stringify(before.spell_slots) !== JSON.stringify(after.spell_slots))
     out.push({ field: "spell_slots", before: before.spell_slots, after: after.spell_slots });
-  for (const k of ["feats", "features", "traits", "spells"] as const) {
+  for (const k of [
+    "feats",
+    "features",
+    "traits",
+    "spells",
+    "skills",
+    "expertise",
+    "languages",
+  ] as const) {
     const added = multisetMinus(after[k], before[k]);
     const removed = multisetMinus(before[k], after[k]);
     if (added.length || removed.length) out.push({ field: k, before: removed, after: added });
@@ -386,6 +410,16 @@ export async function compileParsedPlan(
                 : "alignment" in op
                   ? op.alignment
                   : JSON.stringify("scores" in op ? op.scores : op.bonus),
+        ...(op.op === "class" || op.op === "species" || op.op === "background"
+          ? {
+              value_name:
+                (op.op === "class"
+                  ? lookup(catalog.classes, op.id)?.name
+                  : op.op === "species"
+                    ? lookup(catalog.species, op.id)?.name
+                    : lookup(catalog.backgrounds, op.id)?.name) ?? op.id,
+            }
+          : {}),
       });
     }
     checkComplete(build, catalog, 1);

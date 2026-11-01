@@ -1,0 +1,267 @@
+{
+  "format": "srd-table.progression-plan/1",
+  "plan_sha256": "a10702749e4cbd67568874798f33ef9cea03f436ad6c1a9023a35fe069002c92",
+  "plan": {
+    "id": "test-sorcerer-bard-replace",
+    "revision": 1,
+    "title": "Sorcerer 1 / Bard 2 with a prepared-spell replacement",
+    "language": "en",
+    "authorship": {
+      "source": "invented test plan",
+      "adaptation": "none",
+      "author": "srd-table tests"
+    },
+    "packs": [
+      {
+        "id": "srd-5.2.1",
+        "version": "5.2.1",
+        "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+      }
+    ],
+    "sources": null,
+    "start": {
+      "equipment": "starting",
+      "ops": [
+        {
+          "op": "class",
+          "id": "sorcerer",
+          "origin": "author"
+        },
+        {
+          "op": "species",
+          "id": "human",
+          "origin": "author"
+        },
+        {
+          "op": "background",
+          "id": "acolyte",
+          "origin": "author"
+        },
+        {
+          "op": "ability_method",
+          "method": "standard_array",
+          "origin": "author"
+        },
+        {
+          "op": "base_scores",
+          "scores": {
+            "str": 8,
+            "dex": 14,
+            "con": 13,
+            "int": 10,
+            "wis": 12,
+            "cha": 15
+          },
+          "origin": "author"
+        },
+        {
+          "op": "background_bonus",
+          "bonus": {
+            "cha": 2,
+            "wis": 1
+          },
+          "origin": "author"
+        },
+        {
+          "op": "name",
+          "name": "Kai",
+          "origin": "author"
+        },
+        {
+          "op": "alignment",
+          "alignment": "NG",
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "creation#languages",
+          "values": [
+            "common-sign-language",
+            "draconic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:sorcerer#skills",
+          "values": [
+            "arcana",
+            "deception"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:sorcerer#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:sorcerer#cantrips",
+          "values": [
+            "acid-splash",
+            "chill-touch",
+            "dancing-lights",
+            "elementalism"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:sorcerer#prepared",
+          "values": [
+            "burning-hands",
+            "charm-person"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#size",
+          "values": [
+            "medium"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#skillful",
+          "values": [
+            "acrobatics"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#versatile",
+          "values": [
+            "alert"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#spellcasting_ability",
+          "values": [
+            "int"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#cantrips",
+          "values": [
+            "guidance",
+            "light"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "feat:magic-initiate@background:acolyte#spell",
+          "values": [
+            "bane"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:acolyte#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        }
+      ]
+    },
+    "levels": [
+      {
+        "level": 2,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "bard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard#skills",
+            "values": [
+              "animal-handling"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard#instruments",
+            "values": [
+              "bagpipes"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard#cantrips",
+            "values": [
+              "mage-hand",
+              "mending"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard#prepared",
+            "values": [
+              "animal-friendship",
+              "color-spray",
+              "command",
+              "comprehend-languages"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 3,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "bard",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard:2#replace:bard:bard-prepared",
+            "values": [
+              "command",
+              "dissonant-whispers"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard:2#prepared",
+            "values": [
+              "command"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:bard:2#expertise",
+            "values": [
+              "acrobatics",
+              "animal-handling"
+            ],
+            "origin": "author"
+          }
+        ]
+      }
+    ]
+  }
+}

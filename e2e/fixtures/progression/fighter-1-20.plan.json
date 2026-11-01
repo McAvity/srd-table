@@ -1,0 +1,621 @@
+{
+  "format": "srd-table.progression-plan/1",
+  "plan_sha256": "39bb3c2671ff58ad9c71e0e0a0cf88e5923936d3489bc1690e96109c58f99d17",
+  "plan": {
+    "id": "test-fighter-20",
+    "revision": 1,
+    "title": "Wojownik 1–20 — „próba” *pełna*",
+    "language": "en",
+    "authorship": {
+      "source": "invented test plan",
+      "adaptation": "none",
+      "author": "srd-table tests"
+    },
+    "packs": [
+      {
+        "id": "srd-5.2.1",
+        "version": "5.2.1",
+        "sha256": "4adcc806e399b90ed368172267064ccba56b5d73cdf84f6fa8cacb32e7b480a4"
+      }
+    ],
+    "sources": null,
+    "start": {
+      "equipment": "starting",
+      "ops": [
+        {
+          "op": "class",
+          "id": "fighter",
+          "origin": "author"
+        },
+        {
+          "op": "species",
+          "id": "human",
+          "origin": "author"
+        },
+        {
+          "op": "background",
+          "id": "soldier",
+          "origin": "author"
+        },
+        {
+          "op": "ability_method",
+          "method": "standard_array",
+          "origin": "author"
+        },
+        {
+          "op": "base_scores",
+          "scores": {
+            "str": 15,
+            "dex": 14,
+            "con": 13,
+            "int": 8,
+            "wis": 10,
+            "cha": 12
+          },
+          "origin": "author"
+        },
+        {
+          "op": "background_bonus",
+          "bonus": {
+            "str": 2,
+            "con": 1
+          },
+          "origin": "author"
+        },
+        {
+          "op": "name",
+          "name": "Aerin",
+          "origin": "author"
+        },
+        {
+          "op": "alignment",
+          "alignment": "NG",
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "creation#languages",
+          "values": [
+            "common-sign-language",
+            "draconic"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#skills",
+          "values": [
+            "acrobatics",
+            "animal-handling"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#fighting_style",
+          "values": [
+            "archery"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "class:fighter#weapon_mastery",
+          "values": [
+            "club",
+            "dagger",
+            "greatclub"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#size",
+          "values": [
+            "medium"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#skillful",
+          "values": [
+            "arcana"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "species:human#versatile",
+          "values": [
+            "alert"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:soldier#tool",
+          "values": [
+            "dice-set"
+          ],
+          "origin": "author"
+        },
+        {
+          "op": "choice",
+          "key": "background:soldier#equipment",
+          "values": [
+            "a"
+          ],
+          "origin": "author"
+        }
+      ]
+    },
+    "levels": [
+      {
+        "level": 2,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 3,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:3#subclass",
+            "values": [
+              "champion"
+            ],
+            "origin": "author",
+            "why": "Champion: prosty <b>wybór</b> # bez | ryzyka *naprawdę*"
+          }
+        ]
+      },
+      {
+        "level": 4,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter#weapon_mastery",
+            "values": [
+              "club",
+              "dagger",
+              "greatclub",
+              "handaxe"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:4#feat",
+            "values": [
+              "magic-initiate"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:4#feat#spell_list",
+            "values": [
+              "cleric"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:4#feat#spellcasting_ability",
+            "values": [
+              "int"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:4#feat#cantrips",
+            "values": [
+              "guidance",
+              "light"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:4#feat#spell",
+            "values": [
+              "bane"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 5,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 6,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:6#feat",
+            "values": [
+              "magic-initiate"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spell_list",
+            "values": [
+              "druid"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spellcasting_ability",
+            "values": [
+              "int"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#cantrips",
+            "values": [
+              "druidcraft",
+              "elementalism"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:6#feat#spell",
+            "values": [
+              "animal-friendship"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 7,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "subclass:champion:7#style",
+            "values": [
+              "defense"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 8,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:8#feat",
+            "values": [
+              "magic-initiate"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:8#feat#spell_list",
+            "values": [
+              "wizard"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:8#feat#spellcasting_ability",
+            "values": [
+              "int"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:8#feat#cantrips",
+            "values": [
+              "acid-splash",
+              "chill-touch"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:magic-initiate@class:fighter:8#feat#spell",
+            "values": [
+              "alarm"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 9,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 10,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter#weapon_mastery",
+            "values": [
+              "club",
+              "dagger",
+              "greatclub",
+              "handaxe",
+              "javelin"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 11,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 12,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:12#feat",
+            "values": [
+              "skilled"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:skilled@class:fighter:12#feat#proficiencies",
+            "values": [
+              "deception",
+              "history",
+              "insight"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 13,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 14,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:14#feat",
+            "values": [
+              "skilled"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:skilled@class:fighter:14#feat#proficiencies",
+            "values": [
+              "investigation",
+              "medicine",
+              "nature"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 15,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 16,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter#weapon_mastery",
+            "values": [
+              "club",
+              "dagger",
+              "greatclub",
+              "handaxe",
+              "javelin",
+              "light-hammer"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:16#feat",
+            "values": [
+              "skilled"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:skilled@class:fighter:16#feat#proficiencies",
+            "values": [
+              "perception",
+              "performance",
+              "persuasion"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 17,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 18,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 19,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "class:fighter:19#feat",
+            "values": [
+              "skilled"
+            ],
+            "origin": "author"
+          },
+          {
+            "op": "choice",
+            "key": "feat:skilled@class:fighter:19#feat#proficiencies",
+            "values": [
+              "religion",
+              "sleight-of-hand",
+              "stealth"
+            ],
+            "origin": "author"
+          }
+        ]
+      },
+      {
+        "level": 20,
+        "ops": [
+          {
+            "op": "level_up",
+            "class_id": "fighter",
+            "hp": null,
+            "origin": "author"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -57,6 +57,13 @@ export async function buildFixtures(engine: EngineFacade = nodeFacade({ seed: 1 
   const sorcererBard = (await planBody(engine, SPECS.sorcererBard)).plan;
   const wizardFighter = (await planBody(engine, SPECS.wizardFighter)).plan;
   const warlock = (await planBody(engine, SPECS.warlock)).plan;
+  const fighter20 = (await planBody(engine, SPECS.fighter20)).plan;
+  // A reason with Markdown and HTML characters and Polish letters (T06 escaping, UTF-8).
+  const sub = fighter20.levels[1].ops.find(
+    (o: J) => o.op === "choice" && o.key.endsWith("#subclass"),
+  );
+  if (sub) sub.why = "Champion: prosty <b>wybór</b> # bez | ryzyka *naprawdę*";
+  const replace = (await planBody(engine, SPECS.sorcererBardReplace)).plan;
   const conAsi = (await planBody(engine, SPECS.fighterConAsi)).plan;
   const [poolRef] = await engine.registerPacks([POOL_PACK]);
   if (!poolRef) throw new Error("pool pack");
@@ -108,6 +115,18 @@ export async function buildFixtures(engine: EngineFacade = nodeFacade({ seed: 1 
     "ok",
     "Constitution +2 at Fighter 4: HP raised for every level (retroactive)",
     conAsi,
+  );
+  await add(
+    "fighter-1-20",
+    "ok",
+    "Fighter 1–20 (SRD): a whole plan, a Polish title and a reason to escape",
+    fighter20,
+  );
+  await add(
+    "sorcerer-bard-replace-1-3",
+    "ok",
+    "a Bard prepared-spell replacement [old, new] at level 3",
+    replace,
   );
   const partial = clone(fighter);
   partial.levels = partial.levels.slice(0, 2);
