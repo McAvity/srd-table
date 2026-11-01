@@ -995,6 +995,10 @@ export const ENGINE_IT = {
   "item.mastery_yes": "Padronanza delle armi: puoi usare la proprietà {mastery} di {item}",
   "item.mastery_no": "Nessuna padronanza con {item} (la sua proprietà: {mastery})",
   "item.mastery_not_applicable": "{item} non ha una proprietà di padronanza",
+  "item.base_unknown":
+    "{item}: i suoi dati non dicono da quale oggetto ({kind}) è ricavato, quindi la competenza non si può valutare",
+  "item.restriction.base_unknown":
+    "{item}: non si sa da quale oggetto è ricavato; valuta a mano competenza e proprietà",
   "item.base_not_used": "{item} non è ricavato da un altro oggetto: {base} viene ignorato",
   "item.variant_not_used": "{item} non ha tipi da scegliere: {variant} viene ignorato",
   "item.restriction.weapon_not_proficient":

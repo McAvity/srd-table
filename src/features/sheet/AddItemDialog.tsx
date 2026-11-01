@@ -7,7 +7,7 @@
  * browsing changes nothing.
  */
 
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type {
   ArmorDef,
   GearDef,
@@ -53,6 +53,11 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
   const [qty, setQty] = useState("1");
   const set = (change: Partial<Filters>) => setFilters((f) => ({ ...f, ...change }));
 
+  // kenli F-013 T04 (R03-03): the catalog is listed only when every table has loaded; a table
+  // that fails is said (with Try again), never a seemingly complete list or an endless spinner.
+  const tables = [weapons, armor, gear, tools, magic];
+  const tablesFailed = tables.some((q) => q.isError);
+  const loaded = tables.every((q) => q.data !== undefined);
   const rows = useMemo<CatalogRow[]>(
     () =>
       [
@@ -79,13 +84,15 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
   );
   const purse = batch.data?.purse_cp ?? null;
   const waiting = needsAssessment(filters) && !batch.data;
+  const assessFailed = batch.isError && needsAssessment(filters);
   const visible = waiting
     ? []
     : rows.filter((r) => matches(r, byKey.get(rowKey(r)), filters, purse));
 
   const magicDef = picked?.table === "magic_items" ? picked.def : undefined;
   // A magic item made from a mundane one: the items the engine says it can be made from.
-  const baseIds = useMagicItemBases(magicDef?.base ? magicDef.id : null, id).data;
+  const basesQuery = useMagicItemBases(magicDef?.base ? magicDef.id : null, id);
+  const baseIds = basesQuery.data;
   const template = picked ? byKey.get(rowKey(picked)) : undefined;
   const fitting = new Set(template?.bases?.proficient ?? []);
   const bases = useMemo(() => {
@@ -98,6 +105,12 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
   // With "I'm proficient or trained" on, a template offers the bases that suit the character.
   const offered =
     bases && filters.proficient && template?.bases ? bases.filter((b) => fitting.has(b.id)) : bases;
+  // kenli F-013 T04 (R03-02): the base shown is the one assessed and sent. A base the offered list
+  // no longer has (the proficiency filter, a new answer for the character) isn't chosen any more.
+  const chosenBase = base && offered?.some((b) => b.id === base) ? base : "";
+  useEffect(() => {
+    if (base && offered && !offered.some((b) => b.id === base)) setBase("");
+  }, [base, offered]);
   // The item picked, with its base and kind: the definitive answer (never the previous base's).
   const detailRequest = useMemo<ItemAssessmentRequest[] | null>(
     () =>
@@ -106,15 +119,19 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
             {
               table: picked.table,
               item: picked.def.id,
-              ...(base ? { base } : {}),
+              ...(chosenBase ? { base: chosenBase } : {}),
               ...(variant ? { variant } : {}),
             },
           ]
         : null,
-    [picked, base, variant],
+    [picked, chosenBase, variant],
   );
   const detail = useItemAssessments(id, detailRequest);
   const assessed = detail.data?.items[0];
+  /** Ask again for whatever failed: a table, the assessments, the bases. */
+  const retry = () => {
+    for (const q of [...tables, batch, basesQuery, detail]) if (q.isError) void q.refetch();
+  };
   const count = Number.parseInt(qty, 10);
 
   return (
@@ -196,23 +213,26 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          {batch.isError && (
-            <p role="alert" className="mb-1 text-sm text-red">
-              {t("sheet.items.error", { error: String(batch.error) })}
-            </p>
-          )}
-          {waiting ? (
-            batch.isError ? null : (
-              <div className="flex h-[22rem] items-center justify-center rounded border border-edge">
-                <Spinner label={t("sheet.items.checking")} />
-              </div>
-            )
+          {tablesFailed ? (
+            <Failure text={t("sheet.items.loadFailed")} onRetry={retry} />
+          ) : !loaded ? (
+            <div className="flex h-[22rem] items-center justify-center rounded border border-edge">
+              <Spinner label={t("sheet.items.loading")} />
+            </div>
+          ) : assessFailed ? (
+            <Failure text={t("sheet.items.error")} onRetry={retry} />
+          ) : waiting ? (
+            <div className="flex h-[22rem] items-center justify-center rounded border border-edge">
+              <Spinner label={t("sheet.items.checking")} />
+            </div>
           ) : visible.length === 0 ? (
             <div className="h-[22rem] rounded border border-edge">
               <Empty icon="search">{t("sheet.items.none")}</Empty>
             </div>
           ) : (
             <>
+              {/* The whole catalog is here; only how each item suits the character is missing. */}
+              {batch.isError && <Failure text={t("sheet.items.error")} onRetry={retry} />}
               <p className="mb-1 text-[13px] text-ink-muted" aria-live="polite">
                 {tn("sheet.items.count", visible.length)}
               </p>
@@ -244,10 +264,17 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
           {picked ? (
             <>
               <h3 className="font-display text-xl text-ink">{picked.def.name}</h3>
+              {basesQuery.isError && (
+                <Failure text={t("sheet.items.basesFailed")} onRetry={retry} />
+              )}
               {offered && (
                 <label className="flex flex-col gap-1 text-sm">
                   {t("sheet.base")}
-                  <select className="field" value={base} onChange={(e) => setBase(e.target.value)}>
+                  <select
+                    className="field"
+                    value={chosenBase}
+                    onChange={(e) => setBase(e.target.value)}
+                  >
                     <option value="">—</option>
                     {[...offered]
                       .sort((a, b) => a.name.localeCompare(b.name))
@@ -299,7 +326,7 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
                     type: "add_item",
                     item: picked.def.id,
                     qty: count,
-                    ...(base ? { base } : {}),
+                    ...(chosenBase ? { base: chosenBase } : {}),
                     ...(variant ? { variant } : {}),
                   });
                   if (ok) onClose();
@@ -315,7 +342,7 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
                     type: "buy",
                     item: picked.def.id,
                     qty: count,
-                    ...(base ? { base } : {}),
+                    ...(chosenBase ? { base: chosenBase } : {}),
                     ...(variant ? { variant } : {}),
                   });
                   if (ok) onClose();
@@ -323,7 +350,12 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
               >
                 {t("sheet.buy")}
               </Button>
-              <ItemDetails detail={assessed} loading={detail.isPending} error={detail.error} />
+              <ItemDetails
+                detail={assessed}
+                loading={detail.isPending}
+                failed={detail.isError}
+                onRetry={retry}
+              />
               {picked.def.description && (
                 <SrdText
                   text={picked.def.description}
@@ -419,23 +451,35 @@ function Chip({
   );
 }
 
+/** What failed, in plain words, and a way to ask again (kenli F-013 T04, R03-03). */
+function Failure({ text, onRetry }: { text: string; onRetry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="mb-1 flex flex-wrap items-center gap-2 rounded border border-red/60 px-2 py-1.5 text-sm"
+    >
+      <Icon name="warning" size={16} className="flex-none text-red" />
+      <span className="flex-1">{text}</span>
+      <Button size="sm" onClick={onRetry}>
+        {t("sheet.items.retry")}
+      </Button>
+    </div>
+  );
+}
+
 /** Everything the engine says about the picked item, as text (no hover needed). */
 function ItemDetails({
   detail: a,
   loading,
-  error,
+  failed,
+  onRetry,
 }: {
   detail: AssessedItem | undefined;
   loading: boolean;
-  error: unknown;
+  failed: boolean;
+  onRetry: () => void;
 }) {
-  if (error) {
-    return (
-      <p role="alert" className="text-sm text-red">
-        {t("sheet.items.error", { error: String(error) })}
-      </p>
-    );
-  }
+  if (failed) return <Failure text={t("sheet.items.error")} onRetry={onRetry} />;
   if (loading || !a) return <Spinner label={t("sheet.items.checking")} />;
   const status = statusOf(a);
   return (

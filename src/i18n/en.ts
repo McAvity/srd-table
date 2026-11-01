@@ -449,7 +449,12 @@ export const en = {
   "sheet.items.filter.recommendedNone":
     "No equipment recommendations are available for this character, so this filter is off.",
   "sheet.items.checking": "Checking the items for this character…",
-  "sheet.items.error": "Couldn't check the items for this character: {error}",
+  "sheet.items.error": "Couldn't check how the items suit this character. Try again.",
+  "sheet.items.loadFailed":
+    "Couldn't load the item catalog, so the list would be incomplete. Try again; if it keeps failing, check the connection.",
+  "sheet.items.basesFailed": "Couldn't load what this item can be made from. Try again.",
+  "sheet.items.loading": "Loading the item catalog…",
+  "sheet.items.retry": "Try again",
   "sheet.items.none": "No items match. Choose another kind or remove a filter.",
   "sheet.items.count.one": "{count} item",
   "sheet.items.count.other": "{count} items",

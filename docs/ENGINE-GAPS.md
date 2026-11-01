@@ -24,6 +24,7 @@ The app never works around a gap with rules of its own.
 
 | Id | What the app is missing | Engine status |
 |---|---|---|
+| — (F-013 I03-02, not filed) | Weapon/armor/tool proficiencies granted by a magic item: the engine's sheet and `assessInventoryItems` don't read them (no SRD item has them, nor the private Kenli pack); the Add item dialog shows what the engine says and claims nothing more | not filed: needed only for a pack that adds such an item |
 | — (to file) | Import safety: `reconcileState` drops spent uses and toggles it can't place without a note (a build whose pack isn't loaded loses its spent uses silently), and `build.packs` names a pack without its version, so a stale pack with the same ids can't be told apart | not filed yet |
 
 ### Notes: import safety

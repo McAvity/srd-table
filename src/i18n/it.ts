@@ -469,7 +469,14 @@ export const it: Messages = {
   "sheet.items.filter.recommendedNone":
     "Non ci sono equipaggiamenti consigliati per questo personaggio, quindi questo filtro è spento.",
   "sheet.items.checking": "Controllo gli oggetti per questo personaggio…",
-  "sheet.items.error": "Impossibile controllare gli oggetti per questo personaggio: {error}",
+  "sheet.items.error":
+    "Impossibile controllare come gli oggetti si adattano a questo personaggio. Riprova.",
+  "sheet.items.loadFailed":
+    "Impossibile caricare il catalogo degli oggetti, quindi l'elenco sarebbe incompleto. Riprova; se continua a non funzionare, controlla la connessione.",
+  "sheet.items.basesFailed":
+    "Impossibile caricare da cosa può essere ricavato questo oggetto. Riprova.",
+  "sheet.items.loading": "Caricamento del catalogo degli oggetti…",
+  "sheet.items.retry": "Riprova",
   "sheet.items.none": "Nessun oggetto corrisponde. Scegli un altro tipo o togli un filtro.",
   "sheet.items.count.one": "{count} oggetto",
   "sheet.items.count.other": "{count} oggetti",
