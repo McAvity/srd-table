@@ -124,7 +124,7 @@ export const ENGINE_IT = {
     "Cunning Strike (Withdraw): {name} può muoversi di {feet} piedi senza provocare attacchi di opportunità.",
   "cunning.too_large": "Cunning Strike (Trip): {name} è troppo grande per essere fatto cadere.",
   "cunning.save":
-    "Cunning Strike ({effect, select, poison {Poison} other {Trip}}): {name} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
+    "Cunning Strike ({effect, select, poison {Poison} daze {Daze} knock_out {Knock Out} obscure {Obscure} other {Trip}}): {name} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
   "brutal.sundered_bonus": "Sundering Blow: +5 al tiro per colpire di {name} contro {target}.",
   "brutal.forceful":
     "Forceful Blow: {target} è spinto di 15 piedi in linea retta; {name} può muoversi fino a metà della sua Velocità verso di lui senza provocare attacchi di opportunità.",
