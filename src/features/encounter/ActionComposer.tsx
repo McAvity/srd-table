@@ -436,6 +436,13 @@ export function ActionComposer({
     (k) => play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "distant",
   );
   const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view, distantPicked) : [];
+  // kenli F-002 T12 B2a (D039): Heightened's choice — the picked targets, else the creatures the
+  // aimed area covers (a zone with no save when cast: Web), from the engine's preview.
+  const heightenedChoices: readonly string[] = targets.length
+    ? targets
+    : preview.data?.ok
+      ? preview.data.targets.map((x) => x.id)
+      : [];
   const odds = byHand ? null : oddsText(entry);
 
   return (
@@ -662,7 +669,7 @@ export function ActionComposer({
                   onChange={(e) => setHeightened(e.target.value)}
                 >
                   <option value="">—</option>
-                  {targets.map((id) => (
+                  {heightenedChoices.map((id) => (
                     <option key={id} value={id}>
                       {name(id)}
                     </option>

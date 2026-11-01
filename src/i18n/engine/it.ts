@@ -348,6 +348,7 @@ export const ENGINE_IT = {
   "cast.careful": "{targets} superano il tiro salvezza contro {spell} (Incantesimo Accurato)",
   "reason.heightened": "Incantesimo Intensificato",
   "save.careful": "Incantesimo Accurato: un successo automatico",
+  "refusal.careful_no_save_now": "{option}: {spell} non impone tiri salvezza quando viene lanciato",
   "cast.option_targets_by_hand":
     "{option}: le sue creature sono del tavolo (un tiro a mano non ha bersagli)",
   "refusal.restores_when_empty": "{feature}: solo quando non resta alcun {use} ({left} rimasti)",
