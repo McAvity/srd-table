@@ -325,6 +325,14 @@ export const ENGINE_IT = {
   "reason.pace_slow": "un'andatura di viaggio lenta",
   "positions.set":
     "{mode, select, required {Le creature fuori dalla mappa non possono attaccare, lanciare incantesimi o agire su altri a distanza} other {Le creature fuori dalla mappa agiscono come se fossero a portata e a gittata}}.",
+  "refusal.after_roll_kind":
+    "{feature} si usa solo su una prova di caratteristica o un tiro per colpire falliti",
+  "refusal.after_roll_needs_dc": "{feature}: indica la CD o la CA contro cui il tiro è fallito",
+  "refusal.after_roll_not_failed": "{feature}: il tiro non è fallito",
+  "after_roll.succeeds":
+    "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: riesce, un utilizzo speso",
+  "after_roll.still_fails":
+    "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: fallisce ancora, niente speso",
   "refusal.no_combatant_encounter": "Nessun combattente '{id}' nello scontro",
   "refusal.there_no_decision_make": "Non c'è nessuna decisione da prendere",
   "refusal.waiting_decision": "In attesa di una decisione: {question}",
@@ -776,6 +784,7 @@ export const ENGINE_IT = {
   "issue.pack_missing": "Richiede il pacchetto di contenuti '{pack}', che non è caricato",
   "issue.choose_first": "Prima scegli: {missing}",
   "issue.unsupported": "{name}: {text}",
+  "issue.redundant_pick": "{name}: nessun effetto ({why}): ogni opzione è già conosciuta",
   "issue.choose_name": "Scegli un nome",
   "issue.choose_alignment": "Scegli un allineamento",
   "issue.choose_entity": "Scegli: {what}",

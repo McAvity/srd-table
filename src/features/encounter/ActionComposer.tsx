@@ -57,6 +57,9 @@ const COMPOSED: ReadonlySet<EncounterAction["type"]> = new Set([
 export function needsComposer(entry: OptionEntry): boolean {
   if (entry.targets && entry.targets.kind !== "self") return true;
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
+  // kenli F-002 T12 (review14 R14-02): a free cast or a slot is the player's choice.
+  if (entry.free_casts?.length && (entry.slot_levels.length || entry.free_casts.length > 1))
+    return true;
   // kenli F-011 (review03 R03-02): a leveled spell's slot is the player's choice — every legal level,
   // spent ones included — so it's picked in the form, never assumed.
   if (entry.action.type === "cast" && (entry.action.slot_level ?? 0) > 0) return true;
@@ -158,6 +161,7 @@ export function ActionComposer({
     base.type === "cast"
       ? (play.data?.sheet.spells.find((s) => s.id === base.spell)?.slots ?? null)
       : null;
+  const freeCasts = entry.free_casts ?? [];
   const line =
     base.type === "attack"
       ? play.data?.sheet.attacks.find((a) => a.name === base.attack)
@@ -520,7 +524,10 @@ export function ActionComposer({
           </div>
         )}
 
-        {(slotChoices?.length || entry.slot_levels.length > 0 || entry.pact_slot !== null) && (
+        {(slotChoices?.length ||
+          entry.slot_levels.length > 0 ||
+          entry.pact_slot !== null ||
+          freeCasts.length > 0) && (
           <label className="flex flex-col gap-1 text-sm">
             {t("table.slotLevel")}
             <select
@@ -528,6 +535,15 @@ export function ActionComposer({
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
             >
+              {/* kenli F-002 T12 (review14 R14-02): a free cast (Mystic Arcanum, Spell Mastery, a
+                  feature's spell) pays no slot; the engine charges its use or refuses it. */}
+              {freeCasts.map((f) => (
+                <option key={`free:${f.use}`} value={`free:${f.use}`} data-testid="cast-free">
+                  {f.at_will
+                    ? t("table.freeCastAtWill", { name: f.name })
+                    : t("table.freeCast", { name: f.name, left: f.left })}
+                </option>
+              ))}
               {slotChoices?.length ? (
                 slotChoices.map((x) => (
                   <option key={`${x.pact}:${x.level}`} value={x.pact ? "pact" : String(x.level)}>
@@ -896,6 +912,7 @@ function initialTargets(action: EncounterAction): string[] {
 
 function defaultSlot(entry: OptionEntry): string {
   const a = entry.action;
+  if (a.type === "cast" && a.payment) return `free:${a.payment.use}`;
   if (a.type === "cast" && a.pact) return "pact";
   if (a.type === "cast" && a.slot_level) return String(a.slot_level);
   return entry.slot_levels[0] !== undefined
@@ -991,7 +1008,7 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.masteryAs ? { mastery_as: f.masteryAs as "push" | "sap" | "slow" } : {}),
       };
     case "cast": {
-      const { slot_level: _s, pact: _p, ...rest } = base;
+      const { slot_level: _s, pact: _p, payment: _f, ...rest } = base;
       return {
         ...rest,
         ...(f.wall
@@ -999,7 +1016,13 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
           : f.area
             ? { area: f.area, targets: [] }
             : { targets: [...f.targets] }),
-        ...(f.slot === "pact" ? { pact: true } : f.slot ? { slot_level: Number(f.slot) } : {}),
+        ...(f.slot.startsWith("free:")
+          ? { payment: { type: "free" as const, use: f.slot.slice(5) } }
+          : f.slot === "pact"
+            ? { pact: true }
+            : f.slot
+              ? { slot_level: Number(f.slot) }
+              : {}),
         ...(f.mode !== "normal" ? { mode: f.mode } : {}),
         ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
         ...(f.unaffected.length ? { unaffected: [...f.unaffected] } : {}),

@@ -1,10 +1,12 @@
 /**
  * The character's last roll, while it can still be changed (`useRolls`, closed by any change of
  * the character): Heroic Inspiration on one of its dice, Advantage given late with a luck-style
- * use, a Critical Hit the table decides. Each is one engine call and one commit (or none): the
- * roll's own cost (a slot, a use) is never paid again. The numbers come back from the engine.
+ * use, a Critical Hit the table decides, a feature for a failed check or attack (Peerless Skill:
+ * `after_failed_roll`). Each is one engine call and one commit (or none): the roll's own cost (a
+ * slot, a use) is never paid again. The numbers and the outcome come back from the engine.
  */
 
+import { useId, useState } from "react";
 import type { AttackDice, PlaySheet, RolledDamage } from "srd-rules-engine";
 import { Button, Section } from "@/components/ui";
 import { t } from "@/i18n";
@@ -22,6 +24,7 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const heroic = useDocuments((s) => s.heroicReroll);
   const lateAdvantage = useDocuments((s) => s.lateAdvantage);
   const setCritical = useDocuments((s) => s.setCritical);
+  const afterFailed = useDocuments((s) => s.afterFailedRoll);
   if (!last) return null;
   const inspired = sheet.play.heroic_inspiration;
   // kenli F-011 §5.3: a luck-style use with none left, or a reroll without Heroic Inspiration, is
@@ -32,6 +35,27 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
     run(() => heroic(id, target, { command: "heroic_reroll", label: what }));
   const luckyLabel = (u: (typeof lucky)[number]) =>
     `${t("followups.lateAdvantage", { use: u.name })}${u.spent >= u.max ? ` · ${t("common.left", { left: 0, total: u.max })}` : ""}`;
+  // kenli F-002 T12 (review14 R14-01): the sheet's actions for a failed check or attack roll.
+  const afterLines = (kind: "check" | "attack") =>
+    sheet.actions.filter((a) => a.after_failed_roll?.kinds.includes(kind) && a.uses && a.roll_die);
+  const afterFailedFor = (kind: "check" | "attack", knownDc: number | null, attack?: number) =>
+    afterLines(kind).map((a) => (
+      <AfterFailedRoll
+        key={a.key}
+        name={a.name}
+        die={a.roll_die ?? ""}
+        needsDc={knownDc === null}
+        busy={busy}
+        onUse={(dc) =>
+          run(() =>
+            afterFailed(id, a.key, a.uses ?? "", attack, dc, {
+              command: "late_advantage",
+              label: a.name,
+            }),
+          )
+        }
+      />
+    ));
   const dieButtons = (
     values: readonly number[],
     target: (die: number) => HeroicTarget,
@@ -100,6 +124,7 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
           {a.critical_hit ? t("followups.notCritical") : t("followups.critical")}
         </Button>
       </div>
+      {afterFailedFor("attack", null, attack)}
     </li>
   );
   return (
@@ -145,6 +170,9 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
               </Button>
             ))}
           </div>
+          {(last.test.kind === "check" || last.test.kind === "attack") &&
+            last.test.success !== true &&
+            afterFailedFor(last.test.kind, last.test.dc)}
         </div>
       )}
       {last.kind === "sheet" && (
@@ -197,5 +225,52 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
         </div>
       )}
     </Section>
+  );
+}
+
+/**
+ * One `after_failed_roll` feature on the last roll: its button, and the DC or AC the table
+ * declares when the roll has none (a roll by hand, a check without a DC). The engine refuses it on
+ * a roll that didn't fail and says whether the die turned it into a success.
+ */
+function AfterFailedRoll({
+  name,
+  die,
+  needsDc,
+  busy,
+  onUse,
+}: {
+  name: string;
+  die: string;
+  needsDc: boolean;
+  busy: boolean;
+  onUse: (dc: number | undefined) => unknown;
+}) {
+  const [text, setText] = useState("");
+  const inputId = useId();
+  const n = Number(text);
+  const dc = text.trim() && Number.isInteger(n) ? n : undefined;
+  return (
+    <div className="flex flex-wrap items-center gap-1" data-testid="after-failed-roll">
+      {needsDc && (
+        <>
+          <label htmlFor={inputId} className="text-[13px] text-ink-muted">
+            {t("followups.declaredDc")}
+          </label>
+          <input
+            id={inputId}
+            className="input w-16"
+            type="number"
+            min={1}
+            value={text}
+            onChange={(ev) => setText(ev.currentTarget.value)}
+            data-testid="after-failed-roll-dc"
+          />
+        </>
+      )}
+      <Button size="sm" disabled={busy} onClick={() => void onUse(needsDc ? dc : undefined)}>
+        {t("followups.afterFailedRoll", { name, die })}
+      </Button>
+    </div>
   );
 }

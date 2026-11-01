@@ -116,6 +116,7 @@ import {
   TABLE_NAMES,
   type TableName,
   unassignedValues,
+  useAfterFailedRoll,
   type ValidationReport,
   validateState,
 } from "srd-rules-engine";
@@ -517,6 +518,29 @@ export interface EngineFacade {
     content?: ContentContext,
   ): Promise<Outcome<{ roll: ChangeableRoll; state: CharacterState }>>;
   /**
+   * kenli F-002 T12 (review14 R14-01): a feature used on a failed ability check or attack roll
+   * (`after_failed_roll`, Peerless Skill): the engine's `useAfterFailedRoll` rolls its die onto
+   * the roll, decides the outcome against the roll's DC (or `dc`, the DC or AC the table declares
+   * when the roll has none) and spends the use only when it turns the roll into a success.
+   */
+  afterFailedRoll(
+    build: CharacterBuild,
+    state: CharacterState,
+    roll: ChangeableRoll,
+    action: string,
+    dc?: number,
+    content?: ContentContext,
+  ): Promise<
+    Outcome<{
+      roll: ChangeableRoll;
+      state: CharacterState;
+      success: boolean;
+      spent: boolean;
+      notes: readonly string[];
+      messages: readonly Message[];
+    }>
+  >;
+  /**
    * Heroic Inspiration: `spend_inspiration` on the state and `rerollDie` on the target (a d20, a
    * bonus die, a damage die, a single die), both or neither; a Critical Hit gained rolls its dice.
    */
@@ -807,6 +831,23 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           // Disadvantage alone becomes a normal roll keeping its first die: no new die.
           const source = rolled.roll.mode === "disadvantage" ? null : { rng };
           return { roll: addAdvantageDie(rolled, source, label, { rng }), state: paid.state };
+        }),
+      ),
+    afterFailedRoll: (build, state, rolled, action, dc, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const r = useAfterFailedRoll(build, state, catalog, rolled, action, {
+            ...(dc !== undefined ? { dc } : {}),
+            rng,
+          });
+          return {
+            roll: r.roll,
+            state: r.state,
+            success: r.success,
+            spent: r.spent,
+            messages: r.messages,
+            notes: r.messages.map((m) => m.text),
+          };
         }),
       ),
     heroicReroll: (build, state, target, ctx) =>
