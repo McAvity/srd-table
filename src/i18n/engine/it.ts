@@ -83,7 +83,12 @@ export const ENGINE_IT = {
   "recharge.yes": "{action} di {name} si ricarica ({roll}).",
   "recharge.no": "{action} di {name} non si ricarica ({roll}).",
   "inspiration.used": "{name} aggiunge il dado di Bardic Inspiration: {roll}.",
+  "halt.speed_zero": "La velocità di {target} è 0 per il resto del turno (Alt di {name}).",
   "indomitable.used": "{name} ripete il tiro salvezza con Indomitable.",
+  "tactical_mind.used":
+    "{name} aggiunge {roll} con Mente Tattica e spende un uso di Recuperare Energie.",
+  "tactical_mind.kept":
+    "{name} aggiunge {roll} con Mente Tattica; la prova fallisce comunque, Recuperare Energie non è speso.",
   "legendary_resistance.used":
     "{name} usa Resistenza leggendaria per superarlo invece ({left} rimaste oggi).",
   "explore.notices": "{name} nota qualcosa.",
@@ -440,6 +445,15 @@ export const ENGINE_IT = {
     "{name} non può effettuare attacchi di opportunità (Staggering Blow)",
   "refusal.disengaged_movement_doesnt_provoke":
     "{target} ha usato Disimpegno: il suo movimento non provoca attacchi di opportunità",
+  "refusal.reactive_strike_not_opportunity":
+    "Un Colpo Reattivo è un attacco con la reazione, non un attacco di opportunità",
+  "refusal.no_reactive_strike": "{name} non ha Colpo Reattivo",
+  "refusal.reactive_strike_weapon":
+    "{attack} non può fare un Colpo Reattivo (un bastone ferrato, una lancia o un'arma pesante e con portata impugnata)",
+  "refusal.guardian_is_opportunity": "L'attacco di Guardiano è un attacco di opportunità",
+  "refusal.no_guardian": "{name} non ha Guardiano",
+  "refusal.guardian_within_5ft":
+    "{target} è a {distance} piedi: l'attacco di opportunità di Guardiano è contro una creatura entro 1,5 metri (5 piedi)",
   "refusal.hasnt_recharged": "{ability} di {name} non si è ricaricata",
   "refusal.already_used_action_turn": "{name} ha già usato la sua azione in questo turno",
   "refusal.no_legendary_actions": "{name} non ha azioni leggendarie",
@@ -679,6 +693,8 @@ export const ENGINE_IT = {
     "{name}: {what} {total} contro {target}. Aggiungere il dado di Bardic Inspiration (d{die})?",
   "decision.legendary_resistance":
     "{name} fallisce un tiro salvezza su {ability}{rolled, select, true { ({total} contro CD {dc})} other {}}. Usare Resistenza leggendaria ({left} rimaste)?",
+  "decision.tactical_mind":
+    "{name} fallisce una {what} ({total} contro CD {dc}). Usare Mente Tattica (+1d10, un uso di Recuperare Energie solo se riesce)?",
   "decision.indomitable":
     "{name} fallisce un {what} ({total} contro CD {dc}). Ripeterlo con Indomitable (+{bonus})?",
   "decision.hit_on_miss":
@@ -806,6 +822,8 @@ export const ENGINE_IT = {
   "label.attack": "{attack} {bonus} · {damage, list, plus}",
   "label.damage": "{dice} {type}",
   "label.attack_thrown": "{attack} (da lancio, {normal}/{long} piedi)",
+  "label.attack_reactive_strike": "{attack} (Colpo Reattivo)",
+  "label.attack_guardian": "{attack} (attacco di opportunità, Guardiano: entro 5 piedi)",
   "label.attack_opportunity": "{attack} (attacco di opportunità)",
   "label.attack_light": "{attack} (attacco extra con arma leggera)",
   "label.attack_cleave": "{attack} (Cleave)",

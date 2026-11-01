@@ -518,6 +518,7 @@ export const en = {
   "table.cover.three_quarters": "Three-quarters",
   "table.cover.total": "Total",
   "table.riders": "Add on a hit",
+  "table.riderAlternative": "{rider} ({label})",
   "table.strikes": "Strike effects",
   "table.twoHanded": "Two-handed",
   "table.damageType": "Damage type",

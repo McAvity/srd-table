@@ -538,6 +538,7 @@ export const it: Messages = {
   "table.cover.three_quarters": "Tre quarti",
   "table.cover.total": "Totale",
   "table.riders": "Aggiungi se colpisce",
+  "table.riderAlternative": "{rider} ({label})",
   "table.strikes": "Effetti del colpo",
   "table.twoHanded": "A due mani",
   "table.damageType": "Tipo di danno",

@@ -78,8 +78,20 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   };
   const { roll, reasons, busy } = usePlay(id);
   const additions = useRollAdditions((s) => s.by[id]);
-  /** Riders picked per attack line (its engine ids), sent with its roll. */
-  const [picked, setPicked] = useState<Record<string, readonly string[]>>({});
+  /**
+   * Riders picked per attack line (its engine ids), sent with its roll. Scoped to this character
+   * (the sheet isn't remounted when another one opens) and read through the riders the line
+   * offers now (kenli F-002 T08: a pick kept from another character, or one the line no longer
+   * offers after an Undo, was sent and refused a legal attack).
+   */
+  const [pickedBy, setPickedBy] = useState<{
+    id: string;
+    lines: Record<string, readonly string[]>;
+  }>({ id, lines: {} });
+  const lines = pickedBy.id === id ? pickedBy.lines : {};
+  const pickedFor = (a: (typeof sheet.attacks)[number]) =>
+    (lines[a.name] ?? []).filter((r) => a.riders.some((x) => x.id === r));
+  const setPicked = (next: Record<string, readonly string[]>) => setPickedBy({ id, lines: next });
   const test = useRoller(id, sheet);
   if (!sheet.attacks.length) return null;
   return (
@@ -126,13 +138,13 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                         <label key={r.id} className="inline-flex items-center gap-1">
                           <input
                             type="checkbox"
-                            checked={(picked[a.name] ?? []).includes(r.id)}
+                            checked={pickedFor(a).includes(r.id)}
                             onChange={(e) =>
                               setPicked({
-                                ...picked,
+                                ...lines,
                                 [a.name]: e.target.checked
-                                  ? [...(picked[a.name] ?? []), r.id]
-                                  : (picked[a.name] ?? []).filter((x) => x !== r.id),
+                                  ? [...pickedFor(a), r.id]
+                                  : pickedFor(a).filter((x) => x !== r.id),
                               })
                             }
                           />
@@ -158,8 +170,8 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                           {
                             type: "attack",
                             attack: a.name,
-                            ...((picked[a.name] ?? []).length
-                              ? { riders: (picked[a.name] ?? []).map((rider) => ({ rider })) }
+                            ...(pickedFor(a).length
+                              ? { riders: pickedFor(a).map((rider) => ({ rider })) }
                               : {}),
                             ...attackDm(additions),
                           } as RollWhat,

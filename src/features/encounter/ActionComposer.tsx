@@ -116,6 +116,8 @@ export function ActionComposer({
   const [mode, setMode] = useState<Mode>("normal");
   const [cover, setCover] = useState<Cover | "">("");
   const [riders, setRiders] = useState<string[]>([]);
+  /** Riders picked in their once-per-turn alternative form (Relentless's die, no use spent). */
+  const [alternatives, setAlternatives] = useState<string[]>([]);
   /** Cunning / Brutal Strike effects picked, as `send:id` keys. */
   const [strikes, setStrikes] = useState<string[]>([]);
   const [twoHanded, setTwoHanded] = useState(false);
@@ -221,6 +223,7 @@ export function ActionComposer({
         mode,
         cover,
         riders,
+        alternatives,
         strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
         twoHanded,
         damageType,
@@ -243,6 +246,7 @@ export function ActionComposer({
       mode,
       cover,
       riders,
+      alternatives,
       strikes,
       entry.strikes,
       twoHanded,
@@ -570,16 +574,42 @@ export function ActionComposer({
                   type="checkbox"
                   className="accent-[var(--blue)]"
                   checked={riders.includes(r.id)}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setRiders(
                       e.target.checked ? [...riders, r.id] : riders.filter((x) => x !== r.id),
-                    )
-                  }
+                    );
+                    if (e.target.checked) setAlternatives(alternatives.filter((x) => x !== r.id));
+                  }}
                 />
                 {r.name}
                 {r.dice && <span className="text-sm text-ink-muted">{r.dice}</span>}
               </label>
             ))}
+            {line.riders.flatMap((r) =>
+              r.alternative
+                ? [
+                    // kenli F-002 T08: the rider's alternative form (Relentless), its own die; the
+                    // engine checks the shared once-per-turn budget. One form per rider.
+                    <label key={`${r.id}#alt`} className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="accent-[var(--blue)]"
+                        checked={alternatives.includes(r.id)}
+                        onChange={(e) => {
+                          setAlternatives(
+                            e.target.checked
+                              ? [...alternatives, r.id]
+                              : alternatives.filter((x) => x !== r.id),
+                          );
+                          if (e.target.checked) setRiders(riders.filter((x) => x !== r.id));
+                        }}
+                      />
+                      {t("table.riderAlternative", { rider: r.name, label: r.alternative.label })}
+                      <span className="text-sm text-ink-muted">{r.alternative.dice}</span>
+                    </label>,
+                  ]
+                : [],
+            )}
             {line.two_handed_damage_parts && (
               <label className="flex items-center gap-2">
                 <input
@@ -829,6 +859,8 @@ interface Fields {
   mode: Mode;
   cover: Cover | "";
   riders: readonly string[];
+  /** Riders picked in their alternative form (`{ rider, alternative: true }`). */
+  alternatives: readonly string[];
   /** Strike effects picked: each carries the engine's attack with that effect. */
   strikes: readonly StrikeOption[];
   twoHanded: boolean;
@@ -851,7 +883,10 @@ interface Fields {
 function withStrikes(
   f: Fields,
 ): Pick<Extract<EncounterAction, { type: "attack" }>, "riders" | "cunning" | "brutal"> {
-  const riders = new Map(f.riders.map((rider) => [rider, { rider }]));
+  const riders = new Map<string, { rider: string; alternative?: boolean }>([
+    ...f.riders.map((rider) => [rider, { rider }] as const),
+    ...f.alternatives.map((rider) => [rider, { rider, alternative: true }] as const),
+  ]);
   const cunning = new Set<
     NonNullable<Extract<EncounterAction, { type: "attack" }>["cunning"]>[number]
   >();

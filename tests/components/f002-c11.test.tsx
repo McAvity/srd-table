@@ -103,4 +103,50 @@ describe("C11: a feature with its own die is rolled, never spent silently", () =
       riders: [{ rider: "test-rider" }],
     });
   });
+
+  it("a pick isn't carried to another character's same line, nor kept once the line drops it", async () => {
+    const a = await sheetWithManeuver();
+    const b = await sheetWithManeuver();
+    const attack = a.sheet.attacks[0]?.name as string;
+    const bare = (sh: PlaySheet) =>
+      ({
+        ...sh,
+        attacks: sh.attacks.map((x, i) => (i === 0 ? { ...x, riders: [] } : x)),
+      }) as PlaySheet;
+    const rollByHand = vi.fn(async (..._a: unknown[]) => ({ ok: true }) as Loose);
+    useDocuments.setState({ rollByHand } as Loose);
+    const client = createQueryClient();
+    const view = (id: string, sheet: PlaySheet) => (
+      <QueryClientProvider client={client}>
+        <CombatTab id={id} sheet={sheet} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(view(a.id, a.sheet));
+    const rollIn = async () => {
+      const row = (
+        await screen.findByRole("rowheader", { name: new RegExp(`^${attack}`) })
+      ).closest("tr") as HTMLElement;
+      const btn = [...row.querySelectorAll("button")].find(
+        (x) => x.textContent === "Roll",
+      ) as HTMLElement;
+      await vi.waitFor(() => expect(btn.hasAttribute("disabled")).toBe(false));
+      fireEvent.click(btn);
+    };
+    fireEvent.click(screen.getByLabelText("Test Rider"));
+    // Warm switch (the same component, as the route does): B's line has no riders.
+    rerender(view(b.id, bare(b.sheet)));
+    await rollIn();
+    await vi.waitFor(() => expect(rollByHand).toHaveBeenCalledTimes(1));
+    expect(rollByHand.mock.calls[0]?.[0]).toBe(b.id);
+    expect((rollByHand.mock.calls[0]?.[1] as Loose)?.riders).toBeUndefined();
+    // B's line offers the rider: nothing is picked for B.
+    rerender(view(b.id, b.sheet));
+    expect((screen.getByLabelText("Test Rider") as HTMLInputElement).checked).toBe(false);
+    // Picked for B, then the line no longer offers it (an Undo, an expired option): not sent.
+    fireEvent.click(screen.getByLabelText("Test Rider"));
+    rerender(view(b.id, bare(b.sheet)));
+    await rollIn();
+    await vi.waitFor(() => expect(rollByHand).toHaveBeenCalledTimes(2));
+    expect((rollByHand.mock.calls[1]?.[1] as Loose)?.riders).toBeUndefined();
+  });
 });
