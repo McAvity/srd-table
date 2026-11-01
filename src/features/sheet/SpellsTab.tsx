@@ -163,7 +163,8 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                                 ? sheet.cast_triggers.filter((tr) => tr.school === def.school)
                                 : []
                             }
-                            onRoll={(pay, spellcasting, triggers) =>
+                            castOptions={sheet.cast_options}
+                            onRoll={(pay, spellcasting, triggers, options) =>
                               void roll(
                                 {
                                   type: "cast",
@@ -178,6 +179,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                                     : {}),
                                   ...(spellcasting && pay?.kind !== "free" ? { spellcasting } : {}),
                                   ...(triggers.length ? { triggers } : {}),
+                                  ...(options.length ? { options } : {}),
                                   ...attackDm(additions),
                                 } as RollWhat,
                                 declaredLucky(additions, sheet),
@@ -244,6 +246,7 @@ function RollSpell({
   rowKey,
   busy,
   triggers = [],
+  castOptions = [],
   onRoll,
 }: {
   spell: PlaySpellLine;
@@ -256,8 +259,19 @@ function RollSpell({
    * engine refuses it without a slot (a ritual, a free cast) or when it can't (already created).
    */
   triggers?: PlaySheet["cast_triggers"];
-  onRoll: (pay: SpellPay | null, spellcasting: string | null, triggers: Triggered[]) => void;
+  /**
+   * kenli F-002 T10 (R12-03): the sheet's cast options (Metamagic), picked for this cast and paid
+   * with it; the engine refuses a pick it can't take (no points, two on one spell, the range).
+   */
+  castOptions?: PlaySheet["cast_options"];
+  onRoll: (
+    pay: SpellPay | null,
+    spellcasting: string | null,
+    triggers: Triggered[],
+    options: string[],
+  ) => void;
 }) {
+  const [opts, setOpts] = useState<readonly string[]>([]);
   const [modes, setModes] = useState<Record<string, "" | "create" | "restore">>({});
   const triggered: Triggered[] = triggers.flatMap((tr) => {
     const mode = modes[tr.key] ?? "";
@@ -385,6 +399,18 @@ function RollSpell({
           )}
         </select>
       ))}
+      {castOptions.map((o) => (
+        <label key={o.key} className="flex items-center gap-1 text-sm" data-testid="cast-option">
+          <input
+            type="checkbox"
+            checked={opts.includes(o.key)}
+            onChange={(e) =>
+              setOpts(e.target.checked ? [...opts, o.key] : opts.filter((k) => k !== o.key))
+            }
+          />
+          {t("sheet.castOption", { option: o.name, cost: o.cost })}
+        </label>
+      ))}
       {reason && (
         <span id={reasonId} className="text-[13px] text-ink-muted italic">
           {reason}
@@ -396,7 +422,7 @@ function RollSpell({
         title={t("sheet.rollSpellHint")}
         disabled={busy || blocking !== null}
         aria-describedby={reason ? reasonId : undefined}
-        onClick={() => onRoll(leveled ? pay : null, spellcasting, triggered)}
+        onClick={() => onRoll(leveled ? pay : null, spellcasting, triggered, [...opts])}
       >
         {t("sheet.rollByHand")}
       </Button>

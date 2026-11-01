@@ -994,6 +994,20 @@ export const it: Messages = {
   "sheet.castTriggerNone": "{trigger}: niente",
   "sheet.castTriggerCreate": "{trigger}: crea",
   "sheet.castTriggerRestore": "{trigger}: ricarica",
+  "sheet.form.pick": "{feature}: forma",
+  "sheet.form.in": "In una forma: {name}",
+  "sheet.form.details":
+    "GS {cr} · CA {ac} · {speed} · punti ferita della sua scheda {hp} (tieni i tuoi e i punti ferita temporanei)",
+  "sheet.form.attacks":
+    "I suoi attacchi sono nella lista Attacchi: {attacks}. Dove si muove e cosa raggiunge li decide il tavolo.",
+  "sheet.form.leave": "Lascia la forma",
+  "sheet.companions": "Compagni",
+  "sheet.companion.line": "{size} · punti ferita {hp} · CA {ac} · {speed}",
+  "sheet.companion.strike":
+    "Il suo colpo: {attack} — nella lista Attacchi; comandato con l'azione bonus in Privilegi",
+  "sheet.companion.world":
+    "Posizione, movimento, bersagli e punti ferita in gioco li gestisce il tavolo (col master o con una nota).",
+  "sheet.castOption": "{option} ({cost})",
   "sheet.pool.notCreated": "Non creato · massimo {max}",
   "sheet.pool.current": "{current} su {max}",
   "sheet.pool.amount": "{pool}: quantità assorbita",

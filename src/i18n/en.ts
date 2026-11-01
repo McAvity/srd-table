@@ -969,6 +969,20 @@ export const en = {
   "sheet.castTriggerNone": "{trigger}: nothing",
   "sheet.castTriggerCreate": "{trigger}: create",
   "sheet.castTriggerRestore": "{trigger}: restore",
+  "sheet.form.pick": "{feature}: form",
+  "sheet.form.in": "In a form: {name}",
+  "sheet.form.details":
+    "CR {cr} · AC {ac} · {speed} · its stat block's Hit Points {hp} (you keep yours and the Temporary Hit Points)",
+  "sheet.form.attacks":
+    "Its attacks are on the Attacks list: {attacks}. Where it moves and what it reaches are the table's.",
+  "sheet.form.leave": "Leave the form",
+  "sheet.companions": "Companions",
+  "sheet.companion.line": "{size} · Hit Points {hp} · AC {ac} · {speed}",
+  "sheet.companion.strike":
+    "Its strike: {attack} — on the Attacks list; commanded with the Bonus Action under Features",
+  "sheet.companion.world":
+    "Its position, movement, targets and Hit Points in play are the table's (keep them with the GM or a note).",
+  "sheet.castOption": "{option} ({cost})",
   "sheet.pool.notCreated": "Not created · maximum {max}",
   "sheet.pool.current": "{current} of {max}",
   "sheet.pool.amount": "{pool}: amount absorbed",

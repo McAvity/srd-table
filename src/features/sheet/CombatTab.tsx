@@ -44,6 +44,8 @@ export function CombatTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
         </p>
       </Section>
       <Attacks id={id} sheet={sheet} />
+      <ShapeSection id={id} sheet={sheet} />
+      <Companions sheet={sheet} />
       <div className="grid gap-4 @min-[1180px]:grid-cols-2">
         <FeatureActions id={id} sheet={sheet} />
         <Toggles id={id} sheet={sheet} />
@@ -240,6 +242,8 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
 function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const { act, roll, reasons, busy } = usePlay(id);
   const [amounts, setAmounts] = useState<Record<string, string>>({});
+  // kenli F-002 T10 (H3): the form a form-taking feature takes (one of its known forms).
+  const [forms, setForms] = useState<Record<string, string>>({});
   // A spell slot paying for a feature (`slot_payment`): its level, or "" for its use.
   const [slots, setSlots] = useState<Record<string, string>>({});
   const levels = sheet.play.spell_slots.filter((s) => s.total > 0);
@@ -262,7 +266,10 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
           const payment = picked
             ? { payment: { type: "slot" as const, level: Number(picked) } }
             : {};
-          const paid = { ...amountSet, ...payment };
+          const form = a.shape
+            ? (forms[a.key] ?? a.shape.forms.find((f) => !f.unavailable)?.id ?? "")
+            : "";
+          const paid = { ...amountSet, ...payment, ...(form ? { form } : {}) };
           // Dice to roll by hand: its healing, or the damage and DC of the save it forces.
           const rollable = a.heal !== null || a.save !== null || Boolean(a.roll_die);
           // C11: its own die and nothing else to apply — only rolled (die shown, cost once).
@@ -304,6 +311,22 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     <option key={l.level} value={String(l.level)} disabled={l.spent >= l.total}>
                       {t("sheet.slotLevel", { level: l.level })} ·{" "}
                       {t("common.left", { left: l.total - l.spent, total: l.total })}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {a.shape && (
+                <select
+                  className="field w-auto py-1 text-sm"
+                  aria-label={t("sheet.form.pick", { feature: a.name })}
+                  data-testid={`form-pick-${a.key}`}
+                  value={form}
+                  onChange={(e) => setForms({ ...forms, [a.key]: e.target.value })}
+                >
+                  {a.shape.forms.map((f) => (
+                    <option key={f.id} value={f.id} disabled={f.unavailable !== null}>
+                      {f.name}
+                      {f.unavailable ? ` · ${f.unavailable}` : ""}
                     </option>
                   ))}
                 </select>
@@ -481,6 +504,82 @@ function Uses({ id, sheet }: { id: string; sheet: PlaySheet }) {
 }
 
 type PlayUse = PlaySheet["play"]["uses"][number];
+
+/**
+ * kenli F-002 T10 (H3): the form the character is in (the engine's `shape`): its AC, speed and CR,
+ * its attacks on the Attacks list (rolled there), and leaving it (`end_shape`). Movement and the
+ * world are the table's (contracts/automation.md H3).
+ */
+function ShapeSection({ id, sheet }: { id: string; sheet: PlaySheet }) {
+  const { act, reasons, busy } = usePlay(id);
+  const shape = sheet.shape;
+  if (!shape) return null;
+  return (
+    <Section title={t("sheet.form.in", { name: shape.name })}>
+      <div className="space-y-1" data-testid="shape">
+        <Reasons reasons={reasons} />
+        <p className="tabular-nums">
+          {t("sheet.form.details", {
+            cr: shape.cr,
+            ac: shape.armor_class,
+            speed: shape.speed,
+            hp: shape.stat_block_hp,
+          })}
+        </p>
+        <p className="text-[13px] text-ink-muted">
+          {t("sheet.form.attacks", { attacks: shape.attacks.join(", ") })}
+        </p>
+        <Button
+          size="sm"
+          disabled={busy}
+          onClick={() =>
+            void act({ type: "end_shape" }, undefined, undefined, {
+              command: "sheet_use",
+              label: shape.name,
+            })
+          }
+        >
+          {t("sheet.form.leave")}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
+/**
+ * kenli F-002 T10 (H4): companions' numbers derived by the engine (HP, AC, speed) and their strike
+ * (an attack line, rolled on the Attacks list; commanded with the feature's Bonus Action); what the
+ * creature does in the world is the table's.
+ */
+function Companions({ sheet }: { sheet: PlaySheet }) {
+  if (!sheet.companions.length) return null;
+  return (
+    <Section title={t("sheet.companions")}>
+      <ul className="space-y-2" data-testid="companions">
+        {sheet.companions.map((c) => (
+          <li key={c.name} className="space-y-0.5">
+            <p className="font-semibold">{c.name}</p>
+            <p className="tabular-nums">
+              {t("sheet.companion.line", {
+                size: c.size,
+                hp: c.hp,
+                ac: c.armor_class,
+                speed: c.speed,
+              })}
+            </p>
+            <p>{t("sheet.companion.strike", { attack: c.attack })}</p>
+            {c.notes.map((n) => (
+              <p key={n} className="text-[13px] text-ink-muted">
+                {n}
+              </p>
+            ))}
+            <p className="text-[13px] text-ink-muted">{t("sheet.companion.world")}</p>
+          </li>
+        ))}
+      </ul>
+    </Section>
+  );
+}
 
 /**
  * kenli F-002 T10 (H2): a tracked pool (Arcane Ward) — created or not, its current value of its
