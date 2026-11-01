@@ -86,6 +86,8 @@ export const ENGINE_IT = {
   "halt.speed_zero": "La velocità di {target} è 0 per il resto del turno (Alt di {name}).",
   "concentration_breaker.applies":
     "Spezzaconcentrazione: {target} effettua il tiro salvezza con svantaggio per mantenere la concentrazione (danno di {name}).",
+  "great_weapon_fighting.applied":
+    "Combattere con Armi Possenti: i dadi del danno di {name} {rolls} contano come 3.",
   "guarded_mind.used": "{name} riesce invece con Mente Protetta (Uccisore di Maghi).",
   "studied_attacks.mark":
     "{name} ha vantaggio al prossimo tiro per colpire contro {target} prima della fine del suo prossimo turno (Attacchi Studiati).",
