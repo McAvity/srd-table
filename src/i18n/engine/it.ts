@@ -330,6 +330,26 @@ export const ENGINE_IT = {
   "refusal.after_roll_needs_dc": "{feature}: indica la CD o la CA contro cui il tiro è fallito",
   "refusal.after_roll_not_failed": "{feature}: il tiro non è fallito",
   "refusal.after_roll_used": "{feature}: già usato su questo tiro",
+  "refusal.toggle_alternative":
+    "{toggle}: nessun utilizzo rimasto, servono {amount} {use} ({left} rimasti)",
+  "play.toggle_alternative": "{toggle}: attivato con {amount} {use} (nessun utilizzo rimasto)",
+  "refusal.cast_options_limit": "{options}: ora solo {count} opzioni di lancio su un incantesimo",
+  "refusal.quickened_after_leveled":
+    "{spell}: Incantesimo Rapido non si può usare dopo un incantesimo di livello 1+ in questo turno",
+  "refusal.leveled_after_quickened":
+    "{spell}: nessun incantesimo di livello 1+ nel turno in cui si è usato Incantesimo Rapido",
+  "refusal.metamagic_needs_save": "{option}: {spell} non impone un tiro salvezza",
+  "refusal.heightened_one_target": "{option}: scegli uno dei bersagli dell'incantesimo",
+  "refusal.careful_targets": "{option}: fino a {max} dei bersagli dell'incantesimo (non tu)",
+  "cast.subtle": "{spell} lanciato senza componenti verbali, somatiche o materiali{still}",
+  "cast.subtle_still": " (serve ancora: {material})",
+  "cast.heightened":
+    "{target} ha Svantaggio ai tiri salvezza contro {spell} (Incantesimo Intensificato)",
+  "cast.careful": "{targets} superano il tiro salvezza contro {spell} (Incantesimo Accurato)",
+  "reason.heightened": "Incantesimo Intensificato",
+  "save.careful": "Incantesimo Accurato: un successo automatico",
+  "cast.option_targets_by_hand":
+    "{option}: le sue creature sono del tavolo (un tiro a mano non ha bersagli)",
   "refusal.restores_when_empty": "{feature}: solo quando non resta alcun {use} ({left} rimasti)",
   "play.feature_slot_back": "{feature}: uno slot incantesimo di livello {level} recuperato",
   "refusal.needs_feature_first": "{feature}: solo dopo {after} in questo turno",

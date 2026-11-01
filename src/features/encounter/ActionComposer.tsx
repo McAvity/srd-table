@@ -155,6 +155,10 @@ export function ActionComposer({
   const [unaffected, setUnaffected] = useState<string[]>([]);
   /** kenli F-002 T12 (D016): what this cast does to a tracked pool (Arcane Ward), by trigger key. */
   const [castModes, setCastModes] = useState<Record<string, "" | "create" | "restore">>({});
+  /** kenli F-002 T12 B2a: Metamagic picked (sheet keys), Heightened's target, Careful's targets. */
+  const [castOptions, setCastOptions] = useState<string[]>([]);
+  const [heightened, setHeightened] = useState("");
+  const [careful, setCareful] = useState<string[]>([]);
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const [busy, setBusy] = useState(false);
   /** The way it's played: by hand there are no targets, areas or cover to pick. */
@@ -299,6 +303,9 @@ export function ActionComposer({
             : null,
         unaffected,
         triggers: triggered,
+        castOptions,
+        heightened,
+        careful,
         featurePay,
         featureForm,
       }),
@@ -326,6 +333,9 @@ export function ActionComposer({
       wall,
       unaffected,
       triggered,
+      castOptions,
+      heightened,
+      careful,
       featurePay,
       featureForm,
     ],
@@ -612,6 +622,72 @@ export function ActionComposer({
               )}
             </select>
           </label>
+        )}
+
+        {base.type === "cast" && (play.data?.sheet.cast_options.length ?? 0) > 0 && (
+          <fieldset className="flex flex-col gap-1 text-sm" data-testid="composer-cast-options">
+            <legend>{t("table.castOptions")}</legend>
+            {(play.data?.sheet.cast_options ?? []).map((o) => (
+              <label key={o.key} className="inline-flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  data-testid="composer-cast-option"
+                  checked={castOptions.includes(o.key)}
+                  onChange={(e) =>
+                    setCastOptions(
+                      e.target.checked
+                        ? [...castOptions, o.key]
+                        : castOptions.filter((k) => k !== o.key),
+                    )
+                  }
+                />
+                {t("sheet.castOption", { option: o.name, cost: o.cost })}
+              </label>
+            ))}
+            {castOptions.some(
+              (k) =>
+                play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "heightened",
+            ) && (
+              <label className="flex flex-col gap-1">
+                {t("table.heightenedTarget")}
+                <select
+                  className="field max-w-xs"
+                  value={heightened}
+                  data-testid="heightened-target"
+                  onChange={(e) => setHeightened(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {targets.map((id) => (
+                    <option key={id} value={id}>
+                      {name(id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {castOptions.some(
+              (k) => play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "careful",
+            ) && (
+              <fieldset className="flex flex-col gap-1" data-testid="careful-targets">
+                <legend>{t("table.carefulTargets")}</legend>
+                {targets.map((id) => (
+                  <label key={id} className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      data-testid="careful-target"
+                      checked={careful.includes(id)}
+                      onChange={(e) =>
+                        setCareful(
+                          e.target.checked ? [...careful, id] : careful.filter((x) => x !== id),
+                        )
+                      }
+                    />
+                    {name(id)}
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </fieldset>
         )}
 
         {castTriggers.map((tr) => (
@@ -1042,6 +1118,10 @@ interface Fields {
   unaffected: readonly string[];
   /** kenli F-002 T12 (D016): cast triggers paid with a cast. */
   triggers: readonly { key: string; mode: "create" | "restore" }[];
+  /** kenli F-002 T12 B2a: cast options (Metamagic) and the targets Heightened/Careful choose. */
+  castOptions: readonly string[];
+  heightened: string;
+  careful: readonly string[];
   /** kenli F-002 T12 B1: a feature's slot payment (`slot:N` / `pact`) and form. */
   featurePay: string;
   featureForm: string;
@@ -1115,6 +1195,9 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
         ...(f.unaffected.length ? { unaffected: [...f.unaffected] } : {}),
         ...(f.triggers.length ? { triggers: f.triggers.map((x) => ({ ...x })) } : {}),
+        ...(f.castOptions.length ? { options: [...f.castOptions] } : {}),
+        ...(f.castOptions.length && f.heightened ? { heightened: f.heightened } : {}),
+        ...(f.castOptions.length && f.careful.length ? { careful: [...f.careful] } : {}),
         ...(f.cover
           ? { cover: Object.fromEntries(f.targets.map((id) => [id, f.cover as Cover])) }
           : {}),
