@@ -139,6 +139,7 @@ import {
   type AddonCheckResult,
   type PlanCompileResult,
   planMethods,
+  type StartStage,
 } from "./plans";
 
 // --- results ------------------------------------------------------------------------------
@@ -693,6 +694,12 @@ export interface EngineFacade {
    * `(plan_sha256, contextKey)`; nothing is stored or registered.
    */
   compilePlan(file: unknown): Promise<PlanCompileResult>;
+  /**
+   * kenli F-002 T13: a new character's start staged in memory (`StartStage`): the fresh state at
+   * `level` and, with `kit`, the plan's starting kit bought and worn on it at the catalog's prices.
+   * Nothing is stored; `startFromPlan` calls it again at the confirm and writes its state.
+   */
+  stageStart(file: unknown, level: number, kit: boolean): Promise<StartStage>;
   /** The add-on bind checks that need the engine (contract §6.3): before any preview. */
   checkAddon(request: AddonCheckRequest): Promise<AddonCheckResult>;
 }
@@ -1070,6 +1077,7 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     roll: async (expression) => attempt(() => ({ roll: roll(expression, rng) })),
     rollDamage: async (parts, critical) => rollDamage(parts, { critical, rng }),
     compilePlan: (file) => plans.compilePlan(file),
+    stageStart: (file, level, kit) => plans.stageStart(file, level, kit),
     checkAddon: (request) => plans.checkAddon(request),
   };
   return localized(facade, () => language);
@@ -1099,6 +1107,8 @@ const UNLOCALIZED = new Set<keyof EngineFacade>([
   // kenli F-002 T03: plan documents and their checkpoints (builds), returned as they are.
   "compilePlan",
   "checkAddon",
+  // kenli F-002 T13: a staged start (a state document and catalog quotes), as it is.
+  "stageStart",
 ]);
 
 /**

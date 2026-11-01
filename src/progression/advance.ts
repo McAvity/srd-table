@@ -718,20 +718,57 @@ function levelUpEntry(
 }
 
 /**
+ * kenli F-002 T13: how a new character starts (`startFromPlan`). `kit`: with the guided plan's
+ * starting kit for that level, bought and worn on the fresh state before the one transaction (no
+ * `kit`: the start as before). `expect`: the preview's numbers the player saw; the confirm stages
+ * the kit again from scratch and refuses (`start_kit_changed`) if they differ.
+ */
+export interface StartOptions {
+  readonly kit?: boolean;
+  readonly expect?: { readonly spent_cp: number; readonly after_cp: number };
+}
+
+/**
+ * kenli F-002 T13: what a start would give (`stageStart` in the worker): the fresh state and, with
+ * `kit`, the kit's lines (owned, bought bundles, units received, the catalog cost), the coins
+ * before and after. Nothing is written or registered.
+ */
+export function previewStart(file: unknown, level: number, kit: boolean) {
+  return engine().stageStart(file, level, kit);
+}
+
+/**
  * A NEW character at a checkpoint of a plan (§5): new id, a fresh state (the starting equipment
- * when the plan says so), the plan's exact context and association, its missing packs — one
- * transaction, then published (no undo step: like a created character). Never overwrites one.
+ * when the plan says so; kenli F-002 T13: with `kit`, the guide's kit bought and worn on it in
+ * memory first), the plan's exact context and association, its missing packs — one transaction,
+ * then published (no undo step: like a created character). Never overwrites one. A start already
+ * running refuses another (`start_busy`): a double click makes one character.
  */
 export function startFromPlan(
   file: unknown,
   level: number,
+  options: StartOptions = {},
 ): Promise<{ readonly ok: true; readonly id: string } | ProgressionRefusal> {
-  return admission.guard("progression.startFromPlan", () => startNow(file, level), updating);
+  return admission.guard(
+    "progression.startFromPlan",
+    async () => {
+      if (starting) return no("start_busy", "");
+      starting = true;
+      try {
+        return await startNow(file, level, options);
+      } finally {
+        starting = false;
+      }
+    },
+    updating,
+  );
 }
+let starting = false;
 
 async function startNow(
   file: unknown,
   level: number,
+  options: StartOptions,
 ): Promise<{ readonly ok: true; readonly id: string } | ProgressionRefusal> {
   const parsed = await parsePlanFile(file);
   if (!parsed.ok) return no(parsed.problem.code, parsed.problem.detail);
@@ -764,13 +801,30 @@ async function startNow(
   const registered = await registerBefore(rows);
   if (registered) return registered;
   const build = at.build;
-  const fresh =
-    parsed.file.plan.start.equipment === "starting"
-      ? await engine().createState(build, ctx)
-      : await (async () => {
-          const p = await engine().parseState({});
-          return p.ok ? p.state : null;
-        })();
+  let fresh: CharacterState | null;
+  if (options.kit) {
+    // kenli F-002 T13: the kit staged again from scratch at the confirm (the plan's catalog
+    // prices, the coins and items of the fresh state), all in memory, before the transaction.
+    const staged = await engine().stageStart(file, level, true);
+    if (!staged.ok) return no(staged.code, staged.detail);
+    const k = staged.kit;
+    if (
+      options.expect &&
+      (!k || k.spent_cp !== options.expect.spent_cp || k.after_cp !== options.expect.after_cp)
+    )
+      return no(
+        "start_kit_changed",
+        `previewed ${options.expect.spent_cp}/${options.expect.after_cp}, now ${k?.spent_cp}/${k?.after_cp}`,
+      );
+    fresh = staged.state;
+  } else
+    fresh =
+      parsed.file.plan.start.equipment === "starting"
+        ? await engine().createState(build, ctx)
+        : await (async () => {
+            const p = await engine().parseState({});
+            return p.ok ? p.state : null;
+          })();
   if (!fresh) return no("start_state_invalid", "");
   const now = Date.now();
   const id = newId("c");

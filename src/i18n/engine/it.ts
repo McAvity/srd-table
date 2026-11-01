@@ -1034,6 +1034,9 @@ export const ENGINE_IT = {
   "cunning.dazed":
     "{name} è stordito: nel suo prossimo turno, solo una tra muoversi, un'azione o un'azione bonus",
   "label.cost_sneak_dice": "{count}d6 di Attacco Furtivo",
+  "refusal.stock_units": "{item}: un numero intero di unità, almeno 1",
+  "refusal.stock_twice": "{item} è elencato due volte",
+  "refusal.stock_unpriced": "{item} non ha un prezzo di listino: non si può comprare",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */

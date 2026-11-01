@@ -14,10 +14,18 @@ import {
   ContentError,
   computePlaySheet,
   createCatalog,
+  createState,
   evaluate,
+  formatCp,
+  type ItemQuote,
+  itemQuote,
   loadPack,
   lookup,
+  PlayError,
+  parseState,
   reconcileState,
+  type StockLine,
+  stockItems,
   TABLE_NAMES,
 } from "srd-rules-engine";
 import {
@@ -31,6 +39,8 @@ import {
 import { type AddonProblem, checkAddonFiles, checkAddonSources } from "@/progression/addon";
 import {
   checkPackOrder,
+  kitFor,
+  type ParsedPlan,
   type PlanProblem,
   PlanRefusal,
   parsePlanFile,
@@ -41,6 +51,33 @@ import type { ContentRegistry } from "./content";
 import { compileParsedPlan, type PlanCompileResult } from "./progression";
 
 export type { PlanCheckpoint, PlanCompileResult, ReadableOp, StatChange } from "./progression";
+
+/** kenli F-002 T13: a guide item's catalog quote, its price as the engine writes it. */
+export type GuideQuote = ItemQuote & { readonly price_text: string | null };
+
+/**
+ * kenli F-002 T13: a new character's fresh state at a checkpoint, and with `kit` the plan's
+ * starting kit for that level bought and worn/held on it in memory (`stockItems`, the catalog's
+ * prices) — staged here, written by `startFromPlan` in its one transaction or not at all.
+ */
+export type StartStage =
+  | {
+      readonly ok: true;
+      readonly plan_sha256: string;
+      readonly level: number;
+      readonly state: CharacterState;
+      readonly kit: {
+        readonly from_level: number;
+        readonly title: string;
+        readonly lines: readonly (StockLine & { readonly cost_text: string })[];
+        readonly before_cp: number;
+        readonly after_cp: number;
+        readonly spent_cp: number;
+        /** The coins as the engine writes them (`formatCp`): before, spent, after. */
+        readonly text: { readonly before: string; readonly spent: string; readonly after: string };
+      } | null;
+    }
+  | { readonly ok: false; readonly code: string; readonly detail: string };
 
 /** The add-on bind checks a record needs before its preview (§6.3). */
 export interface AddonCheckRequest {
@@ -162,6 +199,47 @@ export function planMethods(content: ContentRegistry) {
     });
   }
 
+  const catalogs = new Map<string, Catalog>();
+
+  /**
+   * kenli F-002 T13 (`/2`): every item the guide names is in the plan's catalog, and every kit
+   * item has a listed price (a kit is bought, never granted). The quotes, for the preview and the
+   * Markdown (a price in the guide's text is never used).
+   */
+  function guideItems(parsed: ParsedPlan, catalog: Catalog): readonly GuideQuote[] | PlanProblem {
+    const guide = parsed.file.plan.guide;
+    if (!guide) return [];
+    const out = new Map<string, GuideQuote>();
+    const quote = (id: string, where: string, priced: boolean): PlanProblem | null => {
+      let q: ItemQuote;
+      try {
+        q = itemQuote(catalog, id);
+      } catch {
+        return { code: "plan_guide_item", detail: `${where}: ${id} is not in the plan's catalog` };
+      }
+      if (priced && q.cp === null)
+        return { code: "plan_guide_item", detail: `${where}: ${id} has no listed price` };
+      out.set(id, { ...q, price_text: q.cp === null ? null : formatCp(q.cp) });
+      return null;
+    };
+    for (const [i, k] of guide.kits.entries())
+      for (const [j, it] of k.items.entries()) {
+        const p = quote(it.item, `plan.guide.kits[${i}].items[${j}]`, true);
+        if (p) return p;
+      }
+    for (const [i, x] of guide.purchases.entries()) {
+      const p = quote(x.item, `plan.guide.purchases[${i}]`, false);
+      if (p) return p;
+    }
+    for (const [i, x] of guide.alternatives.entries()) {
+      const p =
+        quote(x.item, `plan.guide.alternatives[${i}]`, false) ??
+        quote(x.instead_of, `plan.guide.alternatives[${i}].instead_of`, false);
+      if (p) return p;
+    }
+    return [...out.values()];
+  }
+
   async function compilePlan(input: unknown): Promise<PlanCompileResult> {
     const parsed = await parsePlanFile(input);
     if (!parsed.ok)
@@ -222,10 +300,75 @@ export function planMethods(content: ContentRegistry) {
         detail: error instanceof Error ? error.message : String(error),
       });
     }
-    const result = await compileParsedPlan(parsed, catalog, ctx, contextKey(ctx));
+    let result = await compileParsedPlan(parsed, catalog, ctx, contextKey(ctx));
+    if (result.ok) {
+      const items = guideItems(parsed, catalog);
+      result = Array.isArray(items)
+        ? parsed.file.plan.guide
+          ? { ...result, guide_items: items }
+          : result
+        : refused(items as PlanProblem);
+    }
     memo.set(key, result);
+    catalogs.set(key, catalog);
     if (memo.size > MAX_MEMO) memo.delete(memo.keys().next().value as string);
+    if (catalogs.size > MAX_MEMO) catalogs.delete(catalogs.keys().next().value as string);
     return result;
+  }
+
+  /**
+   * kenli F-002 T13: stage a new character's start (`StartStage`). The plan is compiled (exactly as
+   * `compilePlan`), the fresh state made at the checkpoint in the plan's own catalog (the starting
+   * equipment when the plan says so) and, with `kit`, the guide's kit for that level stocked on it.
+   * Nothing is stored; the preview and the confirm call this, so the confirm re-checks everything.
+   */
+  async function stageStart(input: unknown, level: number, kit: boolean): Promise<StartStage> {
+    const compiled = await compilePlan(input);
+    if (!compiled.ok)
+      return { ok: false, code: compiled.problem.code, detail: compiled.problem.detail };
+    if (!Number.isInteger(level) || level < 1 || level > compiled.range.to)
+      return {
+        ok: false,
+        code: "start_level_out_of_range",
+        detail: `${level} outside 1–${compiled.range.to}`,
+      };
+    const parsed = await parsePlanFile(input);
+    if (!parsed.ok) return { ok: false, code: parsed.problem.code, detail: parsed.problem.detail };
+    const catalog = catalogs.get(`${parsed.plan_sha256}\n${contextKey(compiled.context)}`);
+    if (!catalog) return { ok: false, code: "plan_pack_missing", detail: "the plan's catalog" };
+    const plan = parsed.file.plan;
+    const build = (compiled.checkpoints[level - 1] as { build: CharacterBuild }).build;
+    const fresh =
+      plan.start.equipment === "starting" ? createState(build, catalog) : parseState({});
+    const base = { ok: true as const, plan_sha256: compiled.plan_sha256, level };
+    if (!kit) return { ...base, state: fresh, kit: null };
+    const chosen = kitFor(plan, level);
+    if (!chosen)
+      return { ok: false, code: "start_kit_none", detail: "the plan has no starting kit" };
+    try {
+      const r = stockItems(build, fresh, catalog, chosen.items);
+      return {
+        ...base,
+        state: r.state,
+        kit: {
+          from_level: chosen.from_level,
+          title: chosen.title,
+          lines: r.lines.map((l) => ({ ...l, cost_text: formatCp(l.cost_cp) })),
+          before_cp: r.before_cp,
+          after_cp: r.after_cp,
+          spent_cp: r.spent_cp,
+          text: {
+            before: formatCp(r.before_cp),
+            spent: formatCp(r.spent_cp),
+            after: formatCp(r.after_cp),
+          },
+        },
+      };
+    } catch (error) {
+      if (error instanceof PlayError)
+        return { ok: false, code: "start_kit_refused", detail: error.messages.join("; ") };
+      throw error;
+    }
   }
 
   async function checkAddon(req: AddonCheckRequest): Promise<AddonCheckResult> {
@@ -322,5 +465,5 @@ export function planMethods(content: ContentRegistry) {
     return { ok: true, extra: cmp.extra };
   }
 
-  return { compilePlan, checkAddon };
+  return { compilePlan, checkAddon, stageStart };
 }

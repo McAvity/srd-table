@@ -154,7 +154,7 @@ export async function downloadPlanMarkdown(
   const compiled = await engine().compilePlan(file);
   if (!compiled.ok) return progressionText(compiled.problem.code, compiled.problem.detail);
   const plan = file as Omit<PlanFile, "packs">;
-  const text = planMarkdown(plan, compiled.checkpoints);
+  const text = planMarkdown(plan, compiled.checkpoints, compiled.guide_items ?? []);
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

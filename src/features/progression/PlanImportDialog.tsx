@@ -4,7 +4,10 @@
  * authorship, the levels it covers, its packs, and the chosen level's class, HP, AC and choices.
  * The level is chosen only here (an existing character only ever takes the next one). Start makes
  * one new character (`startFromPlan`); Cancel or closing changes nothing. A plan never overwrites
- * a played character.
+ * a played character. kenli F-002 T13: a guided plan (`/2`) offers its starting kit for the chosen
+ * level, ticked by default — what is bought (owned units, bundles, units received, the catalog
+ * cost), what is worn, the coins before and after, as the engine stages them; unticked, the start
+ * is the plain one. The confirm stages the kit again and writes it with the character, or nothing.
  */
 
 import { useNavigate } from "@tanstack/react-router";
@@ -14,12 +17,13 @@ import { engine } from "@/engine/client";
 import type { PlanCompileResult } from "@/engine/plans";
 import { t } from "@/i18n";
 import { admission } from "@/offline/admission";
-import { startFromPlan } from "@/progression/advance";
+import { previewStart, startFromPlan } from "@/progression/advance";
 import { type ParsedPlan, parsePlanFile } from "@/progression/codec";
 import { planFromFile, planFromUrl } from "./source";
 import { ChoiceList, downloadPlanMarkdown, progressionText } from "./text";
 
 type Compiled = Extract<PlanCompileResult, { ok: true }>;
+type Stage = Awaited<ReturnType<typeof previewStart>>;
 
 export function PlanImportDialog({
   open,
@@ -46,6 +50,10 @@ export function PlanImportDialog({
     setLevelNumber(n);
     setLevelText(String(n));
   };
+  // kenli F-002 T13: the guided kit (ticked by default) and its staged preview for this level.
+  const [kit, setKit] = useState(true);
+  const [stage, setStage] = useState<Stage | null>(null);
+  const startingNow = useRef(false);
   const abort = useRef<AbortController | null>(null);
   const files = useRef<HTMLInputElement>(null);
   const levelId = useId();
@@ -56,7 +64,22 @@ export function PlanImportDialog({
     setProblem(null);
     setBusy(null);
     setLevel(1);
+    setKit(true);
+    setStage(null);
   }
+
+  const guided = !!loaded?.parsed.file.plan.guide;
+  useEffect(() => {
+    let live = true;
+    setStage(null);
+    if (!loaded || !guided || !kit) return;
+    void previewStart(loaded.bytes, level, true).then((r) => {
+      if (live) setStage(r);
+    });
+    return () => {
+      live = false;
+    };
+  }, [loaded, guided, kit, level]);
 
   async function take(source: Promise<Awaited<ReturnType<typeof planFromFile>>>) {
     setBusy("loading");
@@ -93,9 +116,16 @@ export function PlanImportDialog({
   }
 
   async function start() {
-    if (!loaded) return;
+    if (!loaded || startingNow.current) return;
+    startingNow.current = true;
     setBusy("starting");
-    const r = await startFromPlan(loaded.bytes, level);
+    const withKit = guided && kit;
+    const k = stage?.ok ? stage.kit : null;
+    const r = await startFromPlan(loaded.bytes, level, {
+      kit: withKit,
+      ...(withKit && k ? { expect: { spent_cp: k.spent_cp, after_cp: k.after_cp } } : {}),
+    });
+    startingNow.current = false;
     setBusy(null);
     if (!r.ok) return setProblem(progressionText(r.code, r.detail));
     onOpenChange(false);
@@ -143,7 +173,13 @@ export function PlanImportDialog({
           <Button
             variant="primary"
             icon="plus"
-            disabled={!loaded || busy !== null || !levelText.trim() || Number(levelText) !== level}
+            disabled={
+              !loaded ||
+              busy !== null ||
+              !levelText.trim() ||
+              Number(levelText) !== level ||
+              (guided && kit && !stage?.ok)
+            }
             onClick={() => void start()}
             data-testid="plan-start"
           >
@@ -274,6 +310,73 @@ export function PlanImportDialog({
                   {t("progression.choicesAt", { level: cp.level })}
                 </h4>
                 <ChoiceList ops={cp.ops} />
+              </div>
+            )}
+            {guided && (
+              <div className="rounded border border-edge p-2" data-testid="plan-kit">
+                <label className="flex items-center gap-2 font-bold">
+                  <input
+                    type="checkbox"
+                    checked={kit}
+                    onChange={(ev) => setKit(ev.currentTarget.checked)}
+                    data-testid="plan-kit-toggle"
+                  />
+                  {t("progression.kit.toggle")}
+                </label>
+                {!kit && <p className="text-sm text-ink-muted">{t("progression.kit.off")}</p>}
+                {kit && !stage && <Spinner label={t("progression.loading")} />}
+                {kit && stage && !stage.ok && (
+                  <p role="alert" className="text-sm text-red" data-testid="plan-kit-refused">
+                    {progressionText(stage.code, stage.detail)}
+                  </p>
+                )}
+                {kit && stage?.ok && stage.kit && (
+                  <>
+                    <p className="text-sm">
+                      {t("progression.kit.title", {
+                        title: stage.kit.title,
+                        from: stage.kit.from_level,
+                      })}
+                    </p>
+                    <table className="mt-1 w-full text-sm" data-testid="plan-kit-lines">
+                      <thead>
+                        <tr className="text-left text-ink-muted">
+                          <th>{t("progression.kit.item")}</th>
+                          <th>{t("progression.kit.units")}</th>
+                          <th>{t("progression.kit.owned")}</th>
+                          <th>{t("progression.kit.received")}</th>
+                          <th>{t("progression.kit.cost")}</th>
+                          <th>{t("progression.kit.equip")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stage.kit.lines.map((l) => (
+                          <tr key={l.item} data-testid="plan-kit-line" data-item={l.item}>
+                            <td>{l.name}</td>
+                            <td>{l.units}</td>
+                            <td>{l.owned}</td>
+                            <td>
+                              {l.received}
+                              {l.bundle > 1
+                                ? ` (${t("progression.kit.bundles", { bundles: l.bundles, bundle: l.bundle })})`
+                                : ""}
+                            </td>
+                            <td>{l.cost_text}</td>
+                            <td>{l.equip ? t("progression.kit.worn") : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="mt-1 text-sm" data-testid="plan-kit-coins">
+                      {t("progression.kit.coins", {
+                        before: stage.kit.text.before,
+                        spent: stage.kit.text.spent,
+                        after: stage.kit.text.after,
+                      })}
+                    </p>
+                    <p className="text-[13px] text-ink-muted">{t("progression.kit.budget")}</p>
+                  </>
+                )}
               </div>
             )}
           </div>

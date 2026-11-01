@@ -1,6 +1,7 @@
 /**
  * kenli F-002 T03: the pure codec of a progression plan (`srd-table.progression-plan/1`, dnd5
- * docs/features/F-002-level-up/contracts/progression.md §2). Strict: unknown fields and versions
+ * docs/features/F-002-level-up/contracts/progression.md §2; kenli F-002 T13: `/2`, the same plan
+ * plus its guided starting kits and play guide, contracts/progression-guide.md). Strict: unknown fields and versions
  * are refused, never stripped; limits are checked before anything else is read; the plan's hash is
  * the canonical JSON's (`canonical.ts`); pack envelopes are checked by the transfer format's own
  * `checkEnvelope`. No engine, worker, DOM or storage here: the rules are judged by the engine
@@ -19,6 +20,11 @@ import {
 import { canonicalJson, contentSha, type PackRef } from "@/lib/canonical";
 
 export const PLAN_FORMAT = "srd-table.progression-plan/1";
+/** kenli F-002 T13: `/1` plus `plan.guide` (required there, never in `/1`), hashed with the plan. */
+export const PLAN_FORMAT_GUIDED = "srd-table.progression-plan/2";
+/** The formats this reader takes; a higher `/N` is `plan_format_newer` (an older app's answer). */
+export const PLAN_FORMATS = [PLAN_FORMAT, PLAN_FORMAT_GUIDED] as const;
+export type PlanFormat = (typeof PLAN_FORMATS)[number];
 const FORMAT_FAMILY = /^srd-table\.progression-plan\/(\d+)$/;
 
 /** The contract's limits (§2.6). Raising one goes back to review. */
@@ -45,6 +51,15 @@ export const PLAN_LIMITS = {
   name: 200,
   id: 200,
   sources: 64,
+  /** kenli F-002 T13, `/2` guide (contracts/progression-guide.md §2). */
+  kits: 8,
+  kitItems: 32,
+  units: 1000,
+  guideList: 32,
+  guideText: 1000,
+  guideBase: 4000,
+  guideLevel: 2000,
+  priority: 64,
 } as const;
 
 /** Refusal codes of the codec and the compiler (contract §2–3, §6). */
@@ -79,7 +94,9 @@ export type PlanCode =
   | "plan_choice_vanished"
   | "plan_respec"
   | "plan_pool_shrink"
-  | "plan_level_mismatch";
+  | "plan_level_mismatch"
+  /** kenli F-002 T13: a guide's item not in the plan's catalog, or a kit item without a price. */
+  | "plan_guide_item";
 
 export interface PlanProblem {
   readonly code: PlanCode;
@@ -146,9 +163,49 @@ export interface ProgressionPlan {
   readonly sources: readonly string[] | null;
   readonly start: { readonly equipment: "starting" | "none"; readonly ops: readonly StartOp[] };
   readonly levels: readonly PlanStep[];
+  /** kenli F-002 T13: `/2` only (required there); absent in `/1`. */
+  readonly guide?: PlanGuide;
+}
+
+/** kenli F-002 T13 (`/2`): one item of a kit — `units` wanted on the character, worn/held or not. */
+export interface KitItem {
+  readonly item: string;
+  readonly units: number;
+  readonly equip: boolean;
+  readonly why?: string;
+  readonly origin: Origin;
+}
+/** A starting kit from a character level on (until the next kit's `from_level`). */
+export interface PlanKit {
+  readonly from_level: number;
+  readonly title: string;
+  readonly items: readonly KitItem[];
+  readonly why?: string;
+  readonly origin: Origin;
+}
+export interface GuideNote {
+  readonly text: string;
+  readonly origin: Origin;
+}
+/** kenli F-002 T13: the guided plan's metadata (contracts/progression-guide.md §2). */
+export interface PlanGuide {
+  readonly kits: readonly PlanKit[];
+  readonly play: {
+    readonly base: GuideNote;
+    readonly levels: readonly (GuideNote & { readonly level: number })[];
+  };
+  /** Later purchases, by priority (a recommendation: owning or affording it is not implied). */
+  readonly purchases: readonly (GuideNote & { readonly item: string; readonly priority: number })[];
+  /** Cheaper or different choices: `item` instead of `instead_of`. */
+  readonly alternatives: readonly (GuideNote & {
+    readonly item: string;
+    readonly instead_of: string;
+  })[];
+  /** What the app's controls do here, and what stays the player's or the DM's. */
+  readonly controls: readonly GuideNote[];
 }
 export interface PlanFile {
-  readonly format: typeof PLAN_FORMAT;
+  readonly format: PlanFormat;
   readonly plan_sha256: string;
   readonly plan: ProgressionPlan;
   readonly packs?: readonly Envelope[];
@@ -370,8 +427,113 @@ function packRef(v: unknown, where: string): PackRef {
   return p as unknown as PackRef;
 }
 
-/** The plan object's structure (§2), in reading order; throws the first `PlanRefusal`. */
-export function checkPlanShape(v: unknown): ProgressionPlan {
+// ───────────────────────── the guide (`/2`) ─────────────────────────
+
+/** Plain text: no control characters but a line break (shown escaped, never as HTML/Markdown). */
+const isControl = (c: number) => (c <= 0x1f && c !== 0x0a) || (c >= 0x7f && c <= 0x9f);
+function guideText(v: unknown, where: string, max: number): string {
+  const s = text(v, where, max);
+  for (const ch of s)
+    if (isControl(ch.codePointAt(0) as number))
+      planRefuse("plan_field_invalid", `${where}: a control character`);
+  return s;
+}
+function origin(v: unknown, where: string): void {
+  if (!(typeof v === "string" && (ORIGINS as readonly string[]).includes(v)))
+    planRefuse("plan_field_invalid", `${where}: ${JSON.stringify(v)}`);
+}
+function note(v: unknown, where: string, extra: readonly string[], max: number) {
+  const n = fields(v, where, ["text", "origin", ...extra]);
+  guideText(n.text, `${where}.text`, max);
+  origin(n.origin, `${where}.origin`);
+  return n;
+}
+function list(v: unknown, where: string, max: number): unknown[] {
+  const l = arr(v, where);
+  if (l.length > max) planRefuse("plan_field_invalid", `${where}: over ${max}`);
+  return l;
+}
+
+/** The `/2` guide (contracts/progression-guide.md §2): strict, bounded, its levels in the plan. */
+export function checkGuide(v: unknown, top: number): PlanGuide {
+  const g = fields(v, "plan.guide", ["kits", "play", "purchases", "alternatives", "controls"]);
+  const kits = list(g.kits, "plan.guide.kits", PLAN_LIMITS.kits);
+  if (kits.length === 0) planRefuse("plan_field_invalid", "plan.guide.kits: empty");
+  let last = 0;
+  for (const [i, k] of kits.entries()) {
+    const w = `plan.guide.kits[${i}]`;
+    const kit = fields(k, w, ["from_level", "title", "items", "origin"], ["why"]);
+    const from = int(kit.from_level, `${w}.from_level`, 1, top);
+    if (i === 0 && from !== 1) planRefuse("plan_field_invalid", `${w}.from_level: the first is 1`);
+    if (from <= last) planRefuse("plan_field_invalid", `${w}.from_level: not after ${last}`);
+    last = from;
+    guideText(kit.title, `${w}.title`, PLAN_LIMITS.title);
+    if (kit.why !== undefined) guideText(kit.why, `${w}.why`, PLAN_LIMITS.guideText);
+    origin(kit.origin, `${w}.origin`);
+    const items = list(kit.items, `${w}.items`, PLAN_LIMITS.kitItems);
+    const ids = new Set<string>();
+    for (const [j, x] of items.entries()) {
+      const iw = `${w}.items[${j}]`;
+      const it = fields(x, iw, ["item", "units", "equip", "origin"], ["why"]);
+      const id = str(it.item, `${iw}.item`, PLAN_LIMITS.id, SLUG);
+      if (ids.has(id)) planRefuse("plan_field_invalid", `${iw}.item: ${id} twice`);
+      ids.add(id);
+      int(it.units, `${iw}.units`, 1, PLAN_LIMITS.units);
+      if (typeof it.equip !== "boolean")
+        planRefuse("plan_field_invalid", `${iw}.equip: ${JSON.stringify(it.equip)}`);
+      if (it.why !== undefined) guideText(it.why, `${iw}.why`, PLAN_LIMITS.guideText);
+      origin(it.origin, `${iw}.origin`);
+    }
+  }
+  const play = fields(g.play, "plan.guide.play", ["base", "levels"]);
+  note(play.base, "plan.guide.play.base", [], PLAN_LIMITS.guideBase);
+  const levels = list(play.levels, "plan.guide.play.levels", PLAN_LIMITS.levels);
+  let prev = 1;
+  for (const [i, l] of levels.entries()) {
+    const w = `plan.guide.play.levels[${i}]`;
+    const n = note(l, w, ["level"], PLAN_LIMITS.guideLevel);
+    const level = int(n.level, `${w}.level`, 2, top);
+    if (level <= prev) planRefuse("plan_field_invalid", `${w}.level: not after ${prev}`);
+    prev = level;
+  }
+  for (const [i, x] of list(g.purchases, "plan.guide.purchases", PLAN_LIMITS.guideList).entries()) {
+    const n = note(x, `plan.guide.purchases[${i}]`, ["item", "priority"], PLAN_LIMITS.guideText);
+    str(n.item, `plan.guide.purchases[${i}].item`, PLAN_LIMITS.id, SLUG);
+    int(n.priority, `plan.guide.purchases[${i}].priority`, 1, PLAN_LIMITS.priority);
+  }
+  for (const [i, x] of list(
+    g.alternatives,
+    "plan.guide.alternatives",
+    PLAN_LIMITS.guideList,
+  ).entries()) {
+    const n = note(
+      x,
+      `plan.guide.alternatives[${i}]`,
+      ["item", "instead_of"],
+      PLAN_LIMITS.guideText,
+    );
+    str(n.item, `plan.guide.alternatives[${i}].item`, PLAN_LIMITS.id, SLUG);
+    str(n.instead_of, `plan.guide.alternatives[${i}].instead_of`, PLAN_LIMITS.id, SLUG);
+  }
+  for (const [i, x] of list(g.controls, "plan.guide.controls", PLAN_LIMITS.guideList).entries())
+    note(x, `plan.guide.controls[${i}]`, [], PLAN_LIMITS.guideText);
+  return g as unknown as PlanGuide;
+}
+
+/** The kit for a start at `level`: the last one from that level or before (`null`: none). */
+export function kitFor(plan: ProgressionPlan, level: number): PlanKit | null {
+  let found: PlanKit | null = null;
+  for (const k of plan.guide?.kits ?? []) if (k.from_level <= level) found = k;
+  return found;
+}
+
+/**
+ * The plan object's structure (§2), in reading order; throws the first `PlanRefusal`. `/2` (kenli
+ * F-002 T13) has the same fields plus a required `guide`; `/1` has none (an extra one is
+ * `plan_unknown_field`, as before).
+ */
+export function checkPlanShape(v: unknown, format: PlanFormat = PLAN_FORMAT): ProgressionPlan {
+  const guided = format === PLAN_FORMAT_GUIDED;
   const p = fields(v, "plan", [
     "id",
     "revision",
@@ -382,6 +544,7 @@ export function checkPlanShape(v: unknown): ProgressionPlan {
     "sources",
     "start",
     "levels",
+    ...(guided ? ["guide"] : []),
   ]);
   str(p.id, "plan.id", PLAN_LIMITS.id, SLUG);
   int(p.revision, "plan.revision", 1, Number.MAX_SAFE_INTEGER);
@@ -450,6 +613,7 @@ export function checkPlanShape(v: unknown): ProgressionPlan {
       planRefuse("plan_level_up_position", `level ${i + 2}: no level_up`, { level: i + 2 });
     for (const [j, o] of ops.entries()) levelOp(o, `plan.levels[${i}].ops[${j}]`, j, i + 2);
   }
+  if (guided) checkGuide(p.guide, 1 + levels.length);
   return p as unknown as ProgressionPlan;
 }
 
@@ -516,9 +680,9 @@ async function parse(input: unknown): Promise<ParsedPlan> {
   if (!isObj(doc)) return planRefuse("plan_field_invalid", "not an object");
   const format = doc.format;
   if (typeof format !== "string") return planRefuse("plan_missing_field", "format");
-  if (format !== PLAN_FORMAT) {
+  if (!(PLAN_FORMATS as readonly string[]).includes(format)) {
     const m = FORMAT_FAMILY.exec(format);
-    if (m && Number(m[1]) > 1) planRefuse("plan_format_newer", format);
+    if (m && Number(m[1]) > PLAN_FORMATS.length) planRefuse("plan_format_newer", format);
     planRefuse("plan_format_unknown", format.slice(0, 80));
   }
   fields(doc, "$", ["format", "plan_sha256", "plan"], ["packs"]);
@@ -532,7 +696,7 @@ async function parse(input: unknown): Promise<ParsedPlan> {
   const planBytes = utf8Length(canonical);
   if (planBytes > PLAN_LIMITS.planBytes)
     planRefuse("plan_limit_plan_bytes", `${planBytes} > ${PLAN_LIMITS.planBytes}`);
-  const plan = checkPlanShape(doc.plan);
+  const plan = checkPlanShape(doc.plan, format as PlanFormat);
   const sha = await contentSha(doc.plan);
   if (sha !== doc.plan_sha256) planRefuse("plan_hash_mismatch", `${doc.plan_sha256} ≠ ${sha}`);
   const envelopes = new Map<string, Envelope>();

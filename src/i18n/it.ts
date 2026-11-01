@@ -1470,6 +1470,27 @@ export const it: Messages = {
   "progression.code.hp_changed": "Il passo cambierebbe i Punti Ferita.",
   "progression.code.zero_hp_no_revive":
     "A 0 PF: il massimo cresce, il personaggio non torna in sé.",
+  "progression.kit.toggle": "Equipaggia secondo la build",
+  "progression.kit.off": "Senza il kit: l'inizio semplice (le monete iniziali, niente acquistato).",
+  "progression.kit.title": "{title} (il kit dal livello {from})",
+  "progression.kit.item": "Oggetto",
+  "progression.kit.units": "Richiesti",
+  "progression.kit.owned": "Già posseduti",
+  "progression.kit.received": "Ricevuti",
+  "progression.kit.bundles": "{bundles} × {bundle}",
+  "progression.kit.cost": "Costo",
+  "progression.kit.equip": "Indossato",
+  "progression.kit.worn": "indossato / impugnato",
+  "progression.kit.coins": "Monete: {before} − {spent} = {after}",
+  "progression.kit.budget":
+    "Pagato con le monete iniziali di classe e background, ai prezzi del catalogo; un livello più alto non dà più denaro.",
+  "progression.code.start_kit_refused": "Il kit non si può comprare:",
+  "progression.code.start_kit_none": "Il piano non ha un kit iniziale.",
+  "progression.code.start_kit_changed":
+    "Il prezzo del kit o le monete sono cambiati dall'anteprima: ricontrolla.",
+  "progression.code.start_busy": "Un inizio è già in corso.",
+  "progression.code.plan_guide_item":
+    "La guida del piano nomina un oggetto che il contenuto del piano non ha.",
   "progression.code.start_level_out_of_range": "Quel livello non è nel piano.",
   "progression.code.update_in_progress": "È in corso l'installazione di un aggiornamento.",
   "progression.code.url_invalid": "Non è un indirizzo valido.",
@@ -1482,6 +1503,27 @@ export const it: Messages = {
   "history.kind.planBound": "Segue un piano dal livello {level}",
   "import.problem.progressionPlan":
     "È un piano di progressione: aprilo con Personaggi → Importa piano.",
+  "markdown.guide.equipment": "Equipaggiamento",
+  "markdown.guide.kitNote":
+    "Il kit con cui un nuovo personaggio può iniziare (spuntato nell'anteprima dell'inizio): comprato con le monete iniziali al prezzo del catalogo, gli oggetti già dati da classe o background non si ricomprano; l'anteprima mostra costo e monete effettivi. Un livello iniziale più alto non dà più denaro.",
+  "markdown.guide.kit": "Kit dal livello {level}: {title}",
+  "markdown.guide.price": "{price} l'uno (catalogo)",
+  "markdown.guide.priceBundle": "{price} ogni {bundle} (catalogo)",
+  "markdown.guide.unpriced": "nessun prezzo di listino: decide il DM",
+  "markdown.guide.worn": "indossato / impugnato",
+  "markdown.guide.purchases": "Acquisti successivi (priorità)",
+  "markdown.guide.purchasesNote":
+    "Raccomandazioni: non posseduti, non gratuiti; da comprare con il DM quando denaro e negozio lo permettono. Gli oggetti magici richiedono l'accordo del DM.",
+  "markdown.guide.alternatives": "Alternative",
+  "markdown.guide.instead": "**{item}** invece di **{of}**",
+  "markdown.guide.play": "Come giocare",
+  "markdown.guide.controls": "Nell'app",
+  "markdown.guide.howToPlay": "Come giocare da questo livello",
+  "markdown.guide.kitFrom": "Kit da questo livello: {title} (vedi Equipaggiamento)",
+  "markdown.guide.base": "La base: vedi Come giocare.",
+  "markdown.guide.inheritBase": "Nessun cambiamento: vale ancora la base (Come giocare).",
+  "markdown.guide.inherit":
+    "Nessun cambiamento: valgono ancora la nota del livello {level} e la base.",
   "markdown.header": "Piano `{id}`, revisione {revision} · livelli {from}–{to}",
   "markdown.hash": "Hash del piano",
   "markdown.partial":
