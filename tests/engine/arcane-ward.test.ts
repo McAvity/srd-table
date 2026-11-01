@@ -123,4 +123,49 @@ describe("Arcane Ward-like tracked pool through the facade (kenli F-002 T10 H2)"
     });
     expect(rested.state.pools).toBeUndefined();
   });
+
+  it("D051 (2024 order: Resistance/Vulnerability → Ward → Immunity → THP → HP): fire 10, Ward 6, Immune — Absorb 6, Ward 0, HP/THP unchanged; at Ward 0 nothing absorbed, all ignored", async () => {
+    const { e, ctx, build, state } = await setup();
+    const sheet0 = (await e.playSheet(build, state, ctx)).sheet;
+    const spell = sheet0.spells.find((s) => s.id === "alarm") ? "alarm" : "shield";
+    const made = await e.rollByHand(
+      build,
+      state,
+      { type: "cast", spell, slot_level: 1, triggers: [{ key: KEY, mode: "create" }] },
+      false,
+      ctx,
+    );
+    if (!made.ok) throw new Error(made.reasons.join("; "));
+    const line = async (st: typeof state) =>
+      (await e.playSheet(build, st, ctx)).sheet.play.uses.find((u) => u.key === KEY);
+    // Ward at 6 (9 created, 3 absorbed earlier).
+    const at6 = await e.applyPlayAction(
+      build,
+      made.state,
+      { type: "use", key: KEY, amount: 3 },
+      ctx,
+    );
+    if (!at6.ok) throw new Error(at6.reasons.join("; "));
+    expect((await line(at6.state))?.current).toBe(6);
+    // Fire 10, no Resistance: the Ward absorbs 6 (the instruction's Absorb), 4 left; Immunity
+    // ignores the rest: no Damage control is used, so HP and THP stay as they were.
+    const absorbed = await e.applyPlayAction(
+      build,
+      at6.state,
+      { type: "use", key: KEY, amount: 6 },
+      ctx,
+    );
+    if (!absorbed.ok) throw new Error(absorbed.reasons.join("; "));
+    expect((await line(absorbed.state))?.current).toBe(0);
+    expect(absorbed.state.hp).toEqual(at6.state.hp);
+    // Ward 0: nothing more to absorb (refused, nothing changed); the whole 10 ignored by Immunity.
+    const none = await e.applyPlayAction(
+      build,
+      absorbed.state,
+      { type: "use", key: KEY, amount: 1 },
+      ctx,
+    );
+    expect(none.ok).toBe(false);
+    expect(absorbed.state.hp).toEqual(state.hp);
+  });
 });

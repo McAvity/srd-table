@@ -1010,7 +1010,7 @@ export const en = {
   "sheet.pool.amount": "{pool}: amount absorbed",
   "sheet.pool.absorb": "Absorb",
   "sheet.pool.howTo":
-    "Damage to you: (1) apply your Resistance, Vulnerability or Immunity to it; (2) this absorbs up to what it has left — enter that amount and Absorb; (3) take the rest with Damage without a damage type (Temporary Hit Points first, then Hit Points), or, with a Resistance or Vulnerability to all damage, set Temporary Hit Points and Hit Points directly. Created and restored with an Abjuration spell cast with a slot (Spells), restored with its Bonus Action (Features); a Long Rest ends it.",
+    "Damage to you: (1) apply your Resistance or Vulnerability to it; (2) this absorbs up to what it has left — enter that amount and Absorb; (3) if you have Immunity to that damage, the rest is ignored: nothing more to do; (4) otherwise take the rest with Damage without a damage type (Temporary Hit Points first, then Hit Points), or, with a Resistance or Vulnerability to all damage, set Temporary Hit Points and Hit Points directly. Example: 10 Fire with 6 left here and Immunity to Fire — Absorb 6 (0 left), the other 4 are ignored, Hit Points unchanged. Created and restored with an Abjuration spell cast with a slot (Spells), restored with its Bonus Action (Features); a Long Rest ends it.",
   "sheet.shortRestSequential":
     "Roll Hit Point Dice one at a time; decide on the next after seeing it. Nothing is saved until you confirm.",
   "sheet.hitDiceRolled": "Rolled: {dice}",
