@@ -53,6 +53,8 @@ const CONTRACT_DOCUMENT_MUTATIONS = [
   "lateAdvantage",
   // kenli F-002 T12 (review14 R14-01): Peerless Skill's follow-up, guarded like the others.
   "afterFailedRoll",
+  // kenli F-002 T12 B2b: Empowered Spell on the last spell roll, guarded the same way.
+  "empoweredSpell",
   "heroicReroll",
   "setCritical",
   "createEncounter",

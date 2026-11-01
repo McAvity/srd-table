@@ -8,6 +8,9 @@
 
 import { useId, useState } from "react";
 import type { AttackDice, PlaySheet, RolledDamage } from "srd-rules-engine";
+
+type CastOptionLine = PlaySheet["cast_options"][number];
+
 import { Button, Section } from "@/components/ui";
 import { t } from "@/i18n";
 import { type HeroicTarget, useDocuments } from "@/store/documents";
@@ -25,7 +28,10 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
   const lateAdvantage = useDocuments((s) => s.lateAdvantage);
   const setCritical = useDocuments((s) => s.setCritical);
   const afterFailed = useDocuments((s) => s.afterFailedRoll);
+  const empower = useDocuments((s) => s.empoweredSpell);
   if (!last) return null;
+  // kenli F-002 T12 B2b: Empowered Spell on a spell's damage (the sheet's typed cast option).
+  const empowered = sheet.cast_options.find((o) => o.effect === "empowered");
   const inspired = sheet.play.heroic_inspiration;
   // kenli F-011 §5.3: a luck-style use with none left, or a reroll without Heroic Inspiration, is
   // still the player's attempt: the engine refuses it and the refusal is journaled (it follows the
@@ -175,6 +181,21 @@ export function RollFollowUps({ id, sheet }: { id: string; sheet: PlaySheet }) {
             afterFailedFor(last.test.kind, last.test.dc)}
         </div>
       )}
+      {last.kind === "sheet" && last.what.type === "cast" && empowered && (
+        <EmpoweredSpell
+          option={empowered}
+          use={sheet.play.uses.find((u) => u.key === empowered.uses)?.name ?? empowered.uses}
+          damages={
+            last.roll.rolls.attacks.length
+              ? last.roll.rolls.attacks.map((a) => a.damage ?? null)
+              : [last.roll.rolls.damage ?? null]
+          }
+          busy={busy}
+          onUse={(roll, dice) =>
+            run(() => empower(id, roll, dice, { command: "late_advantage", label: empowered.name }))
+          }
+        />
+      )}
       {last.kind === "sheet" && (
         <ul className="space-y-1.5">
           <li className="font-semibold">{last.roll.name}</li>
@@ -271,6 +292,113 @@ function AfterFailedRoll({
       <Button size="sm" disabled={busy} onClick={() => void onUse(needsDc ? dc : undefined)}>
         {t("followups.afterFailedRoll", { name, die })}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * kenli F-002 T12 B2b: Empowered Spell on the last spell rolled by hand — tick up to its dice of
+ * one damage roll and reroll them (the engine checks the count, the dice and the Sorcery Point; the
+ * new rolls are kept). Not using it is just leaving it: nothing is spent.
+ */
+function EmpoweredSpell({
+  option,
+  use,
+  damages,
+  busy,
+  onUse,
+}: {
+  option: CastOptionLine;
+  use: string;
+  damages: readonly (RolledDamage | null)[];
+  busy: boolean;
+  onUse: (roll: number, dice: { part: number; die: number }[]) => unknown;
+}) {
+  const [picked, setPicked] = useState<{ roll: number; part: number; die: number }[]>([]);
+  const used = damages.find((d) => d?.rerolled?.source === option.key)?.rerolled;
+  const max = option.reroll_dice ?? 1;
+  if (!damages.some((d) => d?.parts.some((p) => p.dice))) return null;
+  const roll = picked[0]?.roll ?? null;
+  const toggle = (r: number, part: number, die: number, on: boolean) =>
+    setPicked((now) => {
+      // One damage roll at a time: ticking a die of another roll starts again there.
+      const same = now.filter((x) => x.roll === r);
+      return on
+        ? [...same, { roll: r, part, die }]
+        : same.filter((x) => !(x.part === part && x.die === die));
+    });
+  return (
+    <div
+      className="mb-2 space-y-1 rounded border border-edge px-2 py-1.5"
+      data-testid="empowered-spell"
+    >
+      <div className="font-semibold">
+        {t("followups.empowered", { name: option.name, max, cost: option.cost, use })}
+      </div>
+      {used ? (
+        <p className="text-sm" data-testid="empowered-used">
+          {t("followups.empoweredUsed", {
+            name: used.label,
+            dice: used.dice.map((d) => `${d.from} → ${d.to}`).join(", "),
+          })}
+        </p>
+      ) : (
+        <>
+          {damages.map((d, r) =>
+            d ? (
+              <div key={`roll-${r}`} className="flex flex-wrap items-center gap-2">
+                {damages.length > 1 && (
+                  <span className="text-[13px] text-ink-muted">
+                    {t("followups.empoweredRoll", { n: r + 1, total: d.total })}
+                  </span>
+                )}
+                {d.parts.flatMap((p, part) =>
+                  p.dice
+                    ? p.rolls.map((v, die) => {
+                        const on = picked.some(
+                          (x) => x.roll === r && x.part === part && x.die === die,
+                        );
+                        return (
+                          <label
+                            key={`d-${r}-${part}-${die}`}
+                            className="flex items-center gap-1 text-sm"
+                            data-testid="empowered-die"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={on}
+                              disabled={busy}
+                              onChange={(e) => toggle(r, part, die, e.target.checked)}
+                            />
+                            {t("followups.empoweredDie", {
+                              value: v,
+                              dice: p.dice ?? "",
+                              type: p.type,
+                            })}
+                          </label>
+                        );
+                      })
+                    : [],
+                )}
+              </div>
+            ) : null,
+          )}
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy || roll === null}
+            onClick={() =>
+              roll !== null &&
+              void onUse(
+                roll,
+                picked.map(({ part, die }) => ({ part, die })),
+              )
+            }
+          >
+            {t("followups.empoweredDo", { count: picked.length, cost: option.cost, use })}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

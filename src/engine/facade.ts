@@ -48,6 +48,7 @@ import {
   type D20TestRequest,
   type D20TestResult,
   DAMAGE_TYPES,
+  type DamageDie,
   type DamagePart,
   type DamageType,
   type Encounter,
@@ -117,6 +118,7 @@ import {
   type TableName,
   unassignedValues,
   useAfterFailedRoll,
+  useEmpoweredSpell,
   type ValidationReport,
   validateState,
 } from "srd-rules-engine";
@@ -541,6 +543,27 @@ export interface EngineFacade {
     }>
   >;
   /**
+   * kenli F-002 T12 B2b, Empowered Spell on a spell rolled by hand (`useEmpoweredSpell`): `rolls`
+   * the damage rolls of that cast, `pick` the roll and its dice to reroll; the new roll and the state
+   * with its cost paid, both or neither; `use` the limited use it spent.
+   */
+  empoweredSpell(
+    build: CharacterBuild,
+    state: CharacterState,
+    rolls: readonly (RolledDamage | null)[],
+    pick: { readonly roll: number; readonly dice: readonly DamageDie[] },
+    spell: string,
+    content?: ContentContext,
+  ): Promise<
+    Outcome<{
+      damage: RolledDamage;
+      state: CharacterState;
+      use: string;
+      notes: readonly string[];
+      messages: readonly Message[];
+    }>
+  >;
+  /**
    * Heroic Inspiration: `spend_inspiration` on the state and `rerollDie` on the target (a d20, a
    * bonus die, a damage die, a single die), both or neither; a Critical Hit gained rolls its dice.
    */
@@ -845,6 +868,23 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
             state: r.state,
             success: r.success,
             spent: r.spent,
+            messages: r.messages,
+            notes: r.messages.map((m) => m.text),
+          };
+        }),
+      ),
+    empoweredSpell: (build, state, rolls, pick, spell, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const r = useEmpoweredSpell(build, state, catalog, rolls, pick, { spell, rng });
+          const use =
+            computePlaySheet(build, state, catalog).cast_options.find(
+              (o) => o.effect === "empowered",
+            )?.uses ?? "";
+          return {
+            damage: r.damage,
+            state: r.state,
+            use,
             messages: r.messages,
             notes: r.messages.map((m) => m.text),
           };

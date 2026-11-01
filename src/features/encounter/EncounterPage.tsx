@@ -187,6 +187,8 @@ function Table({ record }: { record: EncounterRecord }) {
         </div>
         {pending && (
           <DecisionDialog
+            // A new question (one more answer, more dice) starts with nothing ticked.
+            key={`${pending.answers.length}:${pending.rolls.length}`}
             encounterId={record.id}
             pending={pending}
             who={pendingWho?.name ?? pending.combatant}

@@ -12,7 +12,7 @@
  * anyway", sent with `force: true`; the log notes the override.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type {
   AreaRequest,
   CombatantOptions,
@@ -278,39 +278,37 @@ export function ActionComposer({
     [setHighlight, aim],
   );
 
-  const action = useMemo(
-    () =>
-      compose(base, {
-        targets,
-        slot,
-        mode,
-        cover,
-        riders,
-        alternatives,
-        masteryAs,
-        strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
-        twoHanded,
-        damageType,
-        skill,
-        dc,
-        text,
-        readied: readyChoices[readied]?.action ?? null,
-        area: areaMode && placement ? { [areaMode]: placement } : null,
-        point: spec?.kind === "point" ? placement : null,
-        wall:
-          wall.from && wall.to
-            ? { from: wall.from, to: wall.to, ...(wall.side ? { side: wall.side } : {}) }
-            : null,
-        unaffected,
-        triggers: triggered,
-        castOptions,
-        heightened,
-        careful,
-        featurePay,
-        featureForm,
-      }),
+  const fields = useMemo(
+    (): Fields => ({
+      targets,
+      slot,
+      mode,
+      cover,
+      riders,
+      alternatives,
+      masteryAs,
+      strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
+      twoHanded,
+      damageType,
+      skill,
+      dc,
+      text,
+      readied: readyChoices[readied]?.action ?? null,
+      area: areaMode && placement ? { [areaMode]: placement } : null,
+      point: spec?.kind === "point" ? placement : null,
+      wall:
+        wall.from && wall.to
+          ? { from: wall.from, to: wall.to, ...(wall.side ? { side: wall.side } : {}) }
+          : null,
+      unaffected,
+      triggers: triggered,
+      castOptions,
+      heightened,
+      careful,
+      featurePay,
+      featureForm,
+    }),
     [
-      base,
       targets,
       slot,
       mode,
@@ -340,6 +338,19 @@ export function ActionComposer({
       featureForm,
     ],
   );
+  const action = useMemo(() => compose(base, fields), [base, fields]);
+  // kenli F-002 T12 B2b (D032): a Strike effect judged by the engine with the attack as composed
+  // (its Advantage, riders, target), not only as the option listed it: the dry run of the action
+  // with that effect added.
+  const withStrike = (x: StrikeOption): EncounterAction =>
+    playedAs(
+      compose(base, {
+        ...fields,
+        strikes: [...fields.strikes.filter((y) => y !== x), x],
+      }),
+      as,
+      entry.rollable,
+    );
   const played = playedAs(action, as, entry.rollable);
   const check = useActionCheck(encounterId, played);
   const refused = check.data?.ok === false;
@@ -653,7 +664,10 @@ export function ActionComposer({
                     )
                   }
                 />
-                {t("sheet.castOption", { option: o.name, cost: o.cost })}
+                {t(o.effect === "empowered" ? "sheet.castOptionAfterDamage" : "sheet.castOption", {
+                  option: o.name,
+                  cost: o.cost,
+                })}
               </label>
             ))}
             {castOptions.some(
@@ -842,38 +856,47 @@ export function ActionComposer({
             <legend className="mb-1 text-sm text-ink-muted">{t("table.strikes")}</legend>
             {entry.strikes.map((x) => {
               const key = `${x.send}:${x.id}`;
-              const reasonId = `strike-${key}`;
-              // By hand only the reasons that still count by hand (the economy doesn't).
-              const reason = byHand
-                ? (byHandReasons(x)[0]?.text ?? null)
-                : x.available
-                  ? null
-                  : x.reason;
-              const available = reason === null;
               return (
-                <div key={key}>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="accent-[var(--blue)]"
-                      disabled={!available}
-                      aria-describedby={available ? undefined : reasonId}
-                      checked={strikes.includes(key)}
-                      onChange={(e) =>
-                        setStrikes(
-                          e.target.checked ? [...strikes, key] : strikes.filter((k) => k !== key),
-                        )
-                      }
-                    />
-                    <span className={available ? "" : "text-ink-muted"}>{x.name}</span>
-                    <span className="text-sm text-ink-muted">{x.cost}</span>
-                  </label>
-                  {reason && (
-                    <p id={reasonId} className="ml-6 text-[13px] text-ink-muted italic">
-                      {reason}
-                    </p>
-                  )}
-                </div>
+                <StrikeChoice
+                  key={key}
+                  encounterId={encounterId}
+                  action={byHand || x.available ? null : withStrike(x)}
+                  listed={
+                    byHand ? (byHandReasons(x)[0]?.text ?? null) : x.available ? null : x.reason
+                  }
+                >
+                  {(reason) => {
+                    const reasonId = `strike-${key}`;
+                    const available = reason === null;
+                    return (
+                      <div>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="accent-[var(--blue)]"
+                            disabled={!available}
+                            aria-describedby={available ? undefined : reasonId}
+                            checked={strikes.includes(key)}
+                            onChange={(e) =>
+                              setStrikes(
+                                e.target.checked
+                                  ? [...strikes, key]
+                                  : strikes.filter((k) => k !== key),
+                              )
+                            }
+                          />
+                          <span className={available ? "" : "text-ink-muted"}>{x.name}</span>
+                          <span className="text-sm text-ink-muted">{x.cost}</span>
+                        </label>
+                        {reason && (
+                          <p id={reasonId} className="ml-6 text-[13px] text-ink-muted italic">
+                            {reason}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }}
+                </StrikeChoice>
               );
             })}
           </fieldset>
@@ -1343,4 +1366,31 @@ function SquareInput({
       </label>
     </span>
   );
+}
+
+/**
+ * kenli F-002 T12 B2b (D032): one Strike effect's control, judged by the engine. The option's own
+ * reason (`listed`) stands until the dry run of the composed attack with this effect (`action`:
+ * the composer's Advantage, riders and target) is taken; then the reason is the engine's for that
+ * action, or none.
+ */
+function StrikeChoice({
+  encounterId,
+  action,
+  listed,
+  children,
+}: {
+  encounterId: string;
+  action: EncounterAction | null;
+  listed: string | null;
+  children: (reason: string | null) => ReactNode;
+}) {
+  const check = useActionCheck(encounterId, action);
+  const reason =
+    action === null || !check.data
+      ? listed
+      : check.data.ok
+        ? null
+        : (check.data.reasons[0] ?? listed);
+  return <>{children(reason)}</>;
 }

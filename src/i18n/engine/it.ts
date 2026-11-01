@@ -1018,6 +1018,22 @@ export const ENGINE_IT = {
     "La descrizione di un oggetto personalizzato ha al massimo {max} caratteri",
   "refusal.custom_item_weight": "Il peso è un numero di libbre, 0 o più, oppure sconosciuto",
   "state.stored_equipped": "{item} è riposto ma segnato come indossato",
+  "refusal.empowered_needs_damage": "{option}: {spell} non tira danni",
+  "refusal.empowered_used": "{option}: già usato su questo incantesimo",
+  "refusal.no_empowered": "{name} non ha Incantesimo Potenziato",
+  "refusal.reroll_too_many": "{label}: al massimo {max} dadi",
+  "refusal.reroll_die_twice": "{label}: ogni dado una volta sola",
+  "refusal.empowered_pick_dice": "Scegli fino a {max} dadi di danno da ritirare, o tieni il tiro",
+  "decision.empowered_spell":
+    "{name}: {option} sui danni di {spell} ({dice}; totale {total})? Ritira fino a {max} dei suoi dadi per {cost} {use}, o tienilo",
+  "empowered.rerolled": "{option}: dadi ritirati ({dice}), danni {from} → {total}",
+  "refusal.devious_strikes_needed":
+    "Stordire, Tramortire e Oscurare vengono con Colpi Subdoli (Ladro di 14° livello): {name} non li ha",
+  "refusal.dazed_one":
+    "{name} è stordito: solo una tra muoversi, un'azione o un'azione bonus in questo turno",
+  "cunning.dazed":
+    "{name} è stordito: nel suo prossimo turno, solo una tra muoversi, un'azione o un'azione bonus",
+  "label.cost_sneak_dice": "{count}d6 di Attacco Furtivo",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */

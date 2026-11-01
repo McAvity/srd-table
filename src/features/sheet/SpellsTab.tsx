@@ -412,7 +412,10 @@ function RollSpell({
               setOpts(e.target.checked ? [...opts, o.key] : opts.filter((k) => k !== o.key))
             }
           />
-          {t("sheet.castOption", { option: o.name, cost: o.cost })}
+          {t(o.effect === "empowered" ? "sheet.castOptionAfterDamage" : "sheet.castOption", {
+            option: o.name,
+            cost: o.cost,
+          })}
         </label>
       ))}
       {reason && (

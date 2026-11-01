@@ -66,6 +66,8 @@ export function titleOf(
         ? t("history.kind.afterFailedRoll", { what: label(field(q, "feature")) ?? "" })
         : t("history.kind.lateAdvantage");
     case "reroll":
+      // kenli F-002 T12 B2b: Empowered Spell's dice of a damage roll.
+      if (field(q, "empowered") === true) return t("history.kind.empowered");
       return field(q, "kind") === "death_save"
         ? t("history.kind.rerollDeathSave")
         : t("history.kind.reroll");
