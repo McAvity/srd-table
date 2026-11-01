@@ -428,13 +428,19 @@ describe("rolls by hand and the last roll (review 04)", () => {
   });
 });
 
+/** D020: a value the test needs (instead of a non-null assertion): a clear failure if it's missing. */
+const must = <T>(value: T | null | undefined): T => {
+  if (value === null || value === undefined) throw new Error("expected a value");
+  return value;
+};
+
 // Independent coordinator reproduction (review 04, R04-04), assertions as written.
 it("manager: delayed free damage must not open a reroll on a replacement", async () => {
   const build = await fighter(engine, 3);
   const id = await storeCharacter(engine, build);
   await docs().playAction(id, { type: "set_inspiration", value: true });
-  const sheet = (await engine.playSheet(build, record(id)!.state)).sheet;
-  const line = sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice))!;
+  const sheet = (await engine.playSheet(build, must(record(id)).state)).sheet;
+  const line = must(sheet.attacks.find((a) => a.damage_parts.some((p) => p.dice)));
   const original = engine.rollDamage.bind(engine);
   let release!: () => void;
   const gate = new Promise<void>((r) => {
@@ -445,7 +451,7 @@ it("manager: delayed free damage must not open a reroll on a replacement", async
     return original(...args);
   });
   const pending = docs().rollDamage(id, line.damage_parts, false, line.name);
-  const current = record(id)!;
+  const current = must(record(id));
   useDocuments.setState((s) => ({
     characters: { ...s.characters, [id]: { ...current, gen: 1, rev: 99 } },
   }));
@@ -454,7 +460,7 @@ it("manager: delayed free damage must not open a reroll on a replacement", async
   spy.mockRestore();
   const result = await docs().heroicReroll(id, { kind: "damage", part: 0, die: 0 });
   expect(result.ok).toBe(false);
-  expect(record(id)!.state.heroic_inspiration).toBe(true);
+  expect(must(record(id)).state.heroic_inspiration).toBe(true);
 });
 
 // Review 04 R04-04: a free roll keeps its place in the character's queue and is dropped for a record changed meanwhile.

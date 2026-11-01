@@ -356,6 +356,8 @@ export const ENGINE_IT = {
   "refusal.needs_feature_first": "{feature}: solo dopo {after} in questo turno",
   "refusal.companion_strike_once":
     "{name} ha già rinunciato a un attacco di questa azione di Attacco per il colpo del compagno",
+  "refusal.companion_action_once":
+    "il compagno di {name} ha già usato la sua unica azione in questo turno",
   "attack.damage_as": "{attack}: i suoi danni inflitti come {type}",
   "attack.rider_condition": "{target}: {conditions} ({rider})",
   "attack.rider_condition_size": "{target} è troppo grande per {conditions} di {rider}",
@@ -1036,6 +1038,8 @@ export const ENGINE_IT = {
   "label.cost_sneak_dice": "{count}d6 di Attacco Furtivo",
   "refusal.stock_units": "{item}: un numero intero di unità, almeno 1",
   "refusal.stock_twice": "{item} è elencato due volte",
+  "refusal.stock_equip_conflict":
+    "{item} non può essere indossato o impugnato insieme al resto dell'elenco",
   "refusal.stock_unpriced": "{item} non ha un prezzo di listino: non si può comprare",
 } as const satisfies Record<MessageCode, string>;
 
