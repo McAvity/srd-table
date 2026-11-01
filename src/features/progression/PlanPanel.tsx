@@ -7,10 +7,17 @@
  * to finish first and offers it: the open roll ends here (`useRolls.forget`, nothing paid or
  * changed), a pending decision is answered in its encounter (never chosen for the player).
  * Detaching drops only the association, after an explicit warning (one Undo restores it).
+ *
+ * Isolation (review07 R07-01/R07-02): the panel is keyed by the character (`SheetPage`), and each
+ * request carries a ticket of `useTickets`: a result that arrives after its dialog was cancelled or
+ * closed, after another request, after the panel unmounted, or for another character is dropped,
+ * so an old preview can never reappear or be confirmed on another character's screen. A bind keeps
+ * only the file it just verified for this character, so "Finish current roll" can preview it again
+ * (never confirm it); closing the dialog forgets it.
  */
 
 import { Link } from "@tanstack/react-router";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button, Dialog, Reasons, Section, Spinner } from "@/components/ui";
 import { t } from "@/i18n";
 import { admission } from "@/offline/admission";
@@ -55,8 +62,34 @@ function usePlanOf(record: CharacterRecord): Read | null {
   return read;
 }
 
+/**
+ * Tickets for async requests: `take()` starts one (dropping any earlier), `drop()` cancels the
+ * current one, `live(ticket)` says whether its result may still be shown. Unmount drops all.
+ */
+function useTickets() {
+  const current = useRef(0);
+  useEffect(() => {
+    // (Re)mounted: tickets work (StrictMode mounts twice); unmounted: every result is dropped.
+    if (current.current < 0) current.current = 0;
+    return () => {
+      current.current = -1;
+    };
+  }, []);
+  const take = useCallback(() => {
+    if (current.current < 0) return -1;
+    current.current += 1;
+    return current.current;
+  }, []);
+  const drop = useCallback(() => {
+    if (current.current >= 0) current.current += 1;
+  }, []);
+  const live = useCallback((ticket: number) => ticket >= 0 && ticket === current.current, []);
+  return { take, drop, live };
+}
+
 export function PlanPanel({ record }: { record: CharacterRecord }) {
   const read = usePlanOf(record);
+  const tickets = useTickets();
   const [preview, setPreview] = useState<StepPreview | null>(null);
   const [refusal, setRefusal] = useState<ProgressionRefusal | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,20 +98,36 @@ export function PlanPanel({ record }: { record: CharacterRecord }) {
   const [note, setNote] = useState<string | null>(null);
   const id = record.id;
 
+  /** A preview is shown only on its own character's panel. */
+  const showPreview = (p: StepPreview) => {
+    if (p.record_id === id) setPreview(p);
+  };
+  const closePreview = () => {
+    tickets.drop();
+    setBusy(false);
+    setPreview(null);
+  };
+
   async function next() {
+    const ticket = tickets.take();
     setBusy(true);
     setNote(null);
     setRefusal(null);
+    setPreview(null);
     const r = await previewAdvance(id);
+    if (!tickets.live(ticket)) return;
     setBusy(false);
-    if (r.ok) setPreview(r);
+    if (r.ok) showPreview(r);
     else setRefusal(r);
   }
 
   async function confirm() {
-    if (!preview) return;
+    if (!preview || preview.record_id !== id) return;
+    const ticket = tickets.take();
     setBusy(true);
     const r = await confirmStep(preview);
+    // The step is the API's (atomic, its own token); only what this panel shows depends on it.
+    if (!tickets.live(ticket)) return;
     setBusy(false);
     setPreview(null);
     if (r.ok)
@@ -182,15 +231,15 @@ export function PlanPanel({ record }: { record: CharacterRecord }) {
         )}
       </div>
       <Dialog
-        open={preview !== null}
-        onOpenChange={(open) => !open && setPreview(null)}
+        open={preview !== null && preview.record_id === id}
+        onOpenChange={(open) => !open && closePreview()}
         wide
         title={
           preview?.kind === "bind" ? t("progression.bindTitle") : t("progression.advanceTitle")
         }
         footer={
           <>
-            <Button onClick={() => setPreview(null)} data-testid="plan-preview-cancel">
+            <Button onClick={closePreview} data-testid="plan-preview-cancel">
               {t("common.cancel")}
             </Button>
             <Button
@@ -206,7 +255,7 @@ export function PlanPanel({ record }: { record: CharacterRecord }) {
           </>
         }
       >
-        {preview && <StepPreviewView preview={preview} />}
+        {preview && preview.record_id === id && <StepPreviewView preview={preview} />}
       </Dialog>
       <BindDialog
         id={id}
@@ -215,7 +264,7 @@ export function PlanPanel({ record }: { record: CharacterRecord }) {
         onPreview={(p) => {
           setBinding(false);
           setRefusal(null);
-          setPreview(p);
+          showPreview(p);
         }}
       />
       <Dialog
@@ -229,13 +278,15 @@ export function PlanPanel({ record }: { record: CharacterRecord }) {
             <Button
               variant="danger"
               data-testid="plan-detach-confirm"
-              onClick={() =>
+              onClick={() => {
+                const ticket = tickets.take();
                 void detachProgression(id).then((r) => {
+                  if (!tickets.live(ticket)) return;
                   setDetaching(false);
                   setRefusal(r.ok ? null : r);
                   setNote(r.ok ? t("progression.detached") : null);
-                })
-              }
+                });
+              }}
             >
               {t("progression.detachConfirm")}
             </Button>
@@ -334,6 +385,9 @@ function BindDialog({
   onPreview: (p: StepPreview) => void;
 }) {
   useEffect(() => (open ? admission.hold("import_open") : undefined), [open]);
+  const tickets = useTickets();
+  /** The plan file this dialog last read, for this character only; forgotten on close. */
+  const input = useRef<Uint8Array | null>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<ProgressionRefusal | null>(null);
@@ -342,36 +396,65 @@ function BindDialog({
   const abort = useRef<AbortController | null>(null);
   const urlId = useId();
 
+  async function bind(bytes: Uint8Array, ticket: number) {
+    const r = await previewBind(id, bytes);
+    if (!tickets.live(ticket)) return;
+    setBusy(false);
+    if (r.ok) {
+      input.current = null;
+      onPreview(r);
+    } else setRefusal(r);
+  }
+
   async function take(source: ReturnType<typeof planFromFile>) {
+    const ticket = tickets.take();
+    input.current = null;
     setBusy(true);
     setProblem(null);
     setRefusal(null);
     const got = await source;
+    if (!tickets.live(ticket)) return;
     if (!got.ok) {
       setBusy(false);
       return setProblem(progressionText(got.code, got.detail));
     }
-    const r = await previewBind(id, got.bytes);
+    input.current = got.bytes;
+    await bind(got.bytes, ticket);
+  }
+
+  /** The open roll ends (nothing paid or written), then the same file is previewed again. */
+  async function finishRoll() {
+    useRolls.getState().forget(id);
+    const bytes = input.current;
+    if (!bytes) return setRefusal(null);
+    const ticket = tickets.take();
+    setBusy(true);
+    setRefusal(null);
+    await bind(bytes, ticket);
+  }
+
+  function close() {
+    tickets.drop();
+    abort.current?.abort();
+    input.current = null;
     setBusy(false);
-    if (r.ok) onPreview(r);
-    else setRefusal(r);
+    setProblem(null);
+    setRefusal(null);
+    onOpenChange(false);
   }
 
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        if (!next) {
-          abort.current?.abort();
-          setProblem(null);
-          setRefusal(null);
-        }
-        onOpenChange(next);
-      }}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       wide
       title={t("progression.bindTitle")}
       description={t("progression.bindHint")}
-      footer={<Button onClick={() => onOpenChange(false)}>{t("common.cancel")}</Button>}
+      footer={
+        <Button onClick={close} data-testid="plan-bind-cancel">
+          {t("common.cancel")}
+        </Button>
+      }
     >
       <div className="space-y-2">
         <div className="flex flex-wrap items-end gap-2">
@@ -421,7 +504,7 @@ function BindDialog({
         {refusal && (
           <RefusalView
             refusal={refusal}
-            onFinishRoll={() => useRolls.getState().forget(id)}
+            onFinishRoll={() => void finishRoll()}
             onDetach={() => undefined}
           />
         )}

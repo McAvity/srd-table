@@ -261,6 +261,85 @@ test("Markdown @capability: the same file at levels 1, 7 and 20, equal to the re
   expect(texts[0]).toContain("## Level 20 — Fighter 20");
 });
 
+/** Rows in one store of the app's database (read only). */
+async function dbCount(page: Page, store: string): Promise<number> {
+  return page.evaluate(
+    (name) =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open("srd-table");
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains(name)) return resolve(0);
+          const req = db.transaction(name, "readonly").objectStore(name).count();
+          req.onsuccess = () => {
+            resolve(req.result);
+            db.close();
+          };
+        };
+      }),
+    store,
+  );
+}
+const toSheet = (page: Page, id: string) =>
+  page.evaluate((x) => {
+    location.hash = `#/characters/${x}/sheet`;
+  }, id);
+
+test("review07 R07-01: A's open preview does not follow a warm route to B; B's Confirm advances B only", async ({
+  page,
+}) => {
+  const a = await startAt(page, "fighter-1-6.plan.json", 2);
+  const b = await startAt(page, "fighter-1-6.plan.json", 3);
+  await toSheet(page, a);
+  await expect(page.getByTestId("plan-level-status")).toContainText("At level 2 of 6");
+  await page.getByTestId("plan-next").click();
+  await expect(page.getByTestId("step-preview")).toContainText("Level 2 → 3", { timeout: 60_000 });
+  await toSheet(page, b);
+  await expect(page.getByTestId("plan-level-status")).toContainText("At level 3 of 6");
+  await expect(page.getByTestId("step-preview")).toHaveCount(0);
+  await expect(page.getByTestId("plan-confirm")).toHaveCount(0);
+  await page.getByTestId("plan-next").click();
+  await expect(page.getByTestId("step-preview")).toContainText("Level 3 → 4", { timeout: 60_000 });
+  await page.getByTestId("plan-confirm").click();
+  await expect(page.getByTestId("plan-level-status")).toContainText("At level 4 of 6");
+  const rows = await dbCharacters(page);
+  expect(rows.find((r) => r.id === a)?.level).toBe(2);
+  expect(rows.find((r) => r.id === b)?.level).toBe(4);
+});
+
+test("review07 R07-02: bind with an open roll → Finish current roll → the same file previewed; nothing written or bound", async ({
+  page,
+}) => {
+  await startAt(page, "fighter-1-6.plan.json", 3);
+  await page.getByTestId("plan-detach").click();
+  await page.getByTestId("plan-detach-confirm").click();
+  await expect(page.getByTestId("plan-bind-open")).toBeVisible();
+  await expect.poll(async () => (await dbCharacters(page))[0]?.progression ?? null).toBeNull();
+  await page
+    .getByRole("button", { name: /: Roll$/ })
+    .first()
+    .click();
+  await page.getByTestId("plan-bind-open").click();
+  await page.getByTestId("plan-bind-file").setInputFiles(join(FIX, "fighter-1-6.plan.json"));
+  await expect(page.getByTestId("plan-refusal")).toHaveAttribute("data-code", "advance_busy", {
+    timeout: 60_000,
+  });
+  await expect.poll(async () => dbCount(page, "history")).toBeGreaterThan(0);
+  const before = await dbCharacters(page);
+  const history = await dbCount(page, "history");
+  await page.getByTestId("plan-finish-roll").click();
+  await expect(page.getByTestId("step-preview")).toContainText("Follow this plan from level 3", {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId("plan-refusal")).toHaveCount(0);
+  await page.getByTestId("plan-preview-cancel").click();
+  await expect(page.getByTestId("step-preview")).toHaveCount(0);
+  expect(await dbCharacters(page)).toEqual(before);
+  expect(await dbCount(page, "history")).toBe(history);
+  expect(before[0]?.progression ?? null).toBeNull();
+});
+
 test.describe("touch", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 820, height: 1180 } });
   test("taps only: a plan by URL, start at 7, the next level confirmed", async ({

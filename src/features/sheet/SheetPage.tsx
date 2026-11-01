@@ -165,7 +165,9 @@ function Sheet({
       <div className="grid gap-4 @min-[860px]:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
           <HitPointsPanel id={id} sheet={sheet} />
-          <PlanPanel record={record} />
+          {/* Keyed by the character: a warm route change to another one starts a fresh panel,
+              so no preview, bind, note or refusal of the previous character carries over. */}
+          <PlanPanel key={record.id} record={record} />
           <RollFollowUps id={id} sheet={sheet} />
           <RollOptions id={id} sheet={sheet} />
         </aside>
