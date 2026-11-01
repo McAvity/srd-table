@@ -118,6 +118,32 @@ describe("R14-01 a feature for a failed check or attack (Peerless Skill shape)",
     expect(record(id)?.state.uses_spent[use] ?? 0).toBe(0);
   });
 
+  it("review15 R15-01: after a still-failing use, a second click is refused (no second die, no cost); a new roll can", async () => {
+    const { id, action, use } = await knackBard();
+    dice.push(2);
+    await docs().rollTest(id, { skill: "athletics" }, { dc: 36 });
+    dice.push(5);
+    const first = await docs().afterFailedRoll(id, action, use);
+    expect(first).toMatchObject({ ok: true, success: false, spent: false });
+    const before = record(id);
+    const shown = useRolls.getState().last[id];
+    dice.push(5);
+    const again = await docs().afterFailedRoll(id, action, use);
+    expect(again.ok).toBe(false);
+    expect(record(id)).toBe(before);
+    const last = useRolls.getState().last[id];
+    expect(last?.kind === "test" && last.test.bonus_dice.length).toBe(
+      shown?.kind === "test" && shown.test.bonus_dice.length,
+    );
+    expect(record(id)?.state.uses_spent[use] ?? 0).toBe(0);
+    dice.length = 0;
+    dice.push(2);
+    const fresh = await docs().rollTest(id, { skill: "athletics" }, { dc: 12 });
+    if (!fresh.ok) throw new Error("refused");
+    dice.push(8);
+    expect(await docs().afterFailedRoll(id, action, use)).toMatchObject({ ok: true });
+  });
+
   it("refused on a success, on a save, without a DC, and with no use left; nothing changes", async () => {
     const { id, action, use } = await knackBard();
     dice.push(19);

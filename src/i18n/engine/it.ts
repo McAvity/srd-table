@@ -329,6 +329,8 @@ export const ENGINE_IT = {
     "{feature} si usa solo su una prova di caratteristica o un tiro per colpire falliti",
   "refusal.after_roll_needs_dc": "{feature}: indica la CD o la CA contro cui il tiro è fallito",
   "refusal.after_roll_not_failed": "{feature}: il tiro non è fallito",
+  "refusal.after_roll_used": "{feature}: già usato su questo tiro",
+  "note.defeated_this_action": "{name} è già sconfitto da questa azione: il resto dei suoi danni su di lui non ha effetto",
   "after_roll.succeeds":
     "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: riesce, un utilizzo speso",
   "after_roll.still_fails":
