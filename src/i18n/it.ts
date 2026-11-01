@@ -1034,6 +1034,12 @@ export const it: Messages = {
   "localCopy.redo": "Ripeti l'importazione",
   "localCopy.undone":
     "Importazione di {name} annullata: la copia e la sua cronologia non ci sono più (pacchetti conservati).",
+  "localCopy.problem.progression_unsupported":
+    "Il piano seguito da questo personaggio è in una forma che questa app non legge.",
+  "localCopy.problem.progression_pack_missing":
+    "Il piano seguito da questo personaggio richiede contenuti che non sono esattamente nella copia.",
+  "localCopy.problem.progression_prefix_mismatch":
+    "Il personaggio è stato modificato fuori dal suo piano: smetti di seguire il piano, poi copialo di nuovo.",
   "localCopy.problem.other": "Rifiutato ({code}).",
   "localCopy.problem.malformed": "La cronologia o la struttura del file non è valida ({code}).",
   "localCopy.problem.file_read_failed": "Impossibile leggere il file: non è stato scritto nulla.",
@@ -1091,7 +1097,7 @@ export const it: Messages = {
   "localCopy.stateOrigin.synthetic": "Stato di gioco: un dato di prova; nessuna cronologia.",
   "localCopy.library": "Dalla biblioteca: {label} ({slug})",
   "localCopy.problem.root_kind_not_allowed":
-    "Non è una copia di personaggio: qui si importa solo una copia completa (srd-table.local-copy/2).",
+    "Non è una copia di personaggio: qui si importa solo una copia completa (srd-table.local-copy/3, o /2 da una versione precedente).",
   "localCopy.problem.pointer_target_mismatch":
     "Il link della biblioteca punta a qualcos'altro da ciò che dichiara.",
   "localCopy.problem.pointer_invalid": "Il link della biblioteca è malformato.",

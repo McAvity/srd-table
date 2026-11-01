@@ -36,12 +36,13 @@ import { asCopyV2 } from "../localCopy/v2";
 const enc = (v: unknown) => new TextEncoder().encode(JSON.stringify(v));
 const long1 = JSON.parse(readFileSync(join(LC_FIX, "long-pinned.local-copy.fixture"), "utf8"));
 const copy2 = await asCopyV2(long1);
-const copy3 = { ...copy2, format: "srd-table.local-copy/3" };
+// kenli F-002 T07: `/3` is read now; a copy of the next format is the newer one.
+const copy4 = { ...copy2, format: "srd-table.local-copy/4" };
 
 const INPUTS: Record<string, Uint8Array> = {
   copy2: enc(copy2),
   copy1: enc(long1),
-  copy3: enc(copy3),
+  copy4: enc(copy4),
   "t-character": fixtureBytes("characters/wren.r2.transfer.json"),
   "t-pack": fixtureBytes("packs/synthetic-a-1.0.0.transfer.json"),
   "t-encounter": fixtureBytes("encounters/mixed-duel.transfer.json"),
@@ -102,7 +103,7 @@ describe("§8 matrix by file: the three entrances", () => {
     // input, character-copy, pack, encounter
     ["copy2", "copy", "root_kind_not_allowed", "root_kind_not_allowed"],
     ["copy1", "format_unsupported", "root_kind_not_allowed", "root_kind_not_allowed"],
-    ["copy3", "format_newer", "root_kind_not_allowed", "root_kind_not_allowed"],
+    ["copy4", "format_newer", "root_kind_not_allowed", "root_kind_not_allowed"],
     ["t-character", "root_kind_not_allowed", "root_kind_not_allowed", "root_kind_not_allowed"],
     ["raw-build", "root_kind_not_allowed", "root_kind_not_allowed", "root_kind_not_allowed"],
     ["raw-state", "root_kind_not_allowed", "root_kind_not_allowed", "root_kind_not_allowed"],

@@ -9,6 +9,14 @@
  * historical values are refused (nothing is dropped silently), ids from the file are data, never
  * property names (§6.1a: `Map`/`Set` and own-key reads only), and the engine checks the build and
  * the state against the copy's own packs (step 8). Nothing here writes.
+ *
+ * kenli F-002 T07 (dnd5 contracts/progression.md §9): `/3` is `/2` with
+ * `payload.character.progression` (`null` or a record's `srd-table.progression/1`); every limit and
+ * every other field as in `/2`. Export writes `/3` only; import reads `/2` (progression `null`) and
+ * `/3`; `/1` stays unsupported and a later `/n` is `format_newer`. A plan is compiled in the copy's
+ * own context, its packs must be exactly the copy's, and the build must be its applied level's
+ * checkpoint (prefix hash included) — else the copy is refused before anything is written; nothing
+ * is replayed and no state is rebuilt.
  */
 
 import type { EngineFacade } from "@/engine/facade";
@@ -32,13 +40,25 @@ import {
 } from "@/lib/image";
 import { REFUSAL_COMMANDS } from "@/lib/refusalCommands";
 import type { RecordOrigin } from "@/persistence/db";
+import { mech, prefixSha256, sourcesKey } from "@/progression/prefix";
+import { type ProgressionMeta, readProgression } from "@/progression/record";
 import type { HistoryEntry, HistoryMeta } from "@/store/history";
 import { type CharacterChecker, checkCharacterWith } from "../checkCharacter";
 import type { Envelope } from "../transfer";
 
-export const LOCAL_COPY_FORMAT = "srd-table.local-copy/2";
+/** The one format this app writes (kenli F-002 T07). */
+export const LOCAL_COPY_FORMAT = "srd-table.local-copy/3";
+/** F-011's format: still read (its character follows no plan). */
+export const LOCAL_COPY_FORMAT_V2 = "srd-table.local-copy/2";
+/** What the importer reads. */
+export const LOCAL_COPY_READ_FORMATS = [LOCAL_COPY_FORMAT_V2, LOCAL_COPY_FORMAT] as const;
+export type LocalCopyFormat = (typeof LOCAL_COPY_READ_FORMATS)[number];
 /** The formats a record's origin may say it came from (read and re-exported, never imported). */
-export const LOCAL_COPY_ORIGIN_FORMATS = ["srd-table.local-copy/1", LOCAL_COPY_FORMAT] as const;
+export const LOCAL_COPY_ORIGIN_FORMATS = [
+  "srd-table.local-copy/1",
+  LOCAL_COPY_FORMAT_V2,
+  LOCAL_COPY_FORMAT,
+] as const;
 export const HISTORY_CONTAINER = "kenli.history/2";
 export const LIBRARY_TOOL = "srd-table/export-library-character/1";
 export const LOCAL_COPY_LIMITS = {
@@ -190,6 +210,8 @@ export interface Payload {
     readonly context: ContentContext;
     readonly origin: RecordOrigin | null;
     readonly portrait: CopyPortrait | null;
+    /** `/3` only (always there, maybe `null`); absent in `/2`: use `progressionOf`. */
+    readonly progression?: ProgressionMeta | null;
   };
   readonly history: CopyHistory;
   readonly external: External;
@@ -197,7 +219,7 @@ export interface Payload {
 }
 
 export interface LocalCopy {
-  readonly format: typeof LOCAL_COPY_FORMAT;
+  readonly format: LocalCopyFormat;
   readonly payload_sha256: string;
   readonly payload: Payload;
 }
@@ -211,6 +233,10 @@ export interface LocalCopyOrigin {
   readonly source_origin: RecordOrigin | null;
   readonly external: External;
 }
+
+/** The plan a copy's character follows (`/2`: none). */
+export const progressionOf = (copy: LocalCopy): ProgressionMeta | null =>
+  copy.payload.character.progression ?? null;
 
 /** The local-copy part of a record's origin, when it is one (else `null`). */
 export function localCopyOf(origin: unknown): LocalCopyOrigin | null {
@@ -522,14 +548,77 @@ function checkRefusal(x: Record<string, unknown>, at: string): void {
 }
 
 /**
+ * kenli F-002 T04/T07 (dnd5 contracts/progression.md §7.5): one `kenli.history/3` entry — a level
+ * gained from a plan, or a plan bound: no roll, cost, outcome or state change, its own group, and
+ * its `level_up` record exactly.
+ */
+function checkLevelUp(x: Record<string, unknown>, at: string): void {
+  const L = "history_level_up_invalid";
+  if (x.kind !== "level_up") refuse("history_kind", `${at}: kenli.history/3 holds only level_up`);
+  if (x.status !== "done" && x.status !== "undone") refuse("history_status", `${at}.status`);
+  const { level_up, ...rest } = x;
+  entryShape({ ...rest, kind: "test", schema: "kenli.history/1" }, at);
+  const ref = T.obj(L, {
+    id: T.str(L, undefined, 200),
+    version: T.nul(T.str(L, undefined, 200)),
+    sha256: T.str(L, HEX64),
+  });
+  T.obj(L, {
+    mode: T.lit(L, "advance", "bind"),
+    from_level: T.int(L, 1, 20),
+    to_level: T.int(L, 1, 20),
+    class_id: T.str(L, undefined, 200),
+    class_level: T.int(L, 1, 20),
+    plan_sha256: T.str(L, HEX64),
+    step_choices: T.arr(
+      L,
+      T.obj(
+        L,
+        { key: T.str(L, undefined, 400), values: T.arr(L, T.str(L, undefined, 200)) },
+        { replaced: T.str(L, undefined, 200) },
+      ),
+    ),
+    packs_added: T.arr(L, ref),
+  })(level_up, `${at}.level_up`);
+  const u = level_up as { mode: string; from_level: number; to_level: number };
+  if (u.mode === "bind" ? u.to_level !== u.from_level : u.to_level !== u.from_level + 1)
+    refuse(L, `${at}.level_up: a bind keeps the level, an advance gains one`);
+  for (const k of ["rest_kind", "rest", "import", "forced", "refusal"])
+    if (Object.hasOwn(x, k)) refuse(L, `${at}.${k}`);
+  const eff = x.effect as { mode: string; replaces_op: unknown; state_delta: unknown[] };
+  if (
+    x.commit !== true ||
+    (x.costs as unknown[]).length ||
+    (x.outcome as unknown[]).length ||
+    x.result !== null ||
+    x.pending_decision !== false ||
+    eff.mode !== "none" ||
+    eff.replaces_op !== null ||
+    eff.state_delta.length ||
+    x.group_id !== x.operation_id ||
+    x.parent_op !== null ||
+    x.role !== "actor"
+  )
+    refuse(L, `${at}: a planned level pays, rolls and changes no state`);
+  if (x.undone_with !== null && x.status !== "undone")
+    refuse("history_status", `${at}: undone_with on a done entry`);
+  const ps = x.participants as { record_id: string }[];
+  if (ps.length !== 1 || ps[0]?.record_id !== x.record_id) refuse(L, `${at}.participants`);
+}
+
+/**
  * One stored journal entry, every structural field typed (throws a `Refusal`): `kenli.history/1`,
- * or (kenli F-011) a refused command `kenli.history/2`.
+ * (kenli F-011) a refused command `kenli.history/2`, or (kenli F-002) a planned level `/3`.
  */
 export function checkEntry(e: unknown, at = "entry"): void {
   if (!isObj(e)) refuse(H, `${at}: object`);
   const x = e as Record<string, unknown>;
   if (x.schema === "kenli.history/2") {
     checkRefusal(x, at);
+    return;
+  }
+  if (x.schema === "kenli.history/3") {
+    checkLevelUp(x, at);
     return;
   }
   if (x.schema !== "kenli.history/1") refuse("history_schema", `${at}.schema`);
@@ -625,8 +714,18 @@ export function checkPortrait(v: unknown): {
   }
 }
 
-function checkCharacterShape(v: unknown): ContentContext {
+function checkCharacterShape(v: unknown, format: LocalCopyFormat): ContentContext {
   const C = "character_invalid";
+  // `/3`: `progression` always present (null or an object, read whole by the engine step);
+  // `/2`: never (an unknown field there).
+  if (isObj(v) && Object.hasOwn(v, "progression") !== (format === LOCAL_COPY_FORMAT))
+    refuse(
+      format === LOCAL_COPY_FORMAT ? C : "envelope_unknown_field",
+      `payload.character.progression ${format === LOCAL_COPY_FORMAT ? "missing" : "is not in /2"}`,
+    );
+  if (isObj(v) && format === LOCAL_COPY_FORMAT && v.progression !== null && !isObj(v.progression))
+    refuse("progression_unsupported", "payload.character.progression: null or an object");
+  const { progression: _p, ...shape } = isObj(v) ? v : { v };
   T.obj(C, {
     name: T.str(C, undefined, 200),
     build: T.objAny(C),
@@ -655,7 +754,7 @@ function checkCharacterShape(v: unknown): ContentContext {
         },
       ),
     ),
-  })(v, "payload.character");
+  })(isObj(v) ? shape : v, "payload.character");
   // §2.3: an origin from an earlier copy carries no origin of its own (no growing chain).
   const origin = (v as { origin: unknown }).origin;
   const lc = isObj(origin) && isObj(origin.extensions) ? origin.extensions.local_copy : undefined;
@@ -941,12 +1040,12 @@ export async function checkStructure(parsed: unknown): Promise<LocalCopy> {
   if (!isObj(parsed)) refuse("format_unknown", "top level is not an object");
   const top = parsed as Record<string, unknown>;
   const f = Object.hasOwn(top, "format") ? top.format : undefined;
-  if (f !== LOCAL_COPY_FORMAT) {
+  if (!(LOCAL_COPY_READ_FORMATS as readonly unknown[]).includes(f)) {
     if (typeof f !== "string") refuse("format_unknown", "no format");
     const s = f as string;
     if (s === "srd-table.transfer/1") refuse("format_transfer_not_local_copy", s);
     const m = /^srd-table\.local-copy\/([1-9][0-9]{0,5})$/.exec(s);
-    if (m && Number(m[1]) > 2) refuse("format_newer", s);
+    if (m && Number(m[1]) > 3) refuse("format_newer", s);
     // `/1` (F-007) and anything else of the family: not imported any more (AC-06).
     if (s.startsWith("srd-table.local-copy/")) refuse("format_unsupported", s);
     refuse("format_unknown", s);
@@ -969,7 +1068,7 @@ export async function checkStructure(parsed: unknown): Promise<LocalCopy> {
   )(top.payload, "payload");
   const p = top.payload as Record<string, unknown>;
   checkSource(p.source);
-  const ctx = checkCharacterShape(p.character);
+  const ctx = checkCharacterShape(p.character, f as LocalCopyFormat);
   await checkPacks(p.packs, ctx);
   const recordId = (p.source as CopySource).record_id;
   checkHistory(p.history, recordId);
@@ -1004,7 +1103,7 @@ async function checkProvenance(p: Payload): Promise<void> {
 }
 
 /** What the engine step needs (§2.5): any facade (the worker, or Node's `nodeFacade`). */
-export type CopyEngine = CharacterChecker & Pick<EngineFacade, "registerPacks">;
+export type CopyEngine = CharacterChecker & Pick<EngineFacade, "registerPacks" | "compilePlan">;
 
 /** The portrait's bytes as accepted (or `null`): after `checkStructure`, they're valid. */
 export function portraitOf(copy: LocalCopy): { mime: PortraitMime; bytes: Uint8Array } | null {
@@ -1034,6 +1133,61 @@ export async function checkWithEngine(copy: LocalCopy, f: CopyEngine): Promise<v
   if (build) refuse("build_invalid", `the engine would read the build differently: ${build}`);
   const state = changed(c.state, checked.state);
   if (state) refuse("state_would_change", `the engine would read the state differently: ${state}`);
+  await checkProgressionWith(
+    progressionOf(copy),
+    c.build,
+    c.context,
+    copy.payload.packs.map((e) => ({ id: e.id, sha256: e.sha256 })),
+    f,
+  );
+}
+
+/**
+ * kenli F-002 T07 (§9): a plan carried with a character. Read whole (`progression_unsupported`);
+ * its packs exactly the character's context, every one carried (`progression_pack_missing`);
+ * compiled in that context; the build exactly the applied level's checkpoint, prefix hash
+ * included (`progression_prefix_mismatch`). The packs must already be registered for this
+ * session (the copy's own: `checkWithEngine`; a record's: its stored packs). Throws a `Refusal`.
+ */
+export async function checkProgressionWith(
+  raw: unknown,
+  build: unknown,
+  context: ContentContext,
+  carried: readonly { readonly id: string; readonly sha256: string }[] | null,
+  f: Pick<EngineFacade, "compilePlan">,
+): Promise<void> {
+  if (raw === null || raw === undefined) return;
+  const read = await readProgression(raw);
+  if (!read.ok) refuse(read.code, read.detail);
+  const meta = (read as { progression: ProgressionMeta }).progression;
+  const plan = meta.plan.plan;
+  const M = "progression_pack_missing";
+  if (plan.packs.length !== context.packs.length)
+    refuse(M, `the plan has ${plan.packs.length} packs, the character ${context.packs.length}`);
+  for (const [i, ref] of plan.packs.entries()) {
+    const c = context.packs[i];
+    if (!c || c.id !== ref.id || c.version !== ref.version || c.sha256 !== ref.sha256)
+      refuse(M, `plan pack ${i} ${ref.id}@${ref.version ?? ""} is not the character's`);
+    if (carried && !carried.some((e) => e.id === ref.id && e.sha256 === ref.sha256))
+      refuse(M, `${ref.id}@${ref.version ?? ""} is not carried`);
+  }
+  if (sourcesKey(plan.sources) !== sourcesKey(context.sources))
+    refuse("progression_prefix_mismatch", "the plan's sources are not the character's");
+  const compiled = await f.compilePlan(meta.plan);
+  if (!compiled.ok) refuse(compiled.problem.code, compiled.problem.detail);
+  const b = build as { class_id?: unknown; levels?: unknown[] };
+  const level = b.class_id ? 1 + (b.levels?.length ?? 0) : 0;
+  const P = "progression_prefix_mismatch";
+  if (level !== meta.applied_level)
+    refuse(P, `level ${level}, the plan says ${meta.applied_level}`);
+  const at = compiled.checkpoints[level - 1];
+  if (!at) refuse(P, `no checkpoint ${level}`);
+  const checkpoint = (at as { build: unknown }).build as Parameters<typeof mech>[0];
+  const mine = build as Parameters<typeof mech>[0];
+  if (canonicalJson(mech(mine)) !== canonicalJson(mech(checkpoint)))
+    refuse(P, `the build is not the plan's level ${level}`);
+  if ((await prefixSha256(mine)) !== meta.prefix_sha256)
+    refuse(P, "prefix_sha256 is not the build's");
 }
 
 /**

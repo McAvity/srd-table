@@ -1,6 +1,6 @@
 /**
  * kenli F-011 T09 (dnd5 contracts/changes.md §9): what the library CLI makes — a full copy
- * (`srd-table.local-copy/2`) of a library character, or an encounter transfer with its party as
+ * (`srd-table.local-copy/3`, kenli F-002 T07; F-011 wrote `/2`) of a library character, or an encounter transfer with its party as
  * internal `transfer/1` characters — from a `dnd5.library-export-request/1`, on any engine facade
  * (the CLI's is Node's `nodeFacade`, the Table's pinned engine). Pure: no worker, DOM, IndexedDB,
  * file system or network here; the CLI (`scripts/export-library-character.ts`) reads the files and
@@ -492,6 +492,8 @@ export async function makeCharacterCopy(
       context: json(c.context),
       origin: null,
       portrait,
+      // kenli F-002 T07: a library character follows no plan (`/3`, `null`).
+      progression: null,
     },
     history,
     external: externalOf(history, recordId),

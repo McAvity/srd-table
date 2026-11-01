@@ -14,6 +14,7 @@ import { CAMPAIGN_CONTEXT_KEY, parsePrepared, settingsFingerprint } from "@/offl
 
 export { CAMPAIGN_CONTEXT_KEY, settingsFingerprint };
 
+import { engine } from "@/engine/client";
 import {
   checkImageBytes,
   decodeChecked,
@@ -36,6 +37,7 @@ import { exportPack } from "../export";
 import {
   asRefused,
   type CopyPortrait,
+  checkProgressionWith,
   checkStructure,
   externalOf,
   HISTORY_CONTAINER,
@@ -306,6 +308,10 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
       context: structuredClone(context),
       origin: flatOrigin(record.origin),
       portrait,
+      // kenli F-002 T07 (§9): the plan as the record keeps it, or `null` (an ordinary character).
+      progression: record.progression
+        ? (structuredClone(record.progression) as Payload["character"]["progression"])
+        : null,
     },
     history,
     external,
@@ -322,6 +328,15 @@ async function build(recordId: string, s: Snapshot, now: number): Promise<Export
     return refuse("limit_copy_bytes", `${bytes.byteLength} > ${LOCAL_COPY_LIMITS.copyBytes}`);
   // The file must be one this app imports: the same structural checks, on the bytes as written.
   await checkStructure(JSON.parse(text));
+  // …and its plan the one an import accepts (read whole, the character's packs, its checkpoint):
+  // a character changed outside its plan is refused here, before a file that can't come back.
+  await checkProgressionWith(
+    payload.character.progression,
+    payload.character.build,
+    context,
+    packs.map((e) => ({ id: e.id, sha256: e.sha256 })),
+    engine(),
+  );
   const rests = rows.filter((e) => e.rest_kind === "long" && e.status === "done").length;
   return {
     ok: true,

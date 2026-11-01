@@ -9,13 +9,7 @@
 import type { CharacterBuild, CharacterState } from "srd-rules-engine";
 import type { CharacterRecord } from "@/store/documents";
 import type { HistoryEntry, HistoryMeta } from "@/store/history";
-import {
-  type External,
-  ext,
-  LOCAL_COPY_FORMAT,
-  type LocalCopy,
-  type LocalCopyOrigin,
-} from "./format";
+import { type External, ext, type LocalCopy, type LocalCopyOrigin, progressionOf } from "./format";
 
 export interface MappedCopy {
   readonly import_id: string;
@@ -107,7 +101,8 @@ export function mapLocalCopy(copy: LocalCopy, o: MapOptions): MappedCopy {
     ? { ...structuredClone(p.history.meta), record_id: rid, rev: 1 }
     : null;
   const localCopy: LocalCopyOrigin = {
-    format: LOCAL_COPY_FORMAT,
+    // The format this record really came from (`/2` or `/3`), kept as it was.
+    format: copy.format,
     import_id: o.importId,
     history_rev: p.source.history_rev,
     entry_count: p.history.entry_count,
@@ -123,6 +118,8 @@ export function mapLocalCopy(copy: LocalCopy, o: MapOptions): MappedCopy {
     rev: 1,
     gen: p.source.record_gen,
     content: structuredClone(p.character.context),
+    // kenli F-002 T07 (§9): the plan as the copy carries it (`/2`: none); checked before this.
+    ...(progressionOf(copy) ? { progression: structuredClone(progressionOf(copy)) } : {}),
     origin: {
       kind: "import",
       id: `table/${inst}/${src}`,

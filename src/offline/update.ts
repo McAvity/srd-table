@@ -52,19 +52,35 @@ export const UPDATE_KEY = "offline.update.v1";
 export const UPDATE_SCHEMA = "srd-table.update-state/1";
 /** The data this release reads and writes (as its descriptor declares them, §2.2). */
 /**
- * What this release's data is (kenli F-011, contracts/changes.md §7): the database and journal
- * family stay F-007's (`kenli.history/1`, so an installed F-007 release still accepts this one);
- * the journal holds `/1` and `/2` entries, states up to version 3, origins of `/1` and `/2` copies.
+ * What this release's data is (kenli F-011, contracts/changes.md §7; kenli F-002 T07, dnd5
+ * contracts/progression.md §10): the journal family stays F-007's (`kenli.history/1` and its meta);
+ * the database is version 5 (records may carry `progression`); the journal holds `/1`, `/2` and
+ * `/3` entries, states up to version 3. `local_copy_formats` lists what this release's records may
+ * say they came from: `/1` stays as the origin of older imports (never imported any more), `/2`
+ * and `/3` copies are read, `/3` is the only one written.
  */
 export const OWN_DATA = {
-  db_version: 4,
+  db_version: 5,
   history_schema: "kenli.history/1",
   history_meta_schema: "kenli.history-meta/1",
   transfer_formats: ["srd-table.transfer/1"],
-  local_copy_formats: ["srd-table.local-copy/1", "srd-table.local-copy/2"],
-  history_entry_schemas: ["kenli.history/1", "kenli.history/2"],
+  local_copy_formats: [
+    "srd-table.local-copy/1",
+    "srd-table.local-copy/2",
+    "srd-table.local-copy/3",
+  ],
+  history_entry_schemas: ["kenli.history/1", "kenli.history/2", "kenli.history/3"],
   state_versions: [1, 2, 3],
 } as const;
+/**
+ * kenli F-002 T07 (§10, C6): the pointer this release and its bridge read first. The legacy
+ * `release.json` stays on the newest database-4 release (the bridge B0), so a client of an older
+ * release that only reads `release.json` still finds the bridge after a later release is out; the
+ * bridge and every later release follow `release-current.json`, the newest release. Absent (a
+ * deployment before the bridge): `release.json` is read instead.
+ */
+export const CURRENT_POINTER = "release-current.json";
+export const LEGACY_POINTER = "release.json";
 /** A release before F-011 declares neither list: what its data was. */
 const PRE_F011 = { history_entry_schemas: ["kenli.history/1"], state_versions: [1, 2] } as const;
 const FREEZE_TIMEOUT_MS = 5_000;
@@ -616,7 +632,8 @@ export async function updatesApply(): Promise<boolean> {
  */
 export const compatible = (data: ReleaseDescriptor["inputs"]["data"] | undefined): boolean =>
   !!data &&
-  data.db_version === OWN_DATA.db_version &&
+  // A candidate may open a newer database (it upgrades ours, never the reverse): §10, B0/B1.
+  data.db_version >= OWN_DATA.db_version &&
   data.history_schema === OWN_DATA.history_schema &&
   data.history_meta_schema === OWN_DATA.history_meta_schema &&
   OWN_DATA.transfer_formats.every((f) => data.transfer_formats.includes(f)) &&
@@ -659,7 +676,9 @@ export async function checkForUpdate(fetcher: typeof fetch = fetch): Promise<Upd
   if (!(await updatesApply())) return null;
   useUpdateStore.setState({ busy: "checking" });
   try {
-    const res = await fetcher(`${BASE}release.json`, { cache: "no-store" });
+    let res = await fetcher(`${BASE}${CURRENT_POINTER}`, { cache: "no-store" });
+    // Only a deployment without the current pointer (404) falls back to the legacy one.
+    if (res.status === 404) res = await fetcher(`${BASE}${LEGACY_POINTER}`, { cache: "no-store" });
     if (!res.ok) return null;
     const p = (await res.json()) as { release_id?: unknown; descriptor_sha256?: unknown };
     if (typeof p.release_id !== "string" || !RELEASE_ID_PATTERN.test(p.release_id)) return null;

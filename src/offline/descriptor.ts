@@ -108,6 +108,8 @@ export const EXCLUDED_PREFIXES = ["content/", "library/", "f005/", "releases/"] 
 export const MUTABLE_PATHS = [
   "index.html",
   "release.json",
+  // kenli F-002 T07: the current pointer (the legacy one stays on the bridge), see offline/update.ts.
+  "release-current.json",
   ".srd-table-deploy.json",
   "releases/index.json",
 ] as const;

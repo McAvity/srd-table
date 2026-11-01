@@ -114,7 +114,13 @@ interface Schema extends DBSchema {
 }
 
 export const DB_NAME = "srd-table";
-export const DB_VERSION = 4;
+/**
+ * kenli F-002 T07 (dnd5 contracts/progression.md §10): 5 marks the data a release with optional
+ * `progression` records, `/3` copies and `kenli.history/3` entries writes. No store, index or row
+ * changes: older rows load as they are. A tab still open on 4 is told to let go (`blocking`) and
+ * its next open on a 5 database fails (`VersionError`), so an older release never writes it.
+ */
+export const DB_VERSION = 5;
 
 export const packKey = (ref: PackRef) => `${ref.id}@${ref.version ?? ""}#${ref.sha256}`;
 
@@ -161,6 +167,7 @@ export function db(): Promise<IDBPDatabase<Schema>> {
         transaction
           .objectStore("history")
           .createIndex("by_group", ["record_id", "group_id", "seq"]);
+      // oldVersion < 5: nothing to create or rewrite (the version alone keeps older releases out).
     },
     blocked() {
       waitingForOtherTabs = true;

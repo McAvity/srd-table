@@ -7,6 +7,12 @@
  * module's. The release builder's declaration equals `OWN_DATA`, and a malformed declaration is a
  * bad descriptor. Self-contained (review03 R03-15): the cases are a fixture copy of the dnd5
  * contract example, and no git history is read; dnd5 checks both copies against their sources.
+ *
+ * kenli F-002 T07 (dnd5 contracts/progression.md §10): F-011's release is now the installed one
+ * (r-bccac419bfb8a6ba, Table 28c4d4d): D05–D08 check ITS gate, kept verbatim as a fixture
+ * (fixtures/installed-28c4d4d.ts). This release declares database 5, `/3` copies and `/3` entries
+ * and accepts a candidate with a database at least its own; F-011 refuses it (the bridge B0 is
+ * needed), and this release refuses both older ones (no downgrade).
  */
 
 import { readFileSync } from "node:fs";
@@ -15,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { dataProblems, type ReleaseInputs } from "../../src/offline/descriptor";
 import { compatible, OWN_DATA } from "../../src/offline/update";
+import * as installedF011 from "./fixtures/installed-28c4d4d";
 import * as installedA from "./fixtures/installed-a2e1bae";
 import { RELEASE_DATA_JSON } from "./fixtures/release-data";
 
@@ -40,14 +47,46 @@ describe("D01–D08: the installed release A and this release B", () => {
         expect(structuredClone(installedA.OWN_DATA)).toEqual(ex.release_A_own);
         expect(gateA(data)).toBe(c.expect);
       } else {
-        expect(own).toEqual(structuredClone(OWN_DATA) as unknown as Data); // this release
-        expect(compatible(data)).toBe(c.expect);
+        // F-011's release (then "this release"), with its own gate.
+        expect(own).toEqual(structuredClone(installedF011.OWN_DATA) as unknown as Data);
+        expect(installedF011.compatible(data)).toBe(c.expect);
       }
     });
   }
-  it("this release's data is release_B_data, which the installed A accepts", () => {
-    expect(structuredClone(OWN_DATA)).toEqual(ex.release_B_data);
-    expect(installedA.compatible(structuredClone(OWN_DATA) as unknown as Data)).toBe(true);
+  it("F-011's data is release_B_data, which the installed A accepts", () => {
+    expect(structuredClone(installedF011.OWN_DATA)).toEqual(ex.release_B_data);
+    expect(installedA.compatible(structuredClone(installedF011.OWN_DATA) as unknown as Data)).toBe(
+      true,
+    );
+  });
+});
+
+describe("kenli F-002 T07: this release's data (database 5) and the gate", () => {
+  const f011 = structuredClone(ex.release_B_data) as Data;
+  const own = structuredClone(OWN_DATA) as unknown as Data;
+  it("is F-011's with database 5 and /3 copies and entries added (nothing removed)", () => {
+    expect(own).toEqual({
+      ...f011,
+      db_version: 5,
+      local_copy_formats: [...f011.local_copy_formats, "srd-table.local-copy/3"],
+      history_entry_schemas: [...(f011.history_entry_schemas ?? []), "kenli.history/3"],
+    });
+  });
+  it("accepts itself and a later database; refuses F-011 and A (no downgrade)", () => {
+    expect(compatible(own)).toBe(true);
+    expect(compatible({ ...own, db_version: 6 })).toBe(true);
+    expect(compatible(f011)).toBe(false);
+    expect(compatible(structuredClone(ex.release_A_own) as Data)).toBe(false);
+  });
+  it("the other checks stay: a /3 copy, a /3 entry, the journal family are still required", () => {
+    expect(compatible({ ...own, local_copy_formats: f011.local_copy_formats })).toBe(false);
+    expect(compatible({ ...own, history_entry_schemas: f011.history_entry_schemas })).toBe(false);
+    expect(compatible({ ...own, history_schema: "kenli.history/2" })).toBe(false);
+    expect(compatible({ ...own, state_versions: [1, 2] })).toBe(false);
+  });
+  it("installed F-011 refuses this release (its gate wants database 4): only the bridge B0 leads here", () => {
+    expect(installedF011.compatible(own)).toBe(false);
+    expect(installedA.compatible(own)).toBe(false);
   });
 });
 

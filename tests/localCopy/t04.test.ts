@@ -131,7 +131,7 @@ describe("the portrait in a copy: exact bytes, or none", () => {
         base64: toBase64(image),
       });
       expect(x.copy.payload.source.producer).toBeNull();
-      expect(x.copy.format).toBe("srd-table.local-copy/2");
+      expect(x.copy.format).toBe("srd-table.local-copy/3");
       const { plan, r } = await importInto(`Q-${mime}`, x.bytes);
       expect(plan.summary.portrait).toEqual({ mime, bytes: image.length });
       expect(r.recordId).not.toBe(id);

@@ -41,7 +41,7 @@ describe("an upgrade blocked by another tab", () => {
     expect(told).toEqual(["blocked"]);
     old.close();
     const opened = await opening;
-    expect(opened.version).toBe(4);
+    expect(opened.version).toBe(5);
     expect(dbWaitsForOtherTabs()).toBe(false);
     stop();
   });

@@ -50,7 +50,7 @@ describe("valid examples", () => {
     const b = await validateLocalCopy(enc(EMPTY), { engine: false });
     expect(b.ok).toBe(true);
     if (b.ok) expect(b.copy.payload.history.meta).toBeNull();
-    expect(LOCAL_COPY_FORMAT).toBe("srd-table.local-copy/2");
+    expect(LOCAL_COPY_FORMAT).toBe("srd-table.local-copy/3");
     expect(LOCAL_COPY_LIMITS).toMatchObject({
       copyBytes: 20 * 1024 * 1024,
       jsonDepth: 64,
@@ -142,7 +142,8 @@ const MUTATIONS: Record<string, (c: Mutable) => Promise<Mutable> | Mutable> = {
     return c;
   },
   // F-011: `/2` is this app's format now; the next one is newer.
-  format_newer: (c) => ({ ...c, format: "srd-table.local-copy/3" }),
+  // kenli F-002 T07: `/3` is read now; the next one is newer.
+  format_newer: (c) => ({ ...c, format: "srd-table.local-copy/4" }),
   format_transfer: (c) => ({ ...c, format: "srd-table.transfer/1" }),
   unknown_top_field: (c) => ({ ...c, extra: 1 }),
   unknown_entry_field: (c) => {

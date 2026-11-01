@@ -1,6 +1,6 @@
 /**
  * Characters: the list, create, duplicate, delete. kenli F-011 T04 (AC-01): ONE export — the full
- * copy (`srd-table.local-copy/2`: build, state, whole journal, exact packs, portrait) — and ONE
+ * copy (`srd-table.local-copy/3`: build, state, whole journal, exact packs, portrait, plan) — and ONE
  * import, of such a copy, from a file or a URL; it always makes a new character. The old raw
  * build/state and character transfer exports and imports are gone (packs: Settings; encounters with
  * their party: Encounters). kenli F-011 T08: "New character" asks for the content when packs were

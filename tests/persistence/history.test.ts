@@ -143,7 +143,7 @@ describe("storage: upgrade, a roll that changes nothing, reload (AC-04, AC-06)",
     await loadAll();
     stop = startAutosave();
     const database = await db();
-    expect(database.version).toBe(4);
+    expect(database.version).toBe(5); // kenli F-002 T07: 5 adds nothing
     expect(await database.getAll("history")).toEqual([]);
     expect(await database.getAll("history_meta")).toEqual([]);
     expect(hist().meta).toEqual({});

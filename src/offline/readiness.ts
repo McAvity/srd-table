@@ -40,6 +40,7 @@ import {
   unsavedState,
   writeQueue,
 } from "@/persistence/sync";
+import { type ProgressionMeta, readProgression } from "@/progression/record";
 import { characterKeysOf, useDocuments } from "@/store/documents";
 import { useHistory } from "@/store/history";
 import { useSettings } from "@/store/settings";
@@ -189,6 +190,36 @@ async function packItems(context: ContentContext | null): Promise<ReadinessItem[
   return items;
 }
 
+/**
+ * kenli F-002 T07 (dnd5 contracts/progression.md §10): a character following a plan is ready only
+ * when EVERY pack of its plan (the levels still to come need them all) is stored here as a row —
+ * a pack only served by the host, or only registered for this session, is not enough offline.
+ */
+async function planPackItems(progression: unknown): Promise<ReadinessItem[]> {
+  if (progression === null || progression === undefined) return [];
+  const read = await readProgression(progression);
+  if (!read.ok) return [{ kind: "record", id: "progression", status: "failed", detail: read.code }];
+  if (!read.progression) return [];
+  const database = await db();
+  const tx = database.transaction("packs", "readonly");
+  const items: ReadinessItem[] = [];
+  for (const ref of read.progression.plan.plan.packs) {
+    const row = await tx.store.get(packKey(ref));
+    items.push(
+      row
+        ? { kind: "pack", id: `plan:${packKey(ref)}`, status: "ok", detail: null }
+        : {
+            kind: "pack",
+            id: `plan:${packKey(ref)}`,
+            status: "missing",
+            detail: "plan_pack_unstored",
+          },
+    );
+  }
+  await tx.done;
+  return items;
+}
+
 function saveItem(store: "characters" | "encounters", id: string): ReadinessItem {
   const s = useHistory.getState().saveState;
   if (s.status === "failed") return { kind: "save", id, status: "failed", detail: "save_failed" };
@@ -214,6 +245,7 @@ async function characterItems(id: string): Promise<{
   const { context, legacy } = await contextOf(record.content);
   const items: ReadinessItem[] = [{ kind: "record", id, status: "ok", detail: null }];
   items.push(...(await packItems(context)));
+  items.push(...(await planPackItems(record.progression)));
   const meta = useHistory.getState().meta[id];
   const u = unsavedState(id);
   const headSaved = !meta || savedHead(id).rev === meta.rev;
@@ -380,7 +412,9 @@ async function prepareCampaign(signal?: AbortSignal): Promise<void> {
  */
 async function storeServedExact(context: ContentContext, signal?: AbortSignal): Promise<void> {
   for (const ref of context.packs) {
-    if ((await engine().localPackFiles(ref)).ok) continue;
+    // kenli F-002 T07: registered for this session is not stored here — the row is what counts.
+    const row = await (await db()).get("packs", packKey(ref));
+    if (row && (await engine().localPackFiles(ref)).ok) continue;
     let served: { ref: PackRef; files: PackFiles } | null = null;
     try {
       served = await engine().servedPackFiles(ref.id);
@@ -401,9 +435,18 @@ function needs(target: Target): { legacy: boolean; pinned: ContentContext[] } {
     if (content) pinned.push(content);
     else legacy = true;
   };
+  // kenli F-002 T07: a plan's packs are prepared too (its exact refs; served ones stored here).
+  const planned = (p: unknown) => {
+    const m = p as ProgressionMeta | null | undefined;
+    if (m?.plan?.plan?.packs)
+      pinned.push({ packs: m.plan.plan.packs, sources: m.plan.plan.sources });
+  };
   if (target.kind === "character") {
     const c = docs.characters[target.id];
-    if (c) add(c.content);
+    if (c) {
+      add(c.content);
+      planned(c.progression);
+    }
   } else {
     const e = docs.encounters[target.id];
     if (e) {

@@ -111,14 +111,16 @@ const inputs: ReleaseInputs = {
   engine_commit: pin,
   protocol: RELEASE_PROTOCOL,
   data: {
-    db_version: args["declare-db-version"] ? Number(args["declare-db-version"]) : 4,
+    db_version: args["declare-db-version"] ? Number(args["declare-db-version"]) : 5,
     history_schema: "kenli.history/1",
     history_meta_schema: "kenli.history-meta/1",
     transfer_formats: ["srd-table.transfer/1"],
-    // kenli F-011 (contracts/changes.md §7): additive, the journal family unchanged so an installed
-    // F-007 release accepts this one; /1 origins still read, /2 copies, /2 entries, v3 states.
-    local_copy_formats: ["srd-table.local-copy/1", "srd-table.local-copy/2"],
-    history_entry_schemas: ["kenli.history/1", "kenli.history/2"],
+    // kenli F-011 (contracts/changes.md §7): additive, the journal family unchanged; /1 origins
+    // still read, /2 copies, /2 entries, v3 states. kenli F-002 T07 (progression.md §10): database
+    // 5, /3 copies, /3 entries — the same lists as src/offline/update.ts OWN_DATA (a test checks).
+    // biome-ignore format: tests/offline/release-data.test.ts reads this line as OWN_DATA writes it
+    local_copy_formats: ["srd-table.local-copy/1", "srd-table.local-copy/2", "srd-table.local-copy/3"],
+    history_entry_schemas: ["kenli.history/1", "kenli.history/2", "kenli.history/3"],
     state_versions: [1, 2, 3],
   },
   toolchain: { bun: bunVersion, vite: viteVersion },

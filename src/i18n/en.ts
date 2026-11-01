@@ -1007,6 +1007,12 @@ export const en = {
   "localCopy.undo": "Undo the import",
   "localCopy.redo": "Redo the import",
   "localCopy.undone": "Import of {name} undone: the copy and its history are gone (packs kept).",
+  "localCopy.problem.progression_unsupported":
+    "The plan this character follows is in a form this app doesn't read.",
+  "localCopy.problem.progression_pack_missing":
+    "The plan this character follows needs content that isn't in the copy exactly.",
+  "localCopy.problem.progression_prefix_mismatch":
+    "The character was changed outside its plan: stop following the plan, then copy it again.",
   "localCopy.problem.other": "Refused ({code}).",
   "localCopy.problem.malformed": "The file's history or structure is malformed ({code}).",
   "localCopy.problem.file_read_failed": "The file couldn't be read: nothing was written.",
@@ -1060,7 +1066,7 @@ export const en = {
   "localCopy.stateOrigin.synthetic": "Play state: a test fixture; no history.",
   "localCopy.library": "From the library: {label} ({slug})",
   "localCopy.problem.root_kind_not_allowed":
-    "Not a character copy: this entrance imports only a full character copy (srd-table.local-copy/2).",
+    "Not a character copy: this entrance imports only a full character copy (srd-table.local-copy/3, or /2 from an earlier version).",
   "localCopy.problem.pointer_target_mismatch":
     "The library link points at something other than it says.",
   "localCopy.problem.pointer_invalid": "The library link is malformed.",

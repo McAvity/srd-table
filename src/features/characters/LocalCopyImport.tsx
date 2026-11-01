@@ -1,6 +1,6 @@
 /**
  * kenli F-011 T04: "Import character" — the only character entrance (changes.md §8): one full copy
- * `srd-table.local-copy/2`, from a file or by URL (the copy, or a library pointer to one; bounded,
+ * `srd-table.local-copy/3` (or F-011's `/2`), from a file or by URL (the copy, or a library pointer to one; bounded,
  * with Stop). Any other root is refused before the check. Built on F-007 T03 (local-copy.md §5–§7):
  * the copy is checked whole (with the engine and the portrait's full decode) and previewed — who,
  * from where, the state and its origin, the portrait, the history (done/undone/refused, days, Long

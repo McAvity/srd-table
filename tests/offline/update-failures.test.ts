@@ -407,7 +407,11 @@ describe("R06-02: an unreadable update record is never written, in every path", 
     await resumeConsented();
     await exact();
     // Only the pointer was read; no descriptor, no download, no registration, no freeze.
-    expect(pointerFetch.mock.calls.map((c) => String(c[0]))).toEqual(["/release.json"]);
+    // kenli F-002 T07: the current pointer first; this host has none (404), so the legacy one.
+    expect(pointerFetch.mock.calls.map((c) => String(c[0]))).toEqual([
+      "/release-current.json",
+      "/release.json",
+    ]);
     expect(register).not.toHaveBeenCalled();
     expect(sent("freeze")).toHaveLength(0);
     expect(useUpdateStore.getState()).toMatchObject({ busy: null, unreadable: true, state: null });
@@ -479,6 +483,26 @@ describe("R06-02: an unreadable update record is never written, in every path", 
     await exact();
     await everyEntryPoint(exact);
     expect(admission.isClosed()).toBe(false);
+  });
+
+  it("kenli F-002 T07: a host with the current pointer is read only there (the legacy one stays the bridge's)", async () => {
+    await page("u-pointer");
+    const raw = { schema: UPDATE_SCHEMA, phase: 42, active_release: A, barrier: null };
+    await put(raw);
+    expect(await updateBootGate({ session: memorySession() })).toBe("open");
+    const both = vi.fn(async (url: RequestInfo | URL) =>
+      String(url).endsWith("release-current.json")
+        ? new Response(JSON.stringify({ release_id: C, descriptor_sha256: "c".repeat(64) }))
+        : new Response(JSON.stringify({ release_id: B, descriptor_sha256: "b".repeat(64) })),
+    );
+    expect(await checkForUpdate(both as unknown as typeof fetch)).toBeNull();
+    expect(both.mock.calls.map((c) => String(c[0]))).toEqual(["/release-current.json"]);
+    // Offline (the fetch throws): nothing read, nothing offered, the current release goes on.
+    const offline = vi.fn(async (_url: RequestInfo | URL) => {
+      throw new TypeError("offline");
+    });
+    expect(await checkForUpdate(offline as unknown as typeof fetch)).toBeNull();
+    expect(offline.mock.calls.map((c) => String(c[0]))).toEqual(["/release-current.json"]);
   });
 
   it("a valid record with a stale barrier still recovers normally (cleared, consent kept, thawed)", async () => {
