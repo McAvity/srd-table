@@ -84,6 +84,19 @@ export const ENGINE_IT = {
   "recharge.no": "{action} di {name} non si ricarica ({roll}).",
   "inspiration.used": "{name} aggiunge il dado di Bardic Inspiration: {roll}.",
   "halt.speed_zero": "La velocità di {target} è 0 per il resto del turno (Alt di {name}).",
+  "concentration_breaker.applies":
+    "Spezzaconcentrazione: {target} effettua il tiro salvezza con svantaggio per mantenere la concentrazione (danno di {name}).",
+  "guarded_mind.used": "{name} riesce invece con Mente Protetta (Uccisore di Maghi).",
+  "studied_attacks.mark":
+    "{name} ha vantaggio al prossimo tiro per colpire contro {target} prima della fine del suo prossimo turno (Attacchi Studiati).",
+  "savage_attacker.used":
+    "{name} usa Attaccante Selvaggio: dadi del danno dell'arma {first}, poi {second}; usa il secondo tiro.",
+  "savage_attacker.kept":
+    "Il tiro di Attaccante Selvaggio di {name} ({second}) non è usato: resta il primo ({first}) e Attaccante Selvaggio resta disponibile in questo turno.",
+  "tactical_master.used":
+    "{name} usa {mastery} invece della proprietà di maestria di {attack} (Maestro Tattico).",
+  "tactical_shift.move":
+    "Spostamento Tattico: {name} può muoversi fino a {feet} piedi (metà della sua velocità) senza provocare attacchi di opportunità (spostalo sulla mappa).",
   "indomitable.used": "{name} ripete il tiro salvezza con Indomitable.",
   "tactical_mind.used":
     "{name} aggiunge {roll} con Mente Tattica e spende un uso di Recuperare Energie.",
@@ -288,6 +301,8 @@ export const ENGINE_IT = {
   "shop.sold": "Venduti {qty} × {item} per {price}.",
   "spell.manual": "{spell}: i suoi effetti non sono automatizzati; vedi il testo dell'incantesimo.",
   "roll.reason": "{mode, select, advantage {Vantaggio} other {Svantaggio}}: {why}",
+  "reason.concentration_breaker": "Spezzaconcentrazione di {name}",
+  "reason.studied_attacks": "Attacchi Studiati di {name}",
   "reason.features": "privilegi di {name}",
   "reason.reckless": "{name} attacca con avventatezza",
   "reason.is": "{name} è {condition}",
@@ -454,6 +469,9 @@ export const ENGINE_IT = {
   "refusal.no_guardian": "{name} non ha Guardiano",
   "refusal.guardian_within_5ft":
     "{target} è a {distance} piedi: l'attacco di opportunità di Guardiano è contro una creatura entro 1,5 metri (5 piedi)",
+  "refusal.no_tactical_master": "{name} non ha Maestro Tattico",
+  "refusal.tactical_master_mastery":
+    "{attack}: Maestro Tattico richiede un'arma di cui usa la proprietà di maestria",
   "refusal.hasnt_recharged": "{ability} di {name} non si è ricaricata",
   "refusal.already_used_action_turn": "{name} ha già usato la sua azione in questo turno",
   "refusal.no_legendary_actions": "{name} non ha azioni leggendarie",
@@ -695,6 +713,10 @@ export const ENGINE_IT = {
     "{name} fallisce un tiro salvezza su {ability}{rolled, select, true { ({total} contro CD {dc})} other {}}. Usare Resistenza leggendaria ({left} rimaste)?",
   "decision.tactical_mind":
     "{name} fallisce una {what} ({total} contro CD {dc}). Usare Mente Tattica (+1d10, un uso di Recuperare Energie solo se riesce)?",
+  "decision.guarded_mind":
+    "{name} fallisce un {what} ({total} contro CD {dc}). Riuscire invece con Mente Protetta (Uccisore di Maghi)?",
+  "decision.savage_attacker":
+    "{name}: dadi del danno di {attack} {first}, poi {second} (Attaccante Selvaggio). Usare il secondo tiro?",
   "decision.indomitable":
     "{name} fallisce un {what} ({total} contro CD {dc}). Ripeterlo con Indomitable (+{bonus})?",
   "decision.hit_on_miss":

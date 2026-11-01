@@ -118,6 +118,8 @@ export function ActionComposer({
   const [riders, setRiders] = useState<string[]>([]);
   /** Riders picked in their once-per-turn alternative form (Relentless's die, no use spent). */
   const [alternatives, setAlternatives] = useState<string[]>([]);
+  /** Tactical Master: a mastery property instead of the weapon's own (the engine's list). */
+  const [masteryAs, setMasteryAs] = useState("");
   /** Cunning / Brutal Strike effects picked, as `send:id` keys. */
   const [strikes, setStrikes] = useState<string[]>([]);
   const [twoHanded, setTwoHanded] = useState(false);
@@ -224,6 +226,7 @@ export function ActionComposer({
         cover,
         riders,
         alternatives,
+        masteryAs,
         strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
         twoHanded,
         damageType,
@@ -247,6 +250,7 @@ export function ActionComposer({
       cover,
       riders,
       alternatives,
+      masteryAs,
       strikes,
       entry.strikes,
       twoHanded,
@@ -624,6 +628,25 @@ export function ActionComposer({
           </fieldset>
         )}
 
+        {(entry.mastery_as ?? []).length > 0 && (
+          // kenli F-002 T08: Tactical Master's choice, from the engine's option.
+          <label className="flex flex-col gap-1 text-sm text-ink-muted">
+            {t("table.masteryAs")}
+            <select
+              className="field"
+              value={masteryAs}
+              onChange={(e) => setMasteryAs(e.target.value)}
+            >
+              <option value="">{t("table.masteryOwn")}</option>
+              {(entry.mastery_as ?? []).map((m) => (
+                <option key={m} value={m}>
+                  {t(`table.mastery.${m}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {entry.strikes.length > 0 && (
           <fieldset className="space-y-1">
             <legend className="mb-1 text-sm text-ink-muted">{t("table.strikes")}</legend>
@@ -861,6 +884,8 @@ interface Fields {
   riders: readonly string[];
   /** Riders picked in their alternative form (`{ rider, alternative: true }`). */
   alternatives: readonly string[];
+  /** Tactical Master's `mastery_as` (empty: the weapon's own property). */
+  masteryAs: string;
   /** Strike effects picked: each carries the engine's attack with that effect. */
   strikes: readonly StrikeOption[];
   twoHanded: boolean;
@@ -920,6 +945,7 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.cover ? { cover: f.cover } : {}),
         ...withStrikes(f),
         ...(f.twoHanded ? { two_handed: true } : {}),
+        ...(f.masteryAs ? { mastery_as: f.masteryAs as "push" | "sap" | "slow" } : {}),
       };
     case "cast": {
       const { slot_level: _s, pact: _p, ...rest } = base;
