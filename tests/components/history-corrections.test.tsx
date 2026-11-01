@@ -346,7 +346,7 @@ describe("R04-02: the v3 → v4 upgrade", () => {
     useHistory.getState().hydrate([]);
     await loadAll();
     const database = await db();
-    expect(database.version).toBe(4);
+    expect(database.version).toBe(5); // kenli F-002 T07: through 4 (the index) to 5 (nothing)
     expect([...database.transaction("history").store.indexNames]).toContain("by_group");
     const byId = (a: HistoryEntry, b: HistoryEntry) => a.id.localeCompare(b.id);
     expect([...(await database.getAll("history"))].sort(byId)).toEqual([...rows].sort(byId));
