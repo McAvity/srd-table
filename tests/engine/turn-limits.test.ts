@@ -191,7 +191,7 @@ describe("turn limits through the facade (kenli F-002 R04 round 7)", () => {
       expect(last(used).roll?.d20).toBe(stopped.pending.rolls[0]);
       expect((stopped.pending.rolls[0] ?? 20) + 5).toBeLessThan(11);
       const own = s.enc.combatants.find((c) => c.character === "aerin");
-      expect(own?.used_until_turn.length).toBe(1);
+      expect(own?.used_until_turn?.length).toBe(1);
       const alone = await s.act(feature("Test Aim"));
       expect(alone.ok).toBe(false);
       return;

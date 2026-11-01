@@ -92,6 +92,44 @@ describe("the plan's Markdown", () => {
     expect(l3.slice(l3.indexOf("### Changes"))).toContain("Spells: Dissonant Whispers");
   });
 
+  it("kenli F-002 T12 (D030): a fixed background tool at level 1, under Gained automatically and on the sheet", async () => {
+    const { text, compiled } = await md(read("wizard-1-5.plan.json"));
+    const tools = compiled.checkpoints[0]?.stats.tools ?? [];
+    expect(tools.length).toBeGreaterThan(0);
+    const l1 = section(text, 1);
+    const auto = l1.slice(l1.indexOf("### Gained automatically"), l1.indexOf("### On the sheet"));
+    expect(auto).toContain(`Tool proficiencies: ${tools.join(", ")}`);
+    expect(l1.slice(l1.indexOf("### On the sheet"))).toContain("Tool proficiencies:");
+  });
+
+  it("kenli F-002 T12 (D031): a whole list given again says what it drops and adds, at that level only", async () => {
+    const file = read("wizard-1-5.plan.json");
+    const r = await nodeFacade({ seed: 1 }).compilePlan(file);
+    if (!r.ok) throw new Error(r.problem.detail);
+    const pool = (values: string[], names: string[]) => ({
+      op: "choice" as const,
+      key: "class:test#pool",
+      label: "Test pool",
+      values,
+      names,
+      rule: "S-pool",
+      origin: "author",
+    });
+    const cps = r.checkpoints.map((cp) =>
+      cp.level === 2
+        ? { ...cp, ops: [...cp.ops, pool(["a", "b"], ["Alpha", "Beta"])] }
+        : cp.level === 3
+          ? { ...cp, ops: [...cp.ops, pool(["a", "c"], ["Alpha", "Gamma"])] }
+          : cp.level === 4
+            ? { ...cp, ops: [...cp.ops, pool(["a", "c"], ["Alpha", "Gamma"])] }
+            : cp,
+    );
+    const text = planMarkdown(file, cps as never);
+    expect(section(text, 2)).not.toContain("Replaced against the previous level");
+    expect(section(text, 3)).toContain("Replaced against the previous level: Beta out, Gamma in");
+    expect(section(text, 4)).not.toContain("Replaced against the previous level");
+  });
+
   it("depends on the plan only: the same text twice; another plan revision changes it", async () => {
     const file = read("wizard-1-5.plan.json");
     const a = await md(file);

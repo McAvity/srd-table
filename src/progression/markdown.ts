@@ -67,7 +67,8 @@ function changeLines(changes: readonly StatChange[]): { stats: string[]; automat
       c.field === "feats" ||
       c.field === "skills" ||
       c.field === "expertise" ||
-      c.field === "languages"
+      c.field === "languages" ||
+      c.field === "tools"
     ) {
       // Traits come with the level itself (automatic grants); feats, feature options and spells on
       // the sheet follow the level's choices, so they are listed with the changes.
@@ -168,6 +169,7 @@ export function planMarkdown(
     out.push(`- ${t("markdown.hpAt", { level: 1, hp: String(start.stats.max_hp ?? "—") })}`);
   out.push("");
   const names = classNames(checkpoints);
+  const lastList = new Map<string, { values: readonly string[]; names: readonly string[] }>();
   for (const cp of checkpoints) {
     const head =
       cp.level === 1
@@ -189,7 +191,30 @@ export function planMarkdown(
     const choices = cp.ops.filter((o) => o.op === "choice");
     if (cp.level > 1) out.push("");
     out.push(`### ${t("markdown.choices")}`, "");
-    if (choices.length) for (const c of choices) out.push(choiceLine(c));
+    if (choices.length)
+      for (const c of choices) {
+        out.push(choiceLine(c));
+        // kenli F-002 T12 (D031): a whole list given again (prepared spells, known forms): what it
+        // drops and adds against the same choice's previous list, at the level it happens.
+        const key = c.key ?? "";
+        const before = key ? lastList.get(key) : undefined;
+        const now = { values: c.values ?? [], names: c.names ?? c.values ?? [] };
+        if (key) lastList.set(key, now);
+        if (before && c.rule === "S-pool") {
+          const name = (l: { values: readonly string[]; names: readonly string[] }, v: string) =>
+            l.names[l.values.indexOf(v)] ?? v;
+          const out1 = before.values
+            .filter((v) => !now.values.includes(v))
+            .map((v) => e(name(before, v)));
+          const in1 = now.values
+            .filter((v) => !before.values.includes(v))
+            .map((v) => e(name(now, v)));
+          if (out1.length)
+            out.push(
+              `  - ${t("markdown.listChange", { removed: out1.join(", "), added: in1.join(", ") || "—" })}`,
+            );
+        }
+      }
     else out.push(`- ${t("markdown.noChoices")}`);
     const { stats, automatic } = changeLines(cp.changes);
     if (cp.level === 1) {
@@ -204,12 +229,14 @@ export function planMarkdown(
       out.push(...line("markdown.gained.skills", fixed(cp.stats.skills)));
       out.push(...line("markdown.gained.expertise", fixed(cp.stats.expertise)));
       out.push(...line("markdown.gained.languages", fixed(cp.stats.languages)));
+      out.push(...line("markdown.gained.tools", fixed(cp.stats.tools ?? [])));
       out.push("", `### ${t("markdown.sheetAtStart")}`, "");
       out.push(...line("markdown.gained.feats", cp.stats.feats));
       out.push(...line("markdown.gained.spells", cp.stats.spells));
       out.push(...line("markdown.gained.skills", cp.stats.skills));
       out.push(...line("markdown.gained.expertise", cp.stats.expertise));
       out.push(...line("markdown.gained.languages", cp.stats.languages));
+      out.push(...line("markdown.gained.tools", cp.stats.tools ?? []));
     } else {
       if (automatic.length) out.push("", `### ${t("markdown.automatic")}`, "", ...automatic);
       if (stats.length) out.push("", `### ${t("markdown.changes")}`, "", ...stats);

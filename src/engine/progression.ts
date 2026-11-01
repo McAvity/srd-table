@@ -85,6 +85,8 @@ export interface CheckpointStats {
   readonly skills: readonly string[];
   readonly expertise: readonly string[];
   readonly languages: readonly string[];
+  /** kenli F-002 T12 (D030): tool proficiencies, by name (a background's fixed tool included). */
+  readonly tools: readonly string[];
 }
 
 export interface StatChange {
@@ -290,6 +292,7 @@ function statsOf(build: CharacterBuild, catalog: Catalog): CheckpointStats {
     skills: s.skills.filter((x) => x.proficient_from !== null).map((x) => skillName(x.skill)),
     expertise: s.skills.filter((x) => x.expertise).map((x) => skillName(x.skill)),
     languages: Object.keys(s.languages).map((id) => lookup(catalog.languages, id)?.name ?? id),
+    tools: Object.keys(s.tools).map((id) => lookup(catalog.tools, id)?.name ?? id),
   };
 }
 
@@ -336,6 +339,7 @@ function changesOf(before: CheckpointStats | null, after: CheckpointStats): Stat
     "skills",
     "expertise",
     "languages",
+    "tools",
   ] as const) {
     const added = multisetMinus(after[k], before[k]);
     const removed = multisetMinus(before[k], after[k]);

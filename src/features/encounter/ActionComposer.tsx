@@ -141,6 +141,8 @@ export function ActionComposer({
     side: "",
   });
   const [unaffected, setUnaffected] = useState<string[]>([]);
+  /** kenli F-002 T12 (D016): what this cast does to a tracked pool (Arcane Ward), by trigger key. */
+  const [castModes, setCastModes] = useState<Record<string, "" | "create" | "restore">>({});
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const [busy, setBusy] = useState(false);
   /** The way it's played: by hand there are no targets, areas or cover to pick. */
@@ -161,6 +163,16 @@ export function ActionComposer({
       ? play.data?.sheet.attacks.find((a) => a.name === base.attack)
       : undefined;
   const spell = useEntry<SpellDef>("spells", base.type === "cast" ? base.spell : null).data ?? null;
+  // kenli F-002 T12 (D016): the character's cast triggers of this spell's school (the engine checks
+  // the slot and the pool and refuses what can't be).
+  const castTriggers =
+    base.type === "cast" && spell && spell.level > 0
+      ? (play.data?.sheet.cast_triggers ?? []).filter((tr) => tr.school === spell.school)
+      : [];
+  const triggered = castTriggers.flatMap((tr) => {
+    const mode = castModes[tr.key] ?? "";
+    return mode ? [{ key: tr.key, mode }] : [];
+  });
   const damageTypes = spell?.mechanics?.damage_types ?? [];
   const designate = spell?.mechanics?.zone?.designate === true;
   const wallDef = spell?.mechanics?.wall ?? null;
@@ -241,6 +253,7 @@ export function ActionComposer({
             ? { from: wall.from, to: wall.to, ...(wall.side ? { side: wall.side } : {}) }
             : null,
         unaffected,
+        triggers: triggered,
       }),
     [
       base,
@@ -265,6 +278,7 @@ export function ActionComposer({
       spec?.kind,
       wall,
       unaffected,
+      triggered,
     ],
   );
   const played = playedAs(action, as, entry.rollable);
@@ -538,6 +552,33 @@ export function ActionComposer({
             </select>
           </label>
         )}
+
+        {castTriggers.map((tr) => (
+          <label key={tr.key} className="flex flex-col gap-1 text-sm">
+            {t("sheet.castTrigger", { trigger: tr.name })}
+            <select
+              className="field max-w-xs"
+              data-testid="cast-trigger"
+              value={castModes[tr.key] ?? ""}
+              onChange={(e) =>
+                setCastModes({
+                  ...castModes,
+                  [tr.key]: e.target.value as "" | "create" | "restore",
+                })
+              }
+            >
+              <option value="">{t("sheet.castTriggerNone", { trigger: tr.name })}</option>
+              {tr.create && (
+                <option value="create">{t("sheet.castTriggerCreate", { trigger: tr.name })}</option>
+              )}
+              {tr.restore_per_slot_level > 0 && (
+                <option value="restore">
+                  {t("sheet.castTriggerRestore", { trigger: tr.name })}
+                </option>
+              )}
+            </select>
+          </label>
+        ))}
 
         {(base.type === "attack" || base.type === "cast" || base.type === "legendary") && (
           <div className="flex flex-wrap gap-4">
@@ -898,6 +939,8 @@ interface Fields {
   point: Square | null;
   wall: { from: Square; to: Square; side?: "left" | "right" } | null;
   unaffected: readonly string[];
+  /** kenli F-002 T12 (D016): cast triggers paid with a cast. */
+  triggers: readonly { key: string; mode: "create" | "restore" }[];
 }
 
 /**
@@ -960,6 +1003,7 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.mode !== "normal" ? { mode: f.mode } : {}),
         ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
         ...(f.unaffected.length ? { unaffected: [...f.unaffected] } : {}),
+        ...(f.triggers.length ? { triggers: f.triggers.map((x) => ({ ...x })) } : {}),
         ...(f.cover
           ? { cover: Object.fromEntries(f.targets.map((id) => [id, f.cover as Cover])) }
           : {}),

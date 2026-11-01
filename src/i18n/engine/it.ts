@@ -943,6 +943,7 @@ export const ENGINE_IT = {
     "{use} non c'è: si crea lanciando un incantesimo di {school} con uno slot incantesimo",
   "refusal.pool_already_created": "{use} è già stato creato: di nuovo solo dopo un riposo lungo",
   "refusal.pool_full": "{use} è pieno ({max})",
+  "play.pool_full_no_gain": "{use} è già al massimo ({max}): non guadagna nulla",
   "refusal.pool_low": "A {use} restano {current}",
   "refusal.trigger_needs_slotted_school":
     "{trigger}: serve un incantesimo di {school} lanciato con uno slot incantesimo",
@@ -951,6 +952,13 @@ export const ENGINE_IT = {
   "feature.manual_effect": "{feature}: il suo effetto lo risolve il tavolo",
   "cast.ritual": "{spell} lanciato come rituale: nessuno slot, 10 minuti in più",
   "cast.free": "{spell} lanciato con {use}: nessuno slot",
+  "cast.at_will": "{spell} lanciato a volontà con {use}: nessuno slot, nulla speso",
+  "cast.slot_kept":
+    "{feature}: {die} ha fatto {rolled}, lo slot di livello {level} non viene speso",
+  "cast.slot_not_kept":
+    "{feature}: {die} ha fatto {rolled}, lo slot di livello {level} viene speso",
+  "initiative.regained": "{name}: {use} torna a {left} ({feature})",
+  "refusal.free_cast_only": "{spell} si lancia solo tramite {use}, non con uno slot incantesimo",
   "unarmed.grapple":
     "Lotta, CD {dc}: il bersaglio fa un tiro salvezza su Forza o Destrezza (a sua scelta) o ha la condizione Afferrato. Solo una creatura al massimo di una taglia più grande di te, con una tua mano libera.",
   "unarmed.shove":

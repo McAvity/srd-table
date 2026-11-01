@@ -202,7 +202,7 @@ export function SpellsTab({ id, sheet }: { id: string; sheet: PlaySheet }) {
                         </span>
                         {def && (
                           <span>
-                            {`${titleCase(def.school)} · ${def.casting_time} · ${def.range} · ${def.duration}`}
+                            {`${titleCase(def.school)} · ${def.casting_time} · ${s.range ?? def.range} · ${def.duration}`}
                           </span>
                         )}
                       </div>
@@ -375,7 +375,9 @@ function RollSpell({
               {t("sheet.castFree", { use: f.name })}
               {f.reason
                 ? ` · ${f.reason.text}`
-                : ` · ${t("common.left", { left: f.left, total: f.left })}`}
+                : f.at_will
+                  ? ` · ${t("sheet.atWill")}`
+                  : ` · ${t("common.left", { left: f.left, total: f.left })}`}
             </option>
           ))}
           {spell.ritual && <option value="ritual">{t("sheet.castRitual")}</option>}

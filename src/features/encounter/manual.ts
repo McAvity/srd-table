@@ -74,7 +74,7 @@ export function rollOf(action: EncounterAction): RollWhat | null {
       return {
         type: "cast",
         spell: action.spell,
-        ...pick(action, ["via", "slot_level", "pact", "mode", "damage_type"]),
+        ...pick(action, ["via", "slot_level", "pact", "mode", "damage_type", "triggers"]),
       };
     case "feature":
       return {
