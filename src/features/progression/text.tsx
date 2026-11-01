@@ -132,6 +132,12 @@ export function StepPreviewView({ preview }: { preview: StepPreview }) {
           {t("progression.newActions")}: {preview.new_actions.join(", ")}
         </p>
       )}
+      {preview.items_gained.length > 0 && (
+        <p className="text-sm" data-testid="items-gained">
+          {t("progression.itemsGained")}:{" "}
+          {preview.items_gained.map((i) => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name)).join(", ")}
+        </p>
+      )}
       {preview.packs_added.length > 0 && (
         <p className="text-sm" data-testid="packs-added">
           {t("progression.packsAdded")}:{" "}

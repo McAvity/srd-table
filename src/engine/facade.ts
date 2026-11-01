@@ -64,10 +64,12 @@ import {
   setCritical as engineSetCritical,
   zoneSquares as engineZoneSquares,
   evaluate,
+  gainLevelItems,
   gridDistance,
   type Issue,
   issuesForLevel,
   issuesForStep,
+  type LevelItem,
   lookup,
   MAX_ATTUNED,
   type Message,
@@ -604,6 +606,16 @@ export interface EngineFacade {
     content?: ContentContext,
   ): Promise<PlayChange>;
   /**
+   * kenli F-002 T12 (D043): a level gained in play adds what its new features grant (the
+   * engine's `gainLevelItems`: free, once, nothing else of the state changed).
+   */
+  gainLevelItems(
+    before: CharacterBuild,
+    after: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<{ state: CharacterState; items: LevelItem[] }>;
+  /**
    * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's free
    * `rollByHand`, its costs checked (`checkCosts`) and paid on the state with `applyAction`, as
    * `POST /v1/state/roll` then `/v1/state/apply`. Refused when a cost can't be paid (the app
@@ -937,6 +949,11 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       content.run(ctx, "play", (catalog) => validateState(build, state, catalog)),
     reconcileState: (build, state, ctx) =>
       content.run(ctx, "play", (catalog) => reconcileState(build, state, catalog)),
+    gainLevelItems: (before, after, state, ctx) =>
+      content.run(ctx, "play", (catalog) => {
+        const r = gainLevelItems(before, after, state, catalog);
+        return { state: r.state, items: r.items };
+      }),
     rollByHand: (build, state, what, force = false, ctx) =>
       content.run(ctx, "play", (catalog) =>
         attempt(() => {

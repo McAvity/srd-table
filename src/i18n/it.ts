@@ -1370,6 +1370,7 @@ export const it: Messages = {
   "progression.choices": "Scelte",
   "progression.resources": "Risorse",
   "progression.newActions": "Nuove azioni",
+  "progression.itemsGained": "Ottenuto con questo livello (aggiunto gratis)",
   "progression.packsAdded": "Pacchetti aggiunti",
   "progression.previewAdvance": "Livello {from} → {to}: {class} {classLevel}",
   "progression.previewBind": "Segui questo piano dal livello {level} (ora non si sale di livello)",

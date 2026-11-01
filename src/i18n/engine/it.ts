@@ -282,6 +282,7 @@ export const ENGINE_IT = {
     "{feature}: recupera {amount} Punti Ferita{capped, select, true { (tirati {rolled})} other {}}.",
   "play.exhaustion_dies": "Indebolimento 6: il personaggio muore.",
   "play.starting_equipment": "Equipaggiamento iniziale aggiunto: {items}.",
+  "play.level_items": "Ottenuto con questo livello: {items}.",
   "play.took_off": "Tolto {item}.",
   "play.attuning": "Entrare in sintonia richiede un riposo breve concentrati sull'oggetto.",
   "play.item_heals": "{item}: {amount} Punti Ferita.",

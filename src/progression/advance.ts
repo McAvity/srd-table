@@ -148,6 +148,12 @@ export interface StepPreview {
   readonly before: PlayedStats;
   readonly after: PlayedStats;
   readonly new_actions: readonly string[];
+  /** kenli F-002 T12 (D043): items the gained level's features grant, added free with it. */
+  readonly items_gained: readonly {
+    readonly item: string;
+    readonly name: string;
+    readonly qty: number;
+  }[];
   readonly warnings: readonly { readonly code: string; readonly detail: string }[];
   readonly packs_added: readonly PackRef[];
   /** The record's content after the step (a bind pins the plan's exact context). */
@@ -333,14 +339,18 @@ async function stageAdvance(id: string): Promise<Staged | ProgressionRefusal> {
     return no("advance_build_invalid", "the checkpoint");
   const lost = await keptState(build, record, ctx);
   if (lost) return lost;
+  // D043: what the gained level's features grant (an Assassin's kits at Rogue 3) is added free with
+  // it — the only change to the play state; previewed, in the token, one write and one undo step.
+  const gained = await engine().gainLevelItems(record.build, build, record.state, ctx);
+  const state = gained.state;
   const progression: ProgressionMeta = {
     ...prog,
     applied_level: next.to.level,
     prefix_sha256: next.to.prefix_sha256,
   };
   const before = playedStats(await engine().playSheet(record.build, record.state, ctx));
-  const after = playedStats(await engine().playSheet(build, record.state, ctx));
-  const staged = stageCharacter(record, { build, state: record.state, progression });
+  const after = playedStats(await engine().playSheet(build, state, ctx));
+  const staged = stageCharacter(record, { build, state, progression });
   const snapshot = {
     kind: "advance",
     record_id: id,
@@ -381,7 +391,7 @@ async function stageAdvance(id: string): Promise<Staged | ProgressionRefusal> {
       ok: true,
       kind: "advance",
       record_id: id,
-      token: await tokenOf(snapshot, { build, state: record.state, progression, entry }),
+      token: await tokenOf(snapshot, { build, state, progression, entry }),
       from_level: L,
       to_level: next.to.level,
       class_id: next.to.class_id,
@@ -390,6 +400,7 @@ async function stageAdvance(id: string): Promise<Staged | ProgressionRefusal> {
       before,
       after,
       new_actions: after.actions.filter((a) => !before.actions.includes(a)),
+      items_gained: gained.items,
       warnings: warningsOf(record.state),
       packs_added: [],
       context: ctx,
@@ -539,6 +550,7 @@ async function stageBind(id: string, file: unknown): Promise<Staged | Progressio
       before,
       after,
       new_actions: after.actions.filter((a) => !before.actions.includes(a)),
+      items_gained: [],
       warnings: warningsOf(record.state),
       packs_added: entry.packs_added,
       context: planCtx,

@@ -1336,6 +1336,7 @@ export const en = {
   "progression.choices": "Choices",
   "progression.resources": "Resources",
   "progression.newActions": "New actions",
+  "progression.itemsGained": "Granted with this level (added free)",
   "progression.packsAdded": "Packs added",
   "progression.previewAdvance": "Level {from} → {to}: {class} {classLevel}",
   "progression.previewBind": "Follow this plan from level {level} (no level is gained now)",
