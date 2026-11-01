@@ -820,7 +820,9 @@ const manifestShape = T.obj(
     ),
     tables: T.objAny(P),
   },
-  { name: T.any(), creation: T.any(), patches: T.any() },
+  // kenli F-002 T12 final: `automation` (a pack's play automation, R14-04) stays in manifest.json
+  // like `patches` (the engine's `splitPack`); a copy of a character on such a pack is valid.
+  { name: T.any(), creation: T.any(), patches: T.any(), automation: T.any() },
 );
 
 async function checkPacks(v: unknown, ctx: ContentContext): Promise<void> {
