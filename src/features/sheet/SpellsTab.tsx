@@ -303,7 +303,9 @@ function RollSpell({
       : slot
         ? { kind: "slot", slot }
         : null;
-  const leveled = spell.slots.length > 0;
+  // kenli F-002 T11: a spell some other way pays without a slot line of its level (Mystic Arcanum
+  // above the Pact slots' level, a free-only or ritual-only cast) still has a payment to pick and send.
+  const leveled = spell.slots.length > 0 || spell.free.length > 0 || spell.ritual;
   const sources = spell.spellcasting;
   const [castWith, setCastWith] = useState<string | null>(null);
   const spellcasting = sources.length === 1 ? (sources[0] ?? null) : castWith;

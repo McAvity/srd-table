@@ -169,6 +169,56 @@ export async function humanWizard(engine: EngineFacade): Promise<CharacterBuild>
 }
 export const RAY = "ray-of-sickness";
 
+/**
+ * kenli F-002 T11: Mystic Arcanum as a free cast (the f002 pack's patch shape on the SRD Warlock):
+ * the level 6 arcanum spell, once per Long Rest with its `mystic-arcanum-6` use. A Warlock 11's Pact
+ * slots are level 5, so the spell has no slot line at all: only that free cast.
+ */
+export const ARCANUM_PACK: PackFiles = {
+  "manifest.json": {
+    name: "test-arcanum",
+    manifest: { id: "test-arcanum", version: "1.0.0", source: "test", requires: ["srd-5.2.1"] },
+    patches: [
+      {
+        target: "classes/warlock",
+        op: "set",
+        path: "features.11.free_casts",
+        value: [{ uses: "mystic-arcanum-6", choice: "mystic_arcanum" }],
+      },
+    ],
+    tables: {},
+  },
+};
+export const ARCANUM_USE = "warlock:mystic-arcanum-6";
+
+/** A level 11 human Warlock, every choice the first legal one (its Mystic Arcanum too). */
+export async function warlock11(engine: EngineFacade): Promise<CharacterBuild> {
+  let build = await apply(engine, await engine.newBuild(), [
+    { type: "class", id: "warlock" },
+    { type: "species", id: "human" },
+    { type: "background", id: "acolyte" },
+    { type: "ability_method", method: "standard_array" },
+    { type: "base_scores", scores: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 } },
+    { type: "background_bonus", bonus: { cha: 2, wis: 1 } },
+    { type: "name", name: "Syn Warlock" },
+    { type: "alignment", alignment: "NG" },
+  ]);
+  build = await fill(engine, build, 1);
+  for (let l = 2; l <= 11; l++) {
+    build = await apply(engine, build, [{ type: "level_up", class_id: "warlock", hp: null }]);
+    build = await fill(engine, build, l);
+  }
+  return build;
+}
+
+/** The arcanum pack installed in the facade, with the SRD, as a record pinned to it has it. */
+export async function arcanumContext(engine: EngineFacade): Promise<ContentContext> {
+  const [ref] = await engine.registerPacks([ARCANUM_PACK]);
+  const srd = await engine.servedPack("srd-5.2.1");
+  if (!ref) throw new Error("arcanum pack not registered");
+  return { packs: [srd, ref], sources: null };
+}
+
 /** The test pack installed in the facade and the content context a record pinned to it has. */
 export async function testContext(engine: EngineFacade): Promise<ContentContext> {
   const [ref] = await engine.registerPacks([TEST_PACK]);

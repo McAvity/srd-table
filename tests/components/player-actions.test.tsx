@@ -7,6 +7,8 @@ import { useRollAdditions, useRolls } from "../../src/store/rolls";
 import { useUi } from "../../src/store/ui";
 import { fighter } from "../fixtures/characters";
 import {
+  ARCANUM_USE,
+  arcanumContext,
   BI,
   bard,
   humanWizard,
@@ -14,6 +16,7 @@ import {
   RAY,
   storeCharacter,
   testContext,
+  warlock11,
 } from "../fixtures/player-actions";
 import { installTestEngine, renderApp, resetStores } from "../helpers/app";
 
@@ -73,6 +76,28 @@ describe("player actions on the sheet", () => {
     await waitFor(() => expect(record(id)?.state.uses_spent[use]).toBe(1));
     expect(record(id)?.state.spell_slots_spent ?? []).toEqual([]);
   });
+
+  it("kenli F-002 T11: a spell only a free cast pays (Mystic Arcanum, no slot of its level) spends that use", async () => {
+    const build = await warlock11(engine);
+    const content = await arcanumContext(engine);
+    const id = await storeCharacter(engine, build, content);
+    const sheet = (await engine.playSheet(build, record(id)?.state as never, content)).sheet;
+    const spell = sheet.spells.find(
+      (s) => s.slots.length === 0 && s.free.some((f) => f.use === ARCANUM_USE),
+    );
+    expect(spell, "the arcanum spell: no slot line, its free cast").toBeTruthy();
+    await renderApp(`/characters/${id}/sheet?tab=spells`);
+    const row = (
+      await screen.findAllByText(spell?.name as string, {}, { timeout: 10_000 })
+    )[0]?.closest("li") as HTMLElement;
+    expect(within(row).getByRole("combobox", { name: /slot level/ })).toHaveValue(
+      `free:${ARCANUM_USE}`,
+    );
+    await userEvent.click(within(row).getByRole("button", { name: "Roll" }));
+    await waitFor(() => expect(record(id)?.state.uses_spent[ARCANUM_USE]).toBe(1));
+    expect(record(id)?.state.spell_slots_spent ?? []).toEqual([]);
+    expect(record(id)?.state.pact_slots_spent ?? 0).toBe(0);
+  }, 60_000);
 
   it("a feature's die by hand, then Heroic Inspiration from the last-roll panel: the use stays spent once", async () => {
     const { id } = await pinnedBard();
