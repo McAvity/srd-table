@@ -372,6 +372,8 @@ export const it: Messages = {
   "sheet.inspiration": "Ispirazione eroica",
   "sheet.attacks": "Attacchi",
   "sheet.actions": "Privilegi usati nei turni",
+  "sheet.useAndRoll": "Usa (tira {die})",
+  "sheet.ridersPick": "Opzioni per {attack}",
   "sheet.useFeature": "Usa",
   "sheet.useByHandHint":
     "Tira i suoi dadi e spendi l'uso; nient'altro viene applicato: applica tu il risultato.",

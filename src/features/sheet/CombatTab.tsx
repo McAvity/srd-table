@@ -5,6 +5,11 @@
  * (`rollByHand`: the attack roll and its damage, a Critical Hit's dice doubled). A feature that
  * heals or forces a save can also be rolled by hand (its dice rolled, its uses spent, nothing
  * applied), first when the campaign plays characters by hand.
+ *
+ * kenli F-002 T08 (review04 C11): a feature with its own die (a maneuver: Bait and Switch,
+ * Precision Attack…) is used only by rolling it — its die rolled and shown, its cost paid once —
+ * never by a "use" that spends the die and rolls nothing. An attack can be rolled with the riders
+ * the engine lists for it (Lunging Attack's die in the damage, a maneuver's cost once).
  */
 
 import { useState } from "react";
@@ -73,6 +78,8 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
   };
   const { roll, reasons, busy } = usePlay(id);
   const additions = useRollAdditions((s) => s.by[id]);
+  /** Riders picked per attack line (its engine ids), sent with its roll. */
+  const [picked, setPicked] = useState<Record<string, readonly string[]>>({});
   const test = useRoller(id, sheet);
   if (!sheet.attacks.length) return null;
   return (
@@ -108,9 +115,31 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                     </span>
                   ))}
                   {a.riders.length > 0 && (
-                    <span className="block text-[13px] font-normal text-ink-muted">
-                      {t("sheet.riders", { riders: a.riders.map((r) => r.name).join(", ") })}
-                    </span>
+                    <fieldset
+                      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[13px] font-normal"
+                      data-testid={`attack-riders-${a.name}`}
+                    >
+                      <legend className="sr-only">
+                        {t("sheet.ridersPick", { attack: a.name })}
+                      </legend>
+                      {a.riders.map((r) => (
+                        <label key={r.id} className="inline-flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={(picked[a.name] ?? []).includes(r.id)}
+                            onChange={(e) =>
+                              setPicked({
+                                ...picked,
+                                [a.name]: e.target.checked
+                                  ? [...(picked[a.name] ?? []), r.id]
+                                  : (picked[a.name] ?? []).filter((x) => x !== r.id),
+                              })
+                            }
+                          />
+                          {r.name}
+                        </label>
+                      ))}
+                    </fieldset>
                   )}
                 </th>
                 <td className="py-2 pr-2 font-semibold tabular-nums">{signed(a.attack_bonus)}</td>
@@ -126,7 +155,14 @@ function Attacks({ id, sheet }: { id: string; sheet: PlaySheet }) {
                       disabled={busy}
                       onClick={() =>
                         void roll(
-                          { type: "attack", attack: a.name, ...attackDm(additions) } as RollWhat,
+                          {
+                            type: "attack",
+                            attack: a.name,
+                            ...((picked[a.name] ?? []).length
+                              ? { riders: (picked[a.name] ?? []).map((rider) => ({ rider })) }
+                              : {}),
+                            ...attackDm(additions),
+                          } as RollWhat,
                           declaredLucky(additions, sheet),
                           { command: "sheet_attack", label: a.name },
                         )
@@ -217,6 +253,8 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
           const paid = { ...amountSet, ...payment };
           // Dice to roll by hand: its healing, or the damage and DC of the save it forces.
           const rollable = a.heal !== null || a.save !== null || Boolean(a.roll_die);
+          // C11: its own die and nothing else to apply — only rolled (die shown, cost once).
+          const dieOnly = Boolean(a.roll_die) && a.heal === null && a.save === null;
           return (
             <li
               key={a.key}
@@ -271,31 +309,40 @@ function FeatureActions({ id, sheet }: { id: string; sheet: PlaySheet }) {
                   }
                 />
               )}
-              {(rollable && byHandFirst ? [true, false] : rollable ? [false, true] : [false]).map(
-                (manual, i) => (
-                  <Button
-                    key={manual ? "manual" : "auto"}
-                    size="sm"
-                    variant={i === 0 ? "normal" : "ghost"}
-                    icon={manual ? "check" : "bolt"}
-                    title={manual ? t("sheet.useByHandHint") : undefined}
-                    disabled={busy}
-                    onClick={() =>
-                      void (manual
-                        ? roll({ type: "feature", feature: a.key, ...paid }, undefined, {
-                            command: "sheet_use_feature",
-                            label: a.name,
-                          })
-                        : act({ type: "use_feature", key: a.key, ...paid }, undefined, undefined, {
-                            command: "sheet_use_feature",
-                            label: a.name,
-                          }))
-                    }
-                  >
-                    {manual ? t("table.wayManual") : t("sheet.useFeature")}
-                  </Button>
-                ),
-              )}
+              {(dieOnly
+                ? [true]
+                : rollable && byHandFirst
+                  ? [true, false]
+                  : rollable
+                    ? [false, true]
+                    : [false]
+              ).map((manual, i) => (
+                <Button
+                  key={manual ? "manual" : "auto"}
+                  size="sm"
+                  variant={i === 0 ? "normal" : "ghost"}
+                  icon={manual ? "check" : "bolt"}
+                  title={manual ? t("sheet.useByHandHint") : undefined}
+                  disabled={busy}
+                  onClick={() =>
+                    void (manual
+                      ? roll({ type: "feature", feature: a.key, ...paid }, undefined, {
+                          command: "sheet_use_feature",
+                          label: a.name,
+                        })
+                      : act({ type: "use_feature", key: a.key, ...paid }, undefined, undefined, {
+                          command: "sheet_use_feature",
+                          label: a.name,
+                        }))
+                  }
+                >
+                  {dieOnly
+                    ? t("sheet.useAndRoll", { die: a.roll_die ?? "" })
+                    : manual
+                      ? t("table.wayManual")
+                      : t("sheet.useFeature")}
+                </Button>
+              ))}
             </li>
           );
         })}

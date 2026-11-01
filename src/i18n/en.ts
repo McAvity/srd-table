@@ -354,6 +354,8 @@ export const en = {
   "sheet.inspiration": "Heroic Inspiration",
   "sheet.attacks": "Attacks",
   "sheet.actions": "Features used in turns",
+  "sheet.useAndRoll": "Use (roll {die})",
+  "sheet.ridersPick": "Riders for {attack}",
   "sheet.useFeature": "Use",
   "sheet.useByHandHint":
     "Roll its dice and spend the use; nothing else is applied: apply the result yourself.",

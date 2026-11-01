@@ -81,7 +81,9 @@ describe("player actions on the sheet", () => {
     const row = (await screen.findByText("Test Taunt", {}, { timeout: 10_000 })).closest(
       "li",
     ) as HTMLElement;
-    await userEvent.click(within(row).getByRole("button", { name: "By hand" }));
+    // kenli F-002 T08 (C11): a feature with only its die is used by rolling it — one button.
+    expect(within(row).queryByRole("button", { name: "Use" })).toBeNull();
+    await userEvent.click(within(row).getByRole("button", { name: "Use (roll 1d8)" }));
     await waitFor(() => expect(record(id)?.state.uses_spent["species:human:test-spur"]).toBe(1));
     const panel = await screen.findByRole("region", { name: "Last roll" });
     await userEvent.click(within(panel).getByRole("button", { name: /^Reroll 1d8/ }));
