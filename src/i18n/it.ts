@@ -462,8 +462,15 @@ export const it: Messages = {
   "sheet.items.kind.tool": "Strumenti",
   "sheet.items.kind.gear": "Equipaggiamento",
   "sheet.items.filters": "Mostra solo",
-  "sheet.items.filter.magic": "Magici",
-  "sheet.items.filter.proficient": "Ho competenza o addestramento",
+  "sheet.items.filter.magic": "Magia",
+  "sheet.items.filter.magic.require": "Solo oggetti magici",
+  "sheet.items.filter.magic.exclude": "Nessun oggetto magico",
+  "sheet.items.filter.proficient": "Competenza",
+  "sheet.items.filter.proficient.require": "Solo con competenza o addestramento",
+  "sheet.items.filter.proficient.exclude": "Senza segno di competenza o addestramento",
+  "sheet.items.filter.proficient.excludeNote":
+    "Senza segno di competenza o addestramento include l'equipaggiamento che non richiede competenza e gli oggetti non valutabili; ognuno mantiene la propria etichetta.",
+  "sheet.items.mode.ignore": "Qualsiasi (ignora)",
   "sheet.items.filter.budget": "Entro le mie monete",
   "sheet.items.filter.recommended": "Consigliati per questo personaggio",
   "sheet.items.filter.recommendedNone":
@@ -511,7 +518,7 @@ export const it: Messages = {
   "sheet.items.request": "Per aggiungerlo",
   "sheet.items.baseFits": "{name} — competente",
   "sheet.items.baseOnlyFitting":
-    "Mostro solo ciò in cui hai competenza; togli quel filtro per vedere tutte le basi.",
+    "Mostro solo ciò in cui hai competenza; imposta Competenza su Qualsiasi (ignora) per vedere tutte le basi.",
   "sheet.items.showDetails": "Dettagli: {name}",
   "sheet.custom.noAssessment":
     "Un oggetto personalizzato non ha dati di regole, quindi competenza e limitazioni non vengono valutate.",

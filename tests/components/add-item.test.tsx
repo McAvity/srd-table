@@ -92,6 +92,12 @@ const list = (dialog: HTMLElement) => within(dialog).findByRole("list", { name: 
 const rowOf = (dialog: HTMLElement, key: string) => within(dialog).queryByTestId(`item-row-${key}`);
 const press = (dialog: HTMLElement, name: string | RegExp) =>
   userEvent.click(within(dialog).getByRole("button", { name }));
+/** A marker filter's mode (kenli F-013 T06): its labelled select, by its value. */
+const mode = (
+  dialog: HTMLElement,
+  name: "Magic" | "Proficiency",
+  value: "ignore" | "require" | "exclude",
+) => userEvent.selectOptions(within(dialog).getByRole("combobox", { name }), value);
 const search = async (dialog: HTMLElement, text: string) => {
   const box = within(dialog).getByRole("searchbox", { name: "Search items" });
   await userEvent.clear(box);
@@ -118,10 +124,10 @@ describe("Add item: kinds and filters", () => {
       "true",
     );
     // Magic narrows within the kind (AND): only magic shields.
-    await press(dialog, "Magic");
+    await mode(dialog, "Magic", "require");
     await waitFor(() => expect(rowOf(dialog, "armor:shield")).toBeNull());
     expect(rowOf(dialog, "magic_items:shield-1")).not.toBeNull();
-    await press(dialog, "Magic");
+    await mode(dialog, "Magic", "ignore");
     for (const [kind, key] of [
       ["Weapons", "weapons:club"],
       ["Armor", "armor:breastplate"],
@@ -228,8 +234,8 @@ describe("Add item: kinds and filters", () => {
     const dialog = await openDialog(await character("wizard"));
     await list(dialog);
     await press(dialog, "Weapons");
-    await press(dialog, "I'm proficient or trained");
-    await press(dialog, "Magic");
+    await mode(dialog, "Proficiency", "require");
+    await mode(dialog, "Magic", "require");
     await search(dialog, "weapon, +1");
     const row = await shown(dialog, "magic_items:weapon-1");
     expect(within(row).getByText("Some bases suit you")).toBeInTheDocument();
@@ -252,7 +258,7 @@ describe("Add item: kinds and filters", () => {
       ),
     );
     // The filter off: every base, and a base without proficiency says so.
-    await press(dialog, "I'm proficient or trained");
+    await mode(dialog, "Proficiency", "ignore");
     await userEvent.selectOptions(
       within(dialog).getByRole("combobox", { name: /Made from/ }),
       "longsword",
@@ -308,7 +314,7 @@ describe("Add item: never a stale answer", () => {
     const dialog = await openDialog(await character("wizard"));
     await list(dialog);
     await press(dialog, "Weapons");
-    await press(dialog, "Magic");
+    await mode(dialog, "Magic", "require");
     await search(dialog, "weapon, +1");
     await userEvent.click(await shown(dialog, "magic_items:weapon-1"));
     const select = within(dialog).getByRole("combobox", { name: /Made from/ });

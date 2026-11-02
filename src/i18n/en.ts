@@ -443,7 +443,14 @@ export const en = {
   "sheet.items.kind.gear": "Gear",
   "sheet.items.filters": "Show only",
   "sheet.items.filter.magic": "Magic",
-  "sheet.items.filter.proficient": "I'm proficient or trained",
+  "sheet.items.filter.magic.require": "Only magic items",
+  "sheet.items.filter.magic.exclude": "No magic items",
+  "sheet.items.filter.proficient": "Proficiency",
+  "sheet.items.filter.proficient.require": "Only proficient or trained",
+  "sheet.items.filter.proficient.exclude": "Not marked proficient or trained",
+  "sheet.items.filter.proficient.excludeNote":
+    "Not marked proficient or trained includes gear that needs no proficiency and items that can't be assessed; each keeps its own label.",
+  "sheet.items.mode.ignore": "Any (ignore)",
   "sheet.items.filter.budget": "Within my coins",
   "sheet.items.filter.recommended": "Recommended for this character",
   "sheet.items.filter.recommendedNone":
@@ -489,7 +496,7 @@ export const en = {
   "sheet.items.request": "To add it",
   "sheet.items.baseFits": "{name} — proficient",
   "sheet.items.baseOnlyFitting":
-    "Showing only what you're proficient with; remove that filter to see every base.",
+    "Showing only what you're proficient with; set Proficiency to Any (ignore) to see every base.",
   "sheet.items.showDetails": "Details: {name}",
   "sheet.custom.noAssessment":
     "A custom item has no rules data, so proficiency and restrictions aren't assessed for it.",

@@ -308,15 +308,19 @@ content (`record.content`).
   imports it as it is, never dropping `location`; an older app refuses it with the engine's
   "saved by a newer srd-rules-engine" instead of reading the item as carried.
 - **Adding catalog items** (kenli F-013, `AddItemDialog.tsx`, helpers `itemBrowse.ts`): kinds
-  (All, Weapons, Armor, Shields, Tools, Gear) and the Magic / proficient-or-trained / within-my-coins
-  filters read the engine's `assessInventoryItems` through the facade's `assessItems` (one batch
+  (All, Weapons, Armor, Shields, Tools, Gear), Magic and Proficiency (each a labelled select:
+  Any (ignore) / only with the marker / only without it, kenli F-013 T06, decision 07) and
+  within-my-coins read the engine's `assessInventoryItems` through the facade's `assessItems` (one batch
   for the whole list; one more for the picked item with its base and kind), via
   `useItemAssessments`, keyed by character, revision, content, language and requests, with no
   placeholder: another character, revision or base never shows the previous answer. The kind,
   proficiency, mastery, restrictions, price (`price_text`, the engine's `formatCp` of `listedPrice`)
   and coins (`purse_cp`) are the engine's; the dialog only compares `price_cp` with `purse_cp` and
-  picks labels. The base shown is the base assessed and sent (one hidden by the proficiency filter
-  is dropped). A table, assessment or bases query that fails shows a plain message and Try again,
+  picks labels. The proficiency marker is the engine's `yes` (or a template with a fitting base);
+  "without it" is its complement over a loaded answer, so gear that needs no proficiency and items
+  that can't be assessed pass with their own labels, and both proficiency modes wait for the answer
+  (or show its error). Only "only with the marker" narrows a template's bases. The base shown is the
+  base assessed and sent (one hidden by that narrowing is dropped). A table, assessment or bases query that fails shows a plain message and Try again,
   never a partial list. "Recommended" is off with a reason: no plan gives recommended items. Buy
   and Add are the same `buy`/`add_item` actions as before; browsing changes nothing.
 

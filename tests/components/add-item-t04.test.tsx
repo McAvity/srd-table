@@ -80,6 +80,12 @@ const list = (dialog: HTMLElement) => within(dialog).findByRole("list", { name: 
 const rowOf = (dialog: HTMLElement, key: string) => within(dialog).queryByTestId(`item-row-${key}`);
 const press = (dialog: HTMLElement, name: string | RegExp) =>
   userEvent.click(within(dialog).getByRole("button", { name }));
+/** A marker filter's mode (kenli F-013 T06): its labelled select, by its value. */
+const mode = (
+  dialog: HTMLElement,
+  name: "Magic" | "Proficiency",
+  value: "ignore" | "require" | "exclude",
+) => userEvent.selectOptions(within(dialog).getByRole("combobox", { name }), value);
 const search = async (dialog: HTMLElement, text: string) => {
   const box = within(dialog).getByRole("searchbox", { name: "Search items" });
   await userEvent.clear(box);
@@ -141,7 +147,7 @@ describe("R03-02: a base hidden by the proficiency filter", () => {
     const dialog = await openDialog(id);
     await list(dialog);
     await press(dialog, "Weapons");
-    await press(dialog, "Magic");
+    await mode(dialog, "Magic", "require");
     await search(dialog, "weapon, +1");
     await userEvent.click(await shown(dialog, "magic_items:weapon-1"));
     await userEvent.selectOptions(
@@ -154,7 +160,7 @@ describe("R03-02: a base hidden by the proficiency filter", () => {
       ),
     );
     // Proficiency filter on: Longsword (not proficient) leaves the list of bases…
-    await press(dialog, "I'm proficient or trained");
+    await mode(dialog, "Proficiency", "require");
     const select = within(dialog).getByRole("combobox", { name: /Made from/ }) as HTMLSelectElement;
     expect(within(select).queryByRole("option", { name: "Longsword" })).toBeNull();
     // …so it isn't the choice any more: not shown, not assessed, not added.

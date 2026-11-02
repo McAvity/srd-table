@@ -1,7 +1,7 @@
 /**
  * Add a catalog item (kenli F-013 T03): browse by kind (All, Weapons, Armor, Shields, Tools, Gear)
- * without typing a name, narrow with Magic / proficient / within my coins, and see how each item
- * suits the character now: proficiency or training, Weapon Mastery apart, every restriction of
+ * without typing a name, narrow with Magic and proficiency (each required, excluded or ignored)
+ * and within my coins, and see how each item suits the character now: proficiency or training, Weapon Mastery apart, every restriction of
  * using it and its listed price — all from the engine's assessment (one batch for the list, one
  * for the item picked with its base and kind). Buy and Add are the same play actions as before;
  * browsing changes nothing.
@@ -29,6 +29,8 @@ import {
   type Filters,
   KIND_LABEL,
   KINDS,
+  type MarkerMode,
+  MODES,
   matches,
   NO_FILTERS,
   needsAssessment,
@@ -102,9 +104,12 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
       ids.has(r.id),
     );
   }, [baseIds, weapons.data, armor.data, gear.data]);
-  // With "I'm proficient or trained" on, a template offers the bases that suit the character.
+  // Only while proficiency is required does a template offer just the bases that suit the
+  // character; ignore and exclude offer every legal base (decision 07).
   const offered =
-    bases && filters.proficient && template?.bases ? bases.filter((b) => fitting.has(b.id)) : bases;
+    bases && filters.proficient === "require" && template?.bases
+      ? bases.filter((b) => fitting.has(b.id))
+      : bases;
   // kenli F-013 T04 (R03-02): the base shown is the one assessed and sent. A base the offered list
   // no longer has (the proficiency filter, a new answer for the character) isn't chosen any more.
   const chosenBase = base && offered?.some((b) => b.id === base) ? base : "";
@@ -158,24 +163,26 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
           <legend className="float-left mr-1 text-[13px] text-ink-muted">
             {t("sheet.items.filters")}
           </legend>
-          <Button
-            size="sm"
-            icon="sparkle"
-            on={filters.magic}
-            aria-pressed={filters.magic}
-            onClick={() => set({ magic: !filters.magic })}
-          >
-            {t("sheet.items.filter.magic")}
-          </Button>
-          <Button
-            size="sm"
-            icon="check"
-            on={filters.proficient}
-            aria-pressed={filters.proficient}
-            onClick={() => set({ proficient: !filters.proficient })}
-          >
-            {t("sheet.items.filter.proficient")}
-          </Button>
+          <ModeSelect
+            label={t("sheet.items.filter.magic")}
+            value={filters.magic}
+            options={{
+              ignore: t("sheet.items.mode.ignore"),
+              require: t("sheet.items.filter.magic.require"),
+              exclude: t("sheet.items.filter.magic.exclude"),
+            }}
+            onChange={(magic) => set({ magic })}
+          />
+          <ModeSelect
+            label={t("sheet.items.filter.proficient")}
+            value={filters.proficient}
+            options={{
+              ignore: t("sheet.items.mode.ignore"),
+              require: t("sheet.items.filter.proficient.require"),
+              exclude: t("sheet.items.filter.proficient.exclude"),
+            }}
+            onChange={(proficient) => set({ proficient })}
+          />
           <Button
             size="sm"
             icon="coin"
@@ -198,6 +205,11 @@ export function AddItemDialog({ id, onClose }: { id: string; onClose: () => void
           <span id="items-recommended-none" className="w-full text-[13px] text-ink-muted">
             {t("sheet.items.filter.recommendedNone")}
           </span>
+          {filters.proficient === "exclude" && (
+            <span className="w-full text-[13px] text-ink-muted">
+              {t("sheet.items.filter.proficient.excludeNote")}
+            </span>
+          )}
         </fieldset>
         <label className="flex items-center gap-2">
           <Icon name="search" className="text-ink-muted" />
@@ -448,6 +460,39 @@ function Chip({
       <Icon name={icon} size={14} />
       {children}
     </span>
+  );
+}
+
+/**
+ * kenli F-013 T06: a marker filter's three modes as a labelled native select: each value in words,
+ * chosen by touch (the system picker) or keyboard (arrows); no colour or pressed state carries it.
+ */
+function ModeSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: MarkerMode;
+  options: Record<MarkerMode, string>;
+  onChange: (mode: MarkerMode) => void;
+}) {
+  return (
+    <label className="flex items-center gap-1 text-sm">
+      <span>{label}</span>
+      <select
+        className={cx("field w-auto py-1", value !== "ignore" && "border-blue font-bold")}
+        value={value}
+        onChange={(e) => onChange(e.target.value as MarkerMode)}
+      >
+        {MODES.map((m) => (
+          <option key={m} value={m}>
+            {options[m]}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
