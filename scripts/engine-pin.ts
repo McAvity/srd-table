@@ -16,7 +16,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const ENGINE_COMMIT = "be0b5721f4e885ac317aa53342ce9e1ccb425a1e";
+export const ENGINE_COMMIT = "65ff5e28f6bd03a5abf7521c29913e3276b48013";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const engineDir = join(root, "..", "srd-rules-engine-main");
