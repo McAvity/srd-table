@@ -558,7 +558,7 @@ async function exportCopy(page, name, file) {
     .locator("article")
     .filter({ has: page.getByRole("heading", { name, exact: true }) })
     .first();
-  await card.getByRole("button", { name: "Local copy with state and history" }).click();
+  await card.getByRole("button", { name: "Export character" }).click();
   await page.getByTestId("local-copy-export-summary").waitFor({ timeout: 60_000 });
   const [dl] = await Promise.all([
     page.waitForEvent("download"),
@@ -567,10 +567,10 @@ async function exportCopy(page, name, file) {
   await dl.saveAs(file);
 }
 async function loadCopy(page, file) {
-  await page.getByRole("button", { name: "Load local copy" }).click();
+  await page.getByRole("button", { name: "Import character" }).click();
   await page.getByTestId("local-copy-file").setInputFiles(file);
   await page.getByTestId("local-copy-preview").waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: "Create the copy", exact: true }).last().click();
+  await page.getByRole("button", { name: /^Create (the|another separate) copy$/ }).last().click();
   await page.waitForURL(/\/characters\/c-[^/]+\/sheet/, { timeout: 60_000 });
   return /\/characters\/(c-[^/]+)\/sheet/.exec(page.url())?.[1];
 }
