@@ -1,7 +1,7 @@
 {
   "format": "srd-table.release-pointer/1",
   "base": "/srd-table/",
-  "release_id": "r-71e64410f7a78e1d",
-  "descriptor": "releases/r-71e64410f7a78e1d/release.json",
-  "descriptor_sha256": "dfd9da44efc56269ad3adb0aa84f34fa79c407d5fad057fa4d2a8e0c654bfa69"
+  "release_id": "r-0610a499c7b13350",
+  "descriptor": "releases/r-0610a499c7b13350/release.json",
+  "descriptor_sha256": "54463fb11b7cfb2d6d5ea341fab10ad51e8e279ee483e3704821562890c9d7b7"
 }

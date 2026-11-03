@@ -1,0 +1,1213 @@
+{
+  "format": "srd-table.release/1",
+  "release_id": "r-0610a499c7b13350",
+  "base": "/srd-table/",
+  "inputs": {
+    "format": "srd-table.release-inputs/1",
+    "base": "/srd-table/",
+    "table_commit": "ce5c52e9f8eb40a513ab8650ab7a1e7fe56d14db",
+    "engine_commit": "65ff5e28f6bd03a5abf7521c29913e3276b48013",
+    "protocol": 1,
+    "data": {
+      "db_version": 5,
+      "history_schema": "kenli.history/1",
+      "history_meta_schema": "kenli.history-meta/1",
+      "transfer_formats": [
+        "srd-table.transfer/1"
+      ],
+      "local_copy_formats": [
+        "srd-table.local-copy/1",
+        "srd-table.local-copy/2",
+        "srd-table.local-copy/3"
+      ],
+      "history_entry_schemas": [
+        "kenli.history/1",
+        "kenli.history/2",
+        "kenli.history/3"
+      ],
+      "state_versions": [
+        1,
+        2,
+        3
+      ]
+    },
+    "toolchain": {
+      "bun": "1.3.10",
+      "vite": "8.3.2"
+    },
+    "app_version": "0.2.0"
+  },
+  "sw": {
+    "path": "sw-r-0610a499c7b13350.js",
+    "sha256": "434062f0d8b828ba1cb29487621592019f60aa7ab7264a2e2a200ea090da4772",
+    "size": 20959
+  },
+  "html": {
+    "path": "releases/r-0610a499c7b13350/index.html",
+    "sha256": "99fc62b4ad345d29cc0f748f5725127a13bc3badd3285f2962b52190623e6cce",
+    "size": 1457
+  },
+  "webmanifest": {
+    "path": "releases/r-0610a499c7b13350/manifest.webmanifest",
+    "sha256": "6727a3825523daf7ab53217935fb2b6699b8e1ee08c3b194fbc3ae53d61bacb0",
+    "size": 927,
+    "id": "/srd-table/",
+    "start_url": "/srd-table/",
+    "scope": "/srd-table/"
+  },
+  "assets": [
+    {
+      "path": "assets/AboutPage-Br0FL8pX.js",
+      "sha256": "0f987b26283d9d994efb0acb2b7febe35091a59cc7af43c3cc389f6f79b86d7a",
+      "size": 2732,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/BuilderPage-Dlj89Grc.js",
+      "sha256": "676e89b06c695271a3d38fdb8c972e9b6417144b02d94bd1c4ea67125b485e61",
+      "size": 22413,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/CharactersPage-BjXZ_PdB.js",
+      "sha256": "30be8dd5b27c91c342a4c5f19aac6a468da945598c9a3dccb9674956fc091a71",
+      "size": 39989,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ChoiceCard-DO6ADDVL.js",
+      "sha256": "5cf44f0e696c678e91a9b052d1356611ac45e3077bba8619089cb05acf299734",
+      "size": 7349,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/CompendiumPage-CKP8q45w.js",
+      "sha256": "ecf5a8c32d213e2c2f483d6cd28c57838361bec9194ff43af951a80923397e20",
+      "size": 9250,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/EncounterPage-CqdQuumf.js",
+      "sha256": "5df2cc12b168be8f4b0c8334e7f78a55402349dd57b1e297064e3942e789922e",
+      "size": 79522,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/EncountersPage-C1qr0lYL.js",
+      "sha256": "01b815b5c4d171dbb9ed8edca17fc009efd1d07982696449bed0a2ceb079fed9",
+      "size": 3194,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/Explain-D4zq0EYJ.js",
+      "sha256": "5f5ae3fb39bf9604f9afea4057cdc782fa266119d611bae6832fb00be335a492",
+      "size": 5725,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/HitPoints-CWUOPoN8.js",
+      "sha256": "94b58aaec22c5d9538ee44af1f3637498652c5155982ce4c7f60d7757282078d",
+      "size": 13199,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ImportDialog-BFdT4rF3.js",
+      "sha256": "4f77e0f1c2dfdac0346d285639eae56a429193dfa528de6f7a2a44ab914c84bd",
+      "size": 21996,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/OptionButton-_7lLTkwG.js",
+      "sha256": "93a405e095eb582bdaf950532872dcf449e417850368330d68ef73f54b4271f0",
+      "size": 1725,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/Portrait-DLxm-F54.js",
+      "sha256": "1f81629dc9d452c000ad9ea9cfe9f322799fd35c7b24badcaa0713310b21132b",
+      "size": 3844,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SettingsPage-B-UqBMb6.js",
+      "sha256": "2f9f87f2b28df12a943fe37f1cca4afaf4660cd67f87cf4ab62ec3b99ae17c42",
+      "size": 9206,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SheetPage-Cx6FpGmE.js",
+      "sha256": "1e0f188219d921a3fe06023bbea16dbb02333f18d47765bf3689f6fc248bff23",
+      "size": 66735,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SrdText-Clw-lsYj.js",
+      "sha256": "b892f60e152ca66997877a5c81b4e5775be879627bbe35eccbecb7ee5e7d4efe",
+      "size": 2005,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/VirtualList-C45U6M8m.js",
+      "sha256": "ec45b259b7e7ab14c86f693af7f2f8ae0d694370a0f679e5b056678c10d818d0",
+      "size": 25828,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/advance-GU99dA6s.js",
+      "sha256": "c7817cecdf9185ade223ec4ee3151c586fb9d13063b50ff6072783f830805ae3",
+      "size": 13738,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/apple-touch-icon-cfd1c2a5.png",
+      "sha256": "cfd1c2a597667353f1026e293b1b9ec25da4dabfaf9e2000baf05a01bdac1fc7",
+      "size": 2519,
+      "role": "icon"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff",
+      "sha256": "bc8b17bc3aea99703f7e868b5707a354fbdc7ec77a320f50b9c679579ec03371",
+      "size": 17472,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2",
+      "sha256": "59bc0e965694b9409ac2684c6c8d08994f4fee8a474bc63c4653714f8f441435",
+      "size": 14152,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff",
+      "sha256": "97d093d1f1ac67747942215d8f342cb29264ac649d11d775a10721c9907f279a",
+      "size": 14944,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2",
+      "sha256": "5cb240a4d99ab7e6fc3a4d4e6d11d89789fdffe9c86a8384000d662c53283f6f",
+      "size": 12096,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff",
+      "sha256": "d621ee4703e1f311c82c50b54257710b7197a99a6ff42a95840cb7b6ffab48a0",
+      "size": 15500,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2",
+      "sha256": "f5243b80fbcabc6756a4f67a2843a581216ecb89019a789335b85c924f05702e",
+      "size": 12620,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff",
+      "sha256": "c5125982a94a2cfa7e504d852a64f75ca6bc1188be8b32697715760f09da6d25",
+      "size": 15648,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2",
+      "sha256": "0dbe07ed7679407db9d90f747d5ca3bd1b2bb7ccbcbe41c8246cfc6d2c7bc3bc",
+      "size": 12732,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2",
+      "sha256": "377d6c32d80cdc2c257b48b4e02a6437ff1019c77e49c160ede8ebd6453be061",
+      "size": 12644,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff",
+      "sha256": "8fc3e1a7e8b1cd0dbe10e6213ca21d5f53392b07dcee2df06a092ce1ac0b6a6d",
+      "size": 15512,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff",
+      "sha256": "2130f1a6030c8f537498a82c0b81f6cf482cba2c77d7cdd928a12f4ea943b813",
+      "size": 10084,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2",
+      "sha256": "d78c26d0c18f8d0f81efde4aa48a05d8e4d01c696a2683c1d1bdb8471ed0e827",
+      "size": 7872,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2",
+      "sha256": "0f9e442184b58992113a9b26c0b85c380410a60e5f8f3ddc03c54fe80f81bbe8",
+      "size": 7376,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff",
+      "sha256": "aabf095854f4e0602b6968333e9b68d5964eefd3085852e0c6a5eb616dc383b7",
+      "size": 9372,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2",
+      "sha256": "0b3a72e74f915124c73048d3a6970463c9d2f14d3877ccb1f2cd0d7e33e0c5d6",
+      "size": 7548,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff",
+      "sha256": "1e3fd2bcbefa57e28db1c1dc1dfb2abef0a7aa9123707cd0e1d219e263162837",
+      "size": 9556,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff",
+      "sha256": "2b0acf6f235ddd632a7182cef7ca0971454be08af3b92198206a5d1252762bf6",
+      "size": 9592,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2",
+      "sha256": "acd5d0771650ceddafa2beb172dc7ada45581f7641db03a70f4a13677ce799d1",
+      "size": 7556,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2",
+      "sha256": "c88ff1b0c5a48b7cd48157a8ef47c0d8a375ebd4aa66e574ad6655abdd2537bc",
+      "size": 7464,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff",
+      "sha256": "6eb38e4899c170f75d3bc4c81f728b1e244de40da7101f23eb864b4aa9be9a2d",
+      "size": 9524,
+      "role": "font"
+    },
+    {
+      "path": "assets/checkCharacter-CNJCc7G9.js",
+      "sha256": "fa3dcb8df5171cc896daa06f63506d42754013bc78b231476ce953d483ca5ca4",
+      "size": 6078,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/codec-CYHN-GEc.js",
+      "sha256": "8d2bae41df838455fe44d569b0b52f92afc06ec6e9eb90d200a7ba038c99d793",
+      "size": 39441,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/documents-x8GDtGlv.js",
+      "sha256": "16165716e0f8ae773d9236d5a09662c4893e0f5e497bd2de8eadd79ef64e2074",
+      "size": 56547,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/export-YETFyPUd.js",
+      "sha256": "565fd728eb6b1984dfa37ffce48f47608f13deae226067f96e90ccba10fd1a53",
+      "size": 2548,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/favicon-81cb33b4.svg",
+      "sha256": "81cb33b499684f099ba3e3fac7d56a67e26f7a0defdda4f5b528e65d286e8a9c",
+      "size": 315,
+      "role": "icon"
+    },
+    {
+      "path": "assets/fetch-DahJIx9L.js",
+      "sha256": "b9ca28a5120393127140728a61a16defa5a451d43f50c4493de8be94023bb227",
+      "size": 2603,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/format-BcXSg7zn.js",
+      "sha256": "fe027865a3f8f13760b700eba5a247be52503f0e4b54d0c5d6b4422037648d44",
+      "size": 372,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/icon-192-598fe347.png",
+      "sha256": "598fe3478cd26bc809688530146df834c4f8f52c93363b46fed8dc438b2505dd",
+      "size": 2608,
+      "role": "icon"
+    },
+    {
+      "path": "assets/icon-512-ff56c35c.png",
+      "sha256": "ff56c35c1011f40550372dd26a14c01d2d51a8c2bf92dabe9242bbf62484781b",
+      "size": 7362,
+      "role": "icon"
+    },
+    {
+      "path": "assets/icon-maskable-512-0af63a55.png",
+      "sha256": "0af63a55ff4ab7becc61bab415c20ca9245b9ba890fe3637f5be327c00e2d9a0",
+      "size": 6351,
+      "role": "icon"
+    },
+    {
+      "path": "assets/image-BCQOi46L.js",
+      "sha256": "9e10b9bcebcf168fa73141066e4dbf0c3569e419c5f76207526ab51b0a5c4bab",
+      "size": 6527,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/index-CiMIoKuO.css",
+      "sha256": "cb1424cdd01cc34329de7655cd3e5f82dfa4d67cd1d3114dfbe4ff0b0f63c4ce",
+      "size": 46474,
+      "role": "css"
+    },
+    {
+      "path": "assets/index-DpdWb6rF.js",
+      "sha256": "b337d5f33799fd102a908548c19177b5b0d1f64bb80e3a3e68e9e534e648436f",
+      "size": 449821,
+      "role": "entry"
+    },
+    {
+      "path": "assets/plan-B3tU8n6-.js",
+      "sha256": "bfd61a182b2e2e85af44c06a2c1a35eff5f2897cb42c99e0a1c9e630998f0940",
+      "size": 7366,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/readiness-rvdfpvxs.js",
+      "sha256": "942c0c1c8f3a787743eb54bdc93dbe33203ef5ea0aa567a4545f850c2e8c32a7",
+      "size": 8914,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/text-Blu6mMCn.js",
+      "sha256": "17250dca5a2bedbc864222130b013f56189d1afb96dc6c59f084b7e07607fd48",
+      "size": 12829,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ui-BIFIzQkt.js",
+      "sha256": "1c1f802c727ebacb94d61203a519c283da4bb9a0a58e198d1883ef3c84938e02",
+      "size": 239116,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/worker-CNxV92k4.js",
+      "sha256": "9adf9077976cd10c0684ce7dbc740b0d12229689f4892f8c53e5969fc13cfeb0",
+      "size": 624289,
+      "role": "worker"
+    }
+  ],
+  "graph": {
+    "roots": [
+      "releases/r-0610a499c7b13350/index.html",
+      "releases/r-0610a499c7b13350/manifest.webmanifest"
+    ],
+    "edges": [
+      [
+        "assets/AboutPage-Br0FL8pX.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/AboutPage-Br0FL8pX.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/ChoiceCard-DO6ADDVL.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/OptionButton-_7lLTkwG.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/advance-GU99dA6s.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/BuilderPage-Dlj89Grc.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/OptionButton-_7lLTkwG.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/Portrait-DLxm-F54.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/advance-GU99dA6s.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/fetch-DahJIx9L.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/plan-B3tU8n6-.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/text-Blu6mMCn.js"
+      ],
+      [
+        "assets/CharactersPage-BjXZ_PdB.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/OptionButton-_7lLTkwG.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/SrdText-Clw-lsYj.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/VirtualList-C45U6M8m.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/ChoiceCard-DO6ADDVL.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/CompendiumPage-CKP8q45w.js",
+        "assets/SrdText-Clw-lsYj.js"
+      ],
+      [
+        "assets/CompendiumPage-CKP8q45w.js",
+        "assets/VirtualList-C45U6M8m.js"
+      ],
+      [
+        "assets/CompendiumPage-CKP8q45w.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/CompendiumPage-CKP8q45w.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/CompendiumPage-CKP8q45w.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/HitPoints-CWUOPoN8.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/OptionButton-_7lLTkwG.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/Portrait-DLxm-F54.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/VirtualList-C45U6M8m.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/EncounterPage-CqdQuumf.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/ImportDialog-BFdT4rF3.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/plan-B3tU8n6-.js"
+      ],
+      [
+        "assets/EncountersPage-C1qr0lYL.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/Explain-D4zq0EYJ.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/Explain-D4zq0EYJ.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/Explain-D4zq0EYJ.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/HitPoints-CWUOPoN8.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/HitPoints-CWUOPoN8.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/HitPoints-CWUOPoN8.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/HitPoints-CWUOPoN8.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/HitPoints-CWUOPoN8.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/fetch-DahJIx9L.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/plan-B3tU8n6-.js"
+      ],
+      [
+        "assets/ImportDialog-BFdT4rF3.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/OptionButton-_7lLTkwG.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/OptionButton-_7lLTkwG.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/Portrait-DLxm-F54.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/Portrait-DLxm-F54.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/Portrait-DLxm-F54.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/Portrait-DLxm-F54.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/ImportDialog-BFdT4rF3.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/readiness-rvdfpvxs.js"
+      ],
+      [
+        "assets/SettingsPage-B-UqBMb6.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/ChoiceCard-DO6ADDVL.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/HitPoints-CWUOPoN8.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/Portrait-DLxm-F54.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/SrdText-Clw-lsYj.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/VirtualList-C45U6M8m.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/advance-GU99dA6s.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/readiness-rvdfpvxs.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/text-Blu6mMCn.js"
+      ],
+      [
+        "assets/SheetPage-Cx6FpGmE.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/SrdText-Clw-lsYj.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/VirtualList-C45U6M8m.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/advance-GU99dA6s.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/advance-GU99dA6s.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/advance-GU99dA6s.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/advance-GU99dA6s.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/checkCharacter-CNJCc7G9.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/codec-CYHN-GEc.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/codec-CYHN-GEc.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/codec-CYHN-GEc.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/documents-x8GDtGlv.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/documents-x8GDtGlv.js",
+        "assets/worker-CNxV92k4.js"
+      ],
+      [
+        "assets/export-YETFyPUd.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/export-YETFyPUd.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/fetch-DahJIx9L.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2"
+      ],
+      [
+        "assets/index-CiMIoKuO.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/AboutPage-Br0FL8pX.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/BuilderPage-Dlj89Grc.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/CharactersPage-BjXZ_PdB.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/ChoiceCard-DO6ADDVL.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/CompendiumPage-CKP8q45w.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/EncounterPage-CqdQuumf.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/EncountersPage-C1qr0lYL.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/Explain-D4zq0EYJ.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/HitPoints-CWUOPoN8.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/ImportDialog-BFdT4rF3.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/OptionButton-_7lLTkwG.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/Portrait-DLxm-F54.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/SettingsPage-B-UqBMb6.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/SheetPage-Cx6FpGmE.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/SrdText-Clw-lsYj.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/VirtualList-C45U6M8m.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/advance-GU99dA6s.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/export-YETFyPUd.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/fetch-DahJIx9L.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/index-CiMIoKuO.css"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/plan-B3tU8n6-.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/readiness-rvdfpvxs.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/text-Blu6mMCn.js"
+      ],
+      [
+        "assets/index-DpdWb6rF.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/plan-B3tU8n6-.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/plan-B3tU8n6-.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/readiness-rvdfpvxs.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/readiness-rvdfpvxs.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/readiness-rvdfpvxs.js",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "assets/readiness-rvdfpvxs.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "assets/text-Blu6mMCn.js",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "assets/text-Blu6mMCn.js",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "assets/text-Blu6mMCn.js",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "assets/text-Blu6mMCn.js",
+        "assets/fetch-DahJIx9L.js"
+      ],
+      [
+        "assets/text-Blu6mMCn.js",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/apple-touch-icon-cfd1c2a5.png"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/checkCharacter-CNJCc7G9.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/codec-CYHN-GEc.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/documents-x8GDtGlv.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/favicon-81cb33b4.svg"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/index-CiMIoKuO.css"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/index-DpdWb6rF.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/index.html",
+        "assets/ui-BIFIzQkt.js"
+      ],
+      [
+        "releases/r-0610a499c7b13350/manifest.webmanifest",
+        "assets/apple-touch-icon-cfd1c2a5.png"
+      ],
+      [
+        "releases/r-0610a499c7b13350/manifest.webmanifest",
+        "assets/icon-192-598fe347.png"
+      ],
+      [
+        "releases/r-0610a499c7b13350/manifest.webmanifest",
+        "assets/icon-512-ff56c35c.png"
+      ],
+      [
+        "releases/r-0610a499c7b13350/manifest.webmanifest",
+        "assets/icon-maskable-512-0af63a55.png"
+      ]
+    ]
+  },
+  "total_bytes": 2082178
+}

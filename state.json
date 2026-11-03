@@ -15,9 +15,15 @@
         "artifact_digest": "sha256:1881abc6244c19cec18394bb1709c6ef2e871e70b4df776507f948b5ca1df13a",
         "state_commit": "744b8997d03787d23244e6845e67fce0f7219581"
       }
+    },
+    "0.2.0": {
+      "status": "pending",
+      "record": "versions/0.2.0.json",
+      "record_sha256": "63dd5e831795709fbc227e9a0dc62d72b947e0fcdb20e4b2ed0d78d65ec50ed5",
+      "release_id": "r-0610a499c7b13350"
     }
   },
-  "pending": null,
+  "pending": "0.2.0",
   "served": "0.2.0-rc.1",
-  "site_manifest_sha256": "5e015b6b9399e3034a78055cd4ab0f2da92aca43f64f721d3ecc80f014abe605"
+  "site_manifest_sha256": "334388161a5b9ecdf88adde96af009b4060e756c7a40049825d141e1f013cfa2"
 }
