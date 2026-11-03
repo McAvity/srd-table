@@ -276,6 +276,33 @@ export interface DocumentsState {
     attack?: number,
     attempt?: Attempt | null,
   ): Promise<Outcome<PlayChange>>;
+  /**
+   * kenli F-002 T12 (review14 R14-01): a feature for a failed check or attack (`after_failed_roll`,
+   * Peerless Skill) on the last roll (a test, or attack `attack` of a roll by hand); `dc` is the
+   * DC or AC the table declares when the roll has none. The engine decides the outcome; the use is
+   * spent (and committed) only when the roll succeeds, else the roll shows the die and nothing is
+   * spent.
+   */
+  afterFailedRoll(
+    id: string,
+    action: string,
+    use: string,
+    attack?: number,
+    dc?: number,
+    attempt?: Attempt | null,
+  ): Promise<Outcome<{ success?: boolean; spent?: boolean; notes?: readonly string[] }>>;
+  /**
+   * kenli F-002 T12 B2b, Empowered Spell on the last roll by hand of a spell, after its damage:
+   * `roll` the damage roll (a beam's, or the one roll), `dice` the dice to reroll. The engine checks
+   * and rolls; its Sorcery Point is spent and committed with the new roll (one undo step), nothing
+   * on a refusal. Closing the window or declining is just not using it (nothing spent).
+   */
+  empoweredSpell(
+    id: string,
+    roll: number,
+    dice: readonly { readonly part: number; readonly die: number }[],
+    attempt?: Attempt | null,
+  ): Promise<Outcome<PlayChange>>;
   /** Heroic Inspiration on one die of the last roll; a death save is made again from before it. */
   heroicReroll(
     id: string,
@@ -1337,6 +1364,146 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
       );
     },
 
+    afterFailedRoll(id, action, use, attack = 0, dc, attempt) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const last = windowOf(id);
+          if (!last.ok) return last;
+          const roll =
+            last.roll.kind === "test"
+              ? last.roll.test
+              : last.roll.kind === "sheet"
+                ? last.roll.roll.rolls.attacks[attack]
+                : undefined;
+          if (!roll) return notApplicable();
+          const result = await engine().afterFailedRoll(
+            record.build,
+            record.state,
+            roll,
+            action,
+            dc,
+            record.content,
+          );
+          const request = {
+            use,
+            after_failed_roll: action,
+            feature: attempt?.label ?? action,
+            ...(dc !== undefined ? { dc } : {}),
+            ...(last.roll.kind === "sheet" ? { attack } : {}),
+          };
+          if (!result.ok) {
+            // Refused before any die (not a failed check or attack, no DC, no use left).
+            captureRefusal(id, attempt, result, request, {
+              follows: last.roll.group ?? last.roll.op ?? null,
+            });
+            return result;
+          }
+          const op = newOperationId();
+          // Spent only on a success: then the state is committed (one undo step); a roll that still
+          // fails shows the die and changes nothing (no undo step of its own, like a Critical Hit).
+          if (result.spent && !commitCharacter(record, record.build, result.state, op))
+            return replaced();
+          capture(id, {
+            operation_id: op,
+            kind: "late_advantage",
+            ...link(last.roll),
+            component: componentOf(rootOf(last.roll), { kind: "d20", attack }),
+            request,
+            result: result.roll,
+            costs: result.spent ? [costOfUse(use)] : [],
+            commit: result.spent,
+            ...(result.spent ? { before: record.state } : {}),
+          });
+          changed(
+            id,
+            record.build.name ?? "",
+            last.roll,
+            { attack, roll: result.roll },
+            result.spent,
+            op,
+          );
+          if (result.notes.length) useUi.getState().toast([...result.notes]);
+          return {
+            ok: true as const,
+            success: result.success,
+            spent: result.spent,
+            notes: result.notes,
+          };
+        },
+        replaced,
+      );
+    },
+
+    empoweredSpell(id, roll, dice, attempt) {
+      return guarded(
+        [id],
+        async () => {
+          const record = get().characters[id];
+          if (!record) return missing();
+          const last = windowOf(id);
+          if (!last.ok) return last;
+          if (last.roll.kind !== "sheet" || last.roll.what.type !== "cast") return notApplicable();
+          const rolls = last.roll.roll.rolls;
+          // The cast's damage rolls: each beam's or ray's, or its one roll.
+          const damages = rolls.attacks.length
+            ? rolls.attacks.map((a) => a.damage ?? null)
+            : [rolls.damage ?? null];
+          const request = {
+            empowered: true,
+            feature: attempt?.label ?? "empowered",
+            roll,
+            dice: [...dice],
+          };
+          const result = await engine().empoweredSpell(
+            record.build,
+            record.state,
+            damages,
+            { roll, dice },
+            last.roll.what.spell,
+            record.content,
+          );
+          if (!result.ok) {
+            captureRefusal(id, attempt, result, request, {
+              follows: last.roll.group ?? last.roll.op ?? null,
+            });
+            return result;
+          }
+          const op = newOperationId();
+          if (!commitCharacter(record, record.build, result.state, op)) return replaced();
+          const attack = rolls.attacks.length ? rolls.attacks[roll] : undefined;
+          const changedRoll = attack ? { ...attack, damage: result.damage } : result.damage;
+          capture(id, {
+            operation_id: op,
+            kind: "reroll",
+            ...link(last.roll),
+            component: componentOf(
+              "sheet",
+              attack ? { kind: "damage", attack: roll } : { kind: "damage" },
+            ),
+            request,
+            result: changedRoll,
+            costs: [costOfUse(result.use)],
+            commit: true,
+            before: record.state,
+          });
+          changed(
+            id,
+            record.build.name ?? "",
+            last.roll,
+            attack ? { attack: roll, roll: changedRoll } : { damage: true, roll: changedRoll },
+            true,
+            op,
+          );
+          toastNotes(result.notes);
+          return { ok: true as const, state: result.state, notes: result.notes };
+        },
+        replaced,
+      );
+    },
+
     heroicReroll(id, target, attempt) {
       return guarded(
         [id],
@@ -1798,6 +1965,8 @@ export const useDocuments = create<DocumentsState>()((set, get) => {
     rollTest: outcome,
     deathSave: outcome,
     lateAdvantage: outcome,
+    afterFailedRoll: outcome,
+    empoweredSpell: outcome,
     heroicReroll: outcome,
     setCritical: outcome,
     importEncounter: outcome,
@@ -1829,6 +1998,8 @@ export const DOCUMENT_MUTATIONS = [
   "rollTest",
   "deathSave",
   "lateAdvantage",
+  "afterFailedRoll",
+  "empoweredSpell",
   "heroicReroll",
   "setCritical",
   "createEncounter",

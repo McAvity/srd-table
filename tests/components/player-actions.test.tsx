@@ -360,7 +360,7 @@ describe("the Short Rest dialog's steps (review 04)", () => {
 });
 
 describe("Lucky declared before a roll by hand (review 04, §5.4)", () => {
-  async function declare(id: string) {
+  async function declare() {
     const options = await screen.findByRole(
       "region",
       { name: "GM additions to the next rolls" },
@@ -373,7 +373,7 @@ describe("Lucky declared before a roll by hand (review 04, §5.4)", () => {
   it("a weapon attack By hand: Advantage from the engine and the use in the attack's commit; the choice then cleared", async () => {
     const { id } = await pinnedBard();
     await renderApp(`/characters/${id}/sheet?tab=combat`);
-    const options = await declare(id);
+    const options = await declare();
     const row = (await screen.findByRole("rowheader", { name: /^Dagger/ })).closest(
       "tr",
     ) as HTMLElement;
@@ -392,7 +392,7 @@ describe("Lucky declared before a roll by hand (review 04, §5.4)", () => {
     const content = await testContext(engine);
     const id = await storeCharacter(engine, build, content);
     await renderApp(`/characters/${id}/sheet?tab=spells`);
-    await declare(id);
+    await declare();
     const row = (
       await screen.findAllByText("Ray of Sickness", {}, { timeout: 10_000 })
     )[0]?.closest("li") as HTMLElement;
@@ -407,7 +407,7 @@ describe("Lucky declared before a roll by hand (review 04, §5.4)", () => {
   it("no use left by the time of the roll: refused with the engine's reason, nothing changed, the choice kept", async () => {
     const { id } = await pinnedBard();
     await renderApp(`/characters/${id}/sheet?tab=combat`);
-    await declare(id);
+    await declare();
     await useDocuments.getState().playAction(id, { type: "use", key: LUCK, amount: 3 });
     const before = record(id);
     const refusal = await engine.applyPlayAction(

@@ -97,3 +97,37 @@ describe("readiness of a character following a plan", () => {
     expect(useDocuments.getState().characters[id]).toBeTruthy();
   }, 60_000);
 });
+
+describe("kenli F-002 T13a: a character following a guided plan (/2)", () => {
+  it("started with its kit: prepared offline, ready, the plan and its guide kept exactly", async () => {
+    await inst.open("R7-guided");
+    const file = read("pool-feat-1-6.plan.json");
+    file.format = "srd-table.progression-plan/2";
+    file.plan.guide = {
+      kits: [
+        {
+          from_level: 1,
+          title: "Kit",
+          items: [{ item: "whip", units: 1, equip: false, origin: "author" }],
+          origin: "author",
+        },
+      ],
+      play: { base: { text: "Base.", origin: "author" }, levels: [] },
+      purchases: [],
+      alternatives: [],
+      controls: [],
+    };
+    const { contentSha } = await import("@/lib/canonical");
+    file.plan_sha256 = await contentSha(file.plan);
+    const r = await startFromPlan(file, 3, { kit: true });
+    if (!r.ok) throw new Error(`${r.code} ${r.detail}`);
+    await flushNow();
+    await prepareOffline({ kind: "character", id: r.id }, { storage: granted });
+    const ready = await checkReadiness({ kind: "character", id: r.id });
+    expect(ready.items.filter((i) => i.status !== "ok")).toEqual([]);
+    expect(ready.status).toBe("ready");
+    const progression = (useDocuments.getState().characters[r.id] as Loose).progression;
+    expect(progression.plan.format).toBe("srd-table.progression-plan/2");
+    expect(JSON.stringify(progression.plan.plan.guide)).toBe(JSON.stringify(file.plan.guide));
+  }, 60_000);
+});

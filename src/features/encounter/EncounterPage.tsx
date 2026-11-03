@@ -176,7 +176,9 @@ function Table({ record }: { record: EncounterRecord }) {
       </aside>
 
       <div className="flex min-h-[28rem] min-w-0 flex-col gap-2">
-        <div className="min-h-0 flex-1">
+        {/* kenli F-002 T12 final (D038): the map's own 18rem minimum, so a tall quick bar below
+            makes the column grow instead of the map overflowing onto the quick bar's tabs. */}
+        <div className="min-h-[18rem] flex-1">
           <BattleMap
             encounterId={record.id}
             encounter={record.encounter}
@@ -187,6 +189,8 @@ function Table({ record }: { record: EncounterRecord }) {
         </div>
         {pending && (
           <DecisionDialog
+            // A new question (one more answer, more dice) starts with nothing ticked.
+            key={`${pending.answers.length}:${pending.rolls.length}`}
             encounterId={record.id}
             pending={pending}
             who={pendingWho?.name ?? pending.combatant}
@@ -243,7 +247,7 @@ function Table({ record }: { record: EncounterRecord }) {
               needsComposer={(entry: OptionEntry, w: PlayWay) =>
                 w === "manual" && entry.rollable
                   ? needsComposerByHand(entry, actorSheet)
-                  : needsComposer(entry)
+                  : needsComposer(entry, actorSheet)
               }
             />
           </>

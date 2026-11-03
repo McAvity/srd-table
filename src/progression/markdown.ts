@@ -6,9 +6,9 @@
  * or the catalog is escaped (no raw HTML, no Markdown injection). Nothing here writes.
  */
 
-import type { PlanCheckpoint, ReadableOp, StatChange } from "@/engine/plans";
+import type { GuideQuote, PlanCheckpoint, ReadableOp, StatChange } from "@/engine/plans";
 import { type MessageKey, type Params, t as translate } from "@/i18n";
-import type { PlanFile } from "./codec";
+import type { GuideNote, PlanFile, PlanGuide } from "./codec";
 
 /** Markdown-significant characters (§11), backslash-escaped; line breaks folded to spaces. */
 export function escapeMarkdown(text: string): string {
@@ -103,14 +103,79 @@ function classNames(checkpoints: readonly PlanCheckpoint[]): Map<string, string>
 const classesLine = (cp: PlanCheckpoint, names: Map<string, string>) =>
   cp.stats.classes.map((c) => `${e(names.get(c.class_id) ?? c.class_id)} ${c.level}`).join(" / ");
 
+const noteOrigin = (n: { readonly origin: string }) =>
+  t(`markdown.origin.${n.origin === "source" || n.origin === "adaptation" ? n.origin : "author"}`);
+const noteLine = (n: GuideNote) => `${e(n.text)} — ${noteOrigin(n)}`;
+
+/**
+ * kenli F-002 T13 (`/2`): the guide's equipment — each kit with the catalog's price per bundle
+ * (`quotes`, from the plan's own catalog; a price in a text is never used), what is worn, why;
+ * the later purchases by priority and the alternatives (recommendations: not owned, not free).
+ */
+function guideEquipment(guide: PlanGuide, quotes: ReadonlyMap<string, GuideQuote>): string[] {
+  const out: string[] = [
+    `## ${t("markdown.guide.equipment")}`,
+    "",
+    t("markdown.guide.kitNote"),
+    "",
+  ];
+  const name = (id: string) => e(quotes.get(id)?.name ?? id);
+  for (const k of guide.kits) {
+    out.push(`### ${t("markdown.guide.kit", { level: k.from_level, title: e(k.title) })}`, "");
+    if (k.why) out.push(`${e(k.why)} — ${noteOrigin(k)}`, "");
+    for (const it of k.items) {
+      const q = quotes.get(it.item);
+      const price = q?.price_text
+        ? q.bundle > 1
+          ? t("markdown.guide.priceBundle", { price: e(q.price_text), bundle: q.bundle })
+          : t("markdown.guide.price", { price: e(q.price_text) })
+        : t("markdown.guide.unpriced");
+      const worn = it.equip ? ` — ${t("markdown.guide.worn")}` : "";
+      const why = it.why ? `\n  - ${e(it.why)}` : "";
+      out.push(`- **${name(it.item)}** × ${it.units} — ${price}${worn} — ${noteOrigin(it)}${why}`);
+    }
+    out.push("");
+  }
+  if (guide.purchases.length) {
+    out.push(`### ${t("markdown.guide.purchases")}`, "", t("markdown.guide.purchasesNote"), "");
+    for (const p of [...guide.purchases].sort((a, b) => a.priority - b.priority)) {
+      const price = quotes.get(p.item)?.price_text;
+      out.push(
+        `${p.priority}. **${name(p.item)}**${price ? ` (${e(price)})` : ` (${t("markdown.guide.unpriced")})`} — ${noteLine(p)}`,
+      );
+    }
+    out.push("");
+  }
+  if (guide.alternatives.length) {
+    out.push(`### ${t("markdown.guide.alternatives")}`, "");
+    for (const a of guide.alternatives)
+      out.push(
+        `- ${t("markdown.guide.instead", { item: name(a.item), of: name(a.instead_of) })}: ${noteLine(a)}`,
+      );
+    out.push("");
+  }
+  out.push(`## ${t("markdown.guide.play")}`, "", noteLine(guide.play.base), "");
+  if (guide.controls.length) {
+    out.push(`### ${t("markdown.guide.controls")}`, "");
+    for (const c of guide.controls) out.push(`- ${noteLine(c)}`);
+    out.push("");
+  }
+  return out;
+}
+
 /**
  * The plan as Markdown. `checkpoints` are `compilePlan`'s for this very plan (levels 1…N). The
- * text is the same whatever level a character following the plan is at.
+ * text is the same whatever level a character following the plan is at. kenli F-002 T13: a
+ * guided plan (`/2`) adds its equipment and play guide (`quotes`: `compilePlan`'s `guide_items`)
+ * and, at each level, its note — or that the last one still holds.
  */
 export function planMarkdown(
   file: Omit<PlanFile, "packs">,
   checkpoints: readonly PlanCheckpoint[],
+  quotes: readonly GuideQuote[] = [],
 ): string {
+  const guide = file.plan.guide;
+  const priced = new Map(quotes.map((q) => [q.item, q]));
   const plan = file.plan;
   const N = 1 + plan.levels.length;
   const out: string[] = [];
@@ -168,7 +233,9 @@ export function planMarkdown(
   if (start)
     out.push(`- ${t("markdown.hpAt", { level: 1, hp: String(start.stats.max_hp ?? "—") })}`);
   out.push("");
+  if (guide) out.push(...guideEquipment(guide, priced));
   const names = classNames(checkpoints);
+  let lastNote: number | null = null;
   const lastList = new Map<string, { values: readonly string[]; names: readonly string[] }>();
   for (const cp of checkpoints) {
     const head =
@@ -240,6 +307,21 @@ export function planMarkdown(
     } else {
       if (automatic.length) out.push("", `### ${t("markdown.automatic")}`, "", ...automatic);
       if (stats.length) out.push("", `### ${t("markdown.changes")}`, "", ...stats);
+    }
+    if (guide) {
+      // kenli F-002 T13: how to play from this level, or that the last note still holds.
+      out.push("", `### ${t("markdown.guide.howToPlay")}`, "");
+      const kit = guide.kits.find((k) => k.from_level === cp.level && cp.level > 1);
+      if (kit) out.push(`- ${t("markdown.guide.kitFrom", { title: e(kit.title) })}`);
+      const n = guide.play.levels.find((l) => l.level === cp.level);
+      if (n) {
+        out.push(`- ${noteLine(n)}`);
+        lastNote = cp.level;
+      } else if (cp.level === 1) out.push(`- ${t("markdown.guide.base")}`);
+      else
+        out.push(
+          `- ${lastNote === null ? t("markdown.guide.inheritBase") : t("markdown.guide.inherit", { level: lastNote })}`,
+        );
     }
     out.push("");
   }

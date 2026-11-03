@@ -61,8 +61,13 @@ export function titleOf(
     case "death_save":
       return t("history.kind.deathSave");
     case "late_advantage":
-      return t("history.kind.lateAdvantage");
+      // kenli F-002 T12 (R14-01): a feature for a failed roll is journaled as this follow-up kind.
+      return field(q, "after_failed_roll") !== undefined
+        ? t("history.kind.afterFailedRoll", { what: label(field(q, "feature")) ?? "" })
+        : t("history.kind.lateAdvantage");
     case "reroll":
+      // kenli F-002 T12 B2b: Empowered Spell's dice of a damage roll.
+      if (field(q, "empowered") === true) return t("history.kind.empowered");
       return field(q, "kind") === "death_save"
         ? t("history.kind.rerollDeathSave")
         : t("history.kind.reroll");

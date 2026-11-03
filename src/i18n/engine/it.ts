@@ -124,7 +124,7 @@ export const ENGINE_IT = {
     "Cunning Strike (Withdraw): {name} può muoversi di {feet} piedi senza provocare attacchi di opportunità.",
   "cunning.too_large": "Cunning Strike (Trip): {name} è troppo grande per essere fatto cadere.",
   "cunning.save":
-    "Cunning Strike ({effect, select, poison {Poison} other {Trip}}): {name} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
+    "Cunning Strike ({effect, select, poison {Poison} daze {Daze} knock_out {Knock Out} obscure {Obscure} other {Trip}}): {name} {success, select, true {supera} other {fallisce}} il tiro salvezza ({save}).",
   "brutal.sundered_bonus": "Sundering Blow: +5 al tiro per colpire di {name} contro {target}.",
   "brutal.forceful":
     "Forceful Blow: {target} è spinto di 15 piedi in linea retta; {name} può muoversi fino a metà della sua Velocità verso di lui senza provocare attacchi di opportunità.",
@@ -282,6 +282,7 @@ export const ENGINE_IT = {
     "{feature}: recupera {amount} Punti Ferita{capped, select, true { (tirati {rolled})} other {}}.",
   "play.exhaustion_dies": "Indebolimento 6: il personaggio muore.",
   "play.starting_equipment": "Equipaggiamento iniziale aggiunto: {items}.",
+  "play.level_items": "Ottenuto con questo livello: {items}.",
   "play.took_off": "Tolto {item}.",
   "play.attuning": "Entrare in sintonia richiede un riposo breve concentrati sull'oggetto.",
   "play.item_heals": "{item}: {amount} Punti Ferita.",
@@ -325,6 +326,49 @@ export const ENGINE_IT = {
   "reason.pace_slow": "un'andatura di viaggio lenta",
   "positions.set":
     "{mode, select, required {Le creature fuori dalla mappa non possono attaccare, lanciare incantesimi o agire su altri a distanza} other {Le creature fuori dalla mappa agiscono come se fossero a portata e a gittata}}.",
+  "refusal.after_roll_kind":
+    "{feature} si usa solo su una prova di caratteristica o un tiro per colpire falliti",
+  "refusal.after_roll_needs_dc": "{feature}: indica la CD o la CA contro cui il tiro è fallito",
+  "refusal.after_roll_not_failed": "{feature}: il tiro non è fallito",
+  "refusal.after_roll_used": "{feature}: già usato su questo tiro",
+  "refusal.toggle_alternative":
+    "{toggle}: nessun utilizzo rimasto, servono {amount} {use} ({left} rimasti)",
+  "play.toggle_alternative": "{toggle}: attivato con {amount} {use} (nessun utilizzo rimasto)",
+  "refusal.cast_options_limit": "{options}: ora solo {count} opzioni di lancio su un incantesimo",
+  "refusal.quickened_after_leveled":
+    "{spell}: Incantesimo Rapido non si può usare dopo un incantesimo di livello 1+ in questo turno",
+  "refusal.leveled_after_quickened":
+    "{spell}: nessun incantesimo di livello 1+ nel turno in cui si è usato Incantesimo Rapido",
+  "refusal.metamagic_needs_save": "{option}: {spell} non impone un tiro salvezza",
+  "refusal.heightened_one_target": "{option}: scegli uno dei bersagli dell'incantesimo",
+  "refusal.careful_targets": "{option}: fino a {max} dei bersagli dell'incantesimo (non tu)",
+  "cast.subtle": "{spell} lanciato senza componenti verbali, somatiche o materiali{still}",
+  "cast.subtle_still": " (serve ancora: {material})",
+  "cast.heightened":
+    "{target} ha Svantaggio ai tiri salvezza contro {spell} (Incantesimo Intensificato)",
+  "cast.careful": "{targets} superano il tiro salvezza contro {spell} (Incantesimo Accurato)",
+  "reason.heightened": "Incantesimo Intensificato",
+  "save.careful": "Incantesimo Accurato: un successo automatico",
+  "refusal.careful_no_save_now": "{option}: {spell} non impone tiri salvezza quando viene lanciato",
+  "cast.option_targets_by_hand":
+    "{option}: le sue creature sono del tavolo (un tiro a mano non ha bersagli)",
+  "refusal.restores_when_empty": "{feature}: solo quando non resta alcun {use} ({left} rimasti)",
+  "play.feature_slot_back": "{feature}: uno slot incantesimo di livello {level} recuperato",
+  "refusal.needs_feature_first": "{feature}: solo dopo {after} in questo turno",
+  "refusal.companion_strike_once":
+    "{name} ha già rinunciato a un attacco di questa azione di Attacco per il colpo del compagno",
+  "refusal.companion_action_once":
+    "il compagno di {name} ha già usato la sua unica azione in questo turno",
+  "attack.damage_as": "{attack}: i suoi danni inflitti come {type}",
+  "attack.rider_condition": "{target}: {conditions} ({rider})",
+  "attack.rider_condition_size": "{target} è troppo grande per {conditions} di {rider}",
+  "rule.damage_type_not_allowed": "{attack} non può infliggere danni {type} (solo {types})",
+  "note.defeated_this_action":
+    "{name} è già sconfitto da questa azione: il resto dei suoi danni su di lui non ha effetto",
+  "after_roll.succeeds":
+    "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: riesce, un utilizzo speso",
+  "after_roll.still_fails":
+    "{feature}: {die} ha dato {rolled}, totale {total} contro {dc}: fallisce ancora, niente speso",
   "refusal.no_combatant_encounter": "Nessun combattente '{id}' nello scontro",
   "refusal.there_no_decision_make": "Non c'è nessuna decisione da prendere",
   "refusal.waiting_decision": "In attesa di una decisione: {question}",
@@ -776,6 +820,7 @@ export const ENGINE_IT = {
   "issue.pack_missing": "Richiede il pacchetto di contenuti '{pack}', che non è caricato",
   "issue.choose_first": "Prima scegli: {missing}",
   "issue.unsupported": "{name}: {text}",
+  "issue.redundant_pick": "{name}: nessun effetto ({why}): ogni opzione è già conosciuta",
   "issue.choose_name": "Scegli un nome",
   "issue.choose_alignment": "Scegli un allineamento",
   "issue.choose_entity": "Scegli: {what}",
@@ -1026,6 +1071,27 @@ export const ENGINE_IT = {
     "La sintonia con {item} richiede {by}: il tavolo valuta se hai i requisiti",
   "item.restriction.attunement_limit":
     "Sei in sintonia con {count} oggetti, il massimo ({max}): termina prima una sintonia",
+  "refusal.empowered_needs_damage": "{option}: {spell} non tira danni",
+  "refusal.empowered_used": "{option}: già usato su questo incantesimo",
+  "refusal.no_empowered": "{name} non ha Incantesimo Potenziato",
+  "refusal.reroll_too_many": "{label}: al massimo {max} dadi",
+  "refusal.reroll_die_twice": "{label}: ogni dado una volta sola",
+  "refusal.empowered_pick_dice": "Scegli fino a {max} dadi di danno da ritirare, o tieni il tiro",
+  "decision.empowered_spell":
+    "{name}: {option} sui danni di {spell} ({dice}; totale {total})? Ritira fino a {max} dei suoi dadi per {cost} {use}, o tienilo",
+  "empowered.rerolled": "{option}: dadi ritirati ({dice}), danni {from} → {total}",
+  "refusal.devious_strikes_needed":
+    "Stordire, Tramortire e Oscurare vengono con Colpi Subdoli (Ladro di 14° livello): {name} non li ha",
+  "refusal.dazed_one":
+    "{name} è stordito: solo una tra muoversi, un'azione o un'azione bonus in questo turno",
+  "cunning.dazed":
+    "{name} è stordito: nel suo prossimo turno, solo una tra muoversi, un'azione o un'azione bonus",
+  "label.cost_sneak_dice": "{count}d6 di Attacco Furtivo",
+  "refusal.stock_units": "{item}: un numero intero di unità, almeno 1",
+  "refusal.stock_twice": "{item} è elencato due volte",
+  "refusal.stock_equip_conflict":
+    "{item} non può essere indossato o impugnato insieme al resto dell'elenco",
+  "refusal.stock_unpriced": "{item} non ha un prezzo di listino: non si può comprare",
 } as const satisfies Record<MessageCode, string>;
 
 /** Names of engine ids that have no message code yet (see `EngineLanguage`). */

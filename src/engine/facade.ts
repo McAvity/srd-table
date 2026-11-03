@@ -49,6 +49,7 @@ import {
   type D20TestRequest,
   type D20TestResult,
   DAMAGE_TYPES,
+  type DamageDie,
   type DamagePart,
   type DamageType,
   type Encounter,
@@ -65,12 +66,14 @@ import {
   zoneSquares as engineZoneSquares,
   evaluate,
   formatCp,
+  gainLevelItems,
   gridDistance,
   type Issue,
   type ItemAssessment,
   type ItemAssessmentRequest,
   issuesForLevel,
   issuesForStep,
+  type LevelItem,
   lookup,
   MAX_ATTUNED,
   type Message,
@@ -121,6 +124,8 @@ import {
   TABLE_NAMES,
   type TableName,
   unassignedValues,
+  useAfterFailedRoll,
+  useEmpoweredSpell,
   type ValidationReport,
   validateState,
 } from "srd-rules-engine";
@@ -141,6 +146,7 @@ import {
   type AddonCheckResult,
   type PlanCompileResult,
   planMethods,
+  type StartStage,
 } from "./plans";
 
 // --- results ------------------------------------------------------------------------------
@@ -535,6 +541,50 @@ export interface EngineFacade {
     content?: ContentContext,
   ): Promise<Outcome<{ roll: ChangeableRoll; state: CharacterState }>>;
   /**
+   * kenli F-002 T12 (review14 R14-01): a feature used on a failed ability check or attack roll
+   * (`after_failed_roll`, Peerless Skill): the engine's `useAfterFailedRoll` rolls its die onto
+   * the roll, decides the outcome against the roll's DC (or `dc`, the DC or AC the table declares
+   * when the roll has none) and spends the use only when it turns the roll into a success.
+   */
+  afterFailedRoll(
+    build: CharacterBuild,
+    state: CharacterState,
+    roll: ChangeableRoll,
+    action: string,
+    dc?: number,
+    content?: ContentContext,
+  ): Promise<
+    Outcome<{
+      roll: ChangeableRoll;
+      state: CharacterState;
+      success: boolean;
+      spent: boolean;
+      notes: readonly string[];
+      messages: readonly Message[];
+    }>
+  >;
+  /**
+   * kenli F-002 T12 B2b, Empowered Spell on a spell rolled by hand (`useEmpoweredSpell`): `rolls`
+   * the damage rolls of that cast, `pick` the roll and its dice to reroll; the new roll and the state
+   * with its cost paid, both or neither; `use` the limited use it spent.
+   */
+  empoweredSpell(
+    build: CharacterBuild,
+    state: CharacterState,
+    rolls: readonly (RolledDamage | null)[],
+    pick: { readonly roll: number; readonly dice: readonly DamageDie[] },
+    spell: string,
+    content?: ContentContext,
+  ): Promise<
+    Outcome<{
+      damage: RolledDamage;
+      state: CharacterState;
+      use: string;
+      notes: readonly string[];
+      messages: readonly Message[];
+    }>
+  >;
+  /**
    * Heroic Inspiration: `spend_inspiration` on the state and `rerollDie` on the target (a d20, a
    * bonus die, a damage die, a single die), both or neither; a Critical Hit gained rolls its dice.
    */
@@ -580,6 +630,16 @@ export interface EngineFacade {
     state: CharacterState,
     content?: ContentContext,
   ): Promise<PlayChange>;
+  /**
+   * kenli F-002 T12 (D043): a level gained in play adds what its new features grant (the
+   * engine's `gainLevelItems`: free, once, nothing else of the state changed).
+   */
+  gainLevelItems(
+    before: CharacterBuild,
+    after: CharacterBuild,
+    state: CharacterState,
+    content?: ContentContext,
+  ): Promise<{ state: CharacterState; items: LevelItem[] }>;
   /**
    * Rolled by hand on the sheet (an attack, a spell, a feature's dice): the engine's free
    * `rollByHand`, its costs checked (`checkCosts`) and paid on the state with `applyAction`, as
@@ -671,6 +731,12 @@ export interface EngineFacade {
    * `(plan_sha256, contextKey)`; nothing is stored or registered.
    */
   compilePlan(file: unknown): Promise<PlanCompileResult>;
+  /**
+   * kenli F-002 T13: a new character's start staged in memory (`StartStage`): the fresh state at
+   * `level` and, with `kit`, the plan's starting kit bought and worn on it at the catalog's prices.
+   * Nothing is stored; `startFromPlan` calls it again at the confirm and writes its state.
+   */
+  stageStart(file: unknown, level: number, kit: boolean): Promise<StartStage>;
   /** The add-on bind checks that need the engine (contract §6.3): before any preview. */
   checkAddon(request: AddonCheckRequest): Promise<AddonCheckResult>;
 }
@@ -834,6 +900,40 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
           return { roll: addAdvantageDie(rolled, source, label, { rng }), state: paid.state };
         }),
       ),
+    afterFailedRoll: (build, state, rolled, action, dc, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const r = useAfterFailedRoll(build, state, catalog, rolled, action, {
+            ...(dc !== undefined ? { dc } : {}),
+            rng,
+          });
+          return {
+            roll: r.roll,
+            state: r.state,
+            success: r.success,
+            spent: r.spent,
+            messages: r.messages,
+            notes: r.messages.map((m) => m.text),
+          };
+        }),
+      ),
+    empoweredSpell: (build, state, rolls, pick, spell, ctx) =>
+      content.run(ctx, "play", (catalog) =>
+        attempt(() => {
+          const r = useEmpoweredSpell(build, state, catalog, rolls, pick, { spell, rng });
+          const use =
+            computePlaySheet(build, state, catalog).cast_options.find(
+              (o) => o.effect === "empowered",
+            )?.uses ?? "";
+          return {
+            damage: r.damage,
+            state: r.state,
+            use,
+            messages: r.messages,
+            notes: r.messages.map((m) => m.text),
+          };
+        }),
+      ),
     heroicReroll: (build, state, target, ctx) =>
       content.run(ctx, "play", (catalog) =>
         attempt(() => {
@@ -885,6 +985,11 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
       content.run(ctx, "play", (catalog) => validateState(build, state, catalog)),
     reconcileState: (build, state, ctx) =>
       content.run(ctx, "play", (catalog) => reconcileState(build, state, catalog)),
+    gainLevelItems: (before, after, state, ctx) =>
+      content.run(ctx, "play", (catalog) => {
+        const r = gainLevelItems(before, after, state, catalog);
+        return { state: r.state, items: r.items };
+      }),
     rollByHand: (build, state, what, force = false, ctx) =>
       content.run(ctx, "play", (catalog) =>
         attempt(() => {
@@ -1025,6 +1130,7 @@ export function createInProcessFacade(options: FacadeOptions): EngineFacade {
     roll: async (expression) => attempt(() => ({ roll: roll(expression, rng) })),
     rollDamage: async (parts, critical) => rollDamage(parts, { critical, rng }),
     compilePlan: (file) => plans.compilePlan(file),
+    stageStart: (file, level, kit) => plans.stageStart(file, level, kit),
     checkAddon: (request) => plans.checkAddon(request),
   };
   return localized(facade, () => language);
@@ -1054,6 +1160,8 @@ const UNLOCALIZED = new Set<keyof EngineFacade>([
   // kenli F-002 T03: plan documents and their checkpoints (builds), returned as they are.
   "compilePlan",
   "checkAddon",
+  // kenli F-002 T13: a staged start (a state document and catalog quotes), as it is.
+  "stageStart",
 ]);
 
 /**

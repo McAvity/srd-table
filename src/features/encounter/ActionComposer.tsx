@@ -12,13 +12,14 @@
  * anyway", sent with `force: true`; the log notes the override.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type {
   AreaRequest,
   CombatantOptions,
   DamageType,
   EncounterAction,
   OptionEntry,
+  PlaySheet,
   Skill,
   SpellDef,
   StrikeOption,
@@ -54,9 +55,18 @@ const COMPOSED: ReadonlySet<EncounterAction["type"]> = new Set([
 ]);
 
 /** Does this option need anything filled in before it can be sent? */
-export function needsComposer(entry: OptionEntry): boolean {
+export function needsComposer(entry: OptionEntry, sheet?: PlaySheet | null): boolean {
   if (entry.targets && entry.targets.kind !== "self") return true;
+  // kenli F-002 T12 B1: a feature paid with a spell slot (Wild Resurgence) or taking a form.
+  const a = entry.action;
+  if (a.type === "feature" && sheet) {
+    const line = sheet.actions.find((x) => x.key === a.feature);
+    if (line?.slot_payment || line?.shape) return true;
+  }
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
+  // kenli F-002 T12 (review14 R14-02): a free cast or a slot is the player's choice.
+  if (entry.free_casts?.length && (entry.slot_levels.length || entry.free_casts.length > 1))
+    return true;
   // kenli F-011 (review03 R03-02): a leveled spell's slot is the player's choice — every legal level,
   // spent ones included — so it's picked in the form, never assumed.
   if (entry.action.type === "cast" && (entry.action.slot_level ?? 0) > 0) return true;
@@ -124,6 +134,8 @@ export function ActionComposer({
   const [strikes, setStrikes] = useState<string[]>([]);
   const [twoHanded, setTwoHanded] = useState(false);
   const [damageType, setDamageType] = useState("");
+  const [featurePay, setFeaturePay] = useState("");
+  const [featureForm, setFeatureForm] = useState("");
   const [skill, setSkill] = useState(() =>
     "skill" in base && typeof base.skill === "string" ? base.skill : "",
   );
@@ -143,6 +155,10 @@ export function ActionComposer({
   const [unaffected, setUnaffected] = useState<string[]>([]);
   /** kenli F-002 T12 (D016): what this cast does to a tracked pool (Arcane Ward), by trigger key. */
   const [castModes, setCastModes] = useState<Record<string, "" | "create" | "restore">>({});
+  /** kenli F-002 T12 B2a: Metamagic picked (sheet keys), Heightened's target, Careful's targets. */
+  const [castOptions, setCastOptions] = useState<string[]>([]);
+  const [heightened, setHeightened] = useState("");
+  const [careful, setCareful] = useState<string[]>([]);
   const [reasons, setReasons] = useState<readonly string[] | null>(null);
   const [busy, setBusy] = useState(false);
   /** The way it's played: by hand there are no targets, areas or cover to pick. */
@@ -158,6 +174,7 @@ export function ActionComposer({
     base.type === "cast"
       ? (play.data?.sheet.spells.find((s) => s.id === base.spell)?.slots ?? null)
       : null;
+  const freeCasts = entry.free_casts ?? [];
   const line =
     base.type === "attack"
       ? play.data?.sheet.attacks.find((a) => a.name === base.attack)
@@ -173,7 +190,39 @@ export function ActionComposer({
     const mode = castModes[tr.key] ?? "";
     return mode ? [{ key: tr.key, mode }] : [];
   });
-  const damageTypes = spell?.mechanics?.damage_types ?? [];
+  // kenli F-002 T12 B1: an attack line's other damage types (Lunar Radiance, Exceptional Training).
+  const damageTypes =
+    base.type === "attack"
+      ? (line?.damage_types?.length ?? 0) > 1
+        ? (line?.damage_types ?? [])
+        : []
+      : (spell?.mechanics?.damage_types ?? []);
+  // kenli F-002 T12 B1: a feature paid with a spell slot (Wild Resurgence) or taking a form.
+  const featureLine =
+    base.type === "feature"
+      ? play.data?.sheet.actions.find((a) => a.key === base.feature)
+      : undefined;
+  const featureSlots = featureLine?.slot_payment
+    ? [
+        ...(play.data?.sheet.play.spell_slots ?? []).map((x) => ({
+          value: `slot:${x.level}`,
+          label: t("sheet.slotLevel", { level: x.level }),
+          left: x.total - x.spent,
+          total: x.total,
+        })),
+        ...(play.data?.sheet.play.pact_magic
+          ? [
+              {
+                value: "pact",
+                label: t("table.pactSlot", { level: play.data.sheet.play.pact_magic.slot_level }),
+                left: play.data.sheet.play.pact_magic.slots - play.data.sheet.play.pact_magic.spent,
+                total: play.data.sheet.play.pact_magic.slots,
+              },
+            ]
+          : []),
+      ]
+    : [];
+  const featureForms = featureLine?.shape?.forms ?? [];
   const designate = spell?.mechanics?.zone?.designate === true;
   const wallDef = spell?.mechanics?.wall ?? null;
   // Without positions an area can't be aimed: the caller names who's in it (`targets`).
@@ -229,34 +278,37 @@ export function ActionComposer({
     [setHighlight, aim],
   );
 
-  const action = useMemo(
-    () =>
-      compose(base, {
-        targets,
-        slot,
-        mode,
-        cover,
-        riders,
-        alternatives,
-        masteryAs,
-        strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
-        twoHanded,
-        damageType,
-        skill,
-        dc,
-        text,
-        readied: readyChoices[readied]?.action ?? null,
-        area: areaMode && placement ? { [areaMode]: placement } : null,
-        point: spec?.kind === "point" ? placement : null,
-        wall:
-          wall.from && wall.to
-            ? { from: wall.from, to: wall.to, ...(wall.side ? { side: wall.side } : {}) }
-            : null,
-        unaffected,
-        triggers: triggered,
-      }),
+  const fields = useMemo(
+    (): Fields => ({
+      targets,
+      slot,
+      mode,
+      cover,
+      riders,
+      alternatives,
+      masteryAs,
+      strikes: entry.strikes.filter((x) => strikes.includes(`${x.send}:${x.id}`)),
+      twoHanded,
+      damageType,
+      skill,
+      dc,
+      text,
+      readied: readyChoices[readied]?.action ?? null,
+      area: areaMode && placement ? { [areaMode]: placement } : null,
+      point: spec?.kind === "point" ? placement : null,
+      wall:
+        wall.from && wall.to
+          ? { from: wall.from, to: wall.to, ...(wall.side ? { side: wall.side } : {}) }
+          : null,
+      unaffected,
+      triggers: triggered,
+      castOptions,
+      heightened,
+      careful,
+      featurePay,
+      featureForm,
+    }),
     [
-      base,
       targets,
       slot,
       mode,
@@ -279,8 +331,26 @@ export function ActionComposer({
       wall,
       unaffected,
       triggered,
+      castOptions,
+      heightened,
+      careful,
+      featurePay,
+      featureForm,
     ],
   );
+  const action = useMemo(() => compose(base, fields), [base, fields]);
+  // kenli F-002 T12 B2b (D032): a Strike effect judged by the engine with the attack as composed
+  // (its Advantage, riders, target), not only as the option listed it: the dry run of the action
+  // with that effect added.
+  const withStrike = (x: StrikeOption): EncounterAction =>
+    playedAs(
+      compose(base, {
+        ...fields,
+        strikes: [...fields.strikes.filter((y) => y !== x), x],
+      }),
+      as,
+      entry.rollable,
+    );
   const played = playedAs(action, as, entry.rollable);
   const check = useActionCheck(encounterId, played);
   const refused = check.data?.ok === false;
@@ -371,7 +441,19 @@ export function ActionComposer({
     }
   }
 
-  const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view) : [];
+  // kenli F-002 T12 B2a: with Distant Spell picked, creatures past the spell's usual range are
+  // offered too (marked out of range): the engine checks the doubled range.
+  const distantPicked = castOptions.some(
+    (k) => play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "distant",
+  );
+  const allIds = pickCreatures && spec ? orderedCandidates(spec.ids, view, distantPicked) : [];
+  // kenli F-002 T12 B2a (D039): Heightened's choice — the picked targets, else the creatures the
+  // aimed area covers (a zone with no save when cast: Web), from the engine's preview.
+  const heightenedChoices: readonly string[] = targets.length
+    ? targets
+    : preview.data?.ok
+      ? preview.data.targets.map((x) => x.id)
+      : [];
   const odds = byHand ? null : oddsText(entry);
 
   return (
@@ -520,7 +602,10 @@ export function ActionComposer({
           </div>
         )}
 
-        {(slotChoices?.length || entry.slot_levels.length > 0 || entry.pact_slot !== null) && (
+        {(slotChoices?.length ||
+          entry.slot_levels.length > 0 ||
+          entry.pact_slot !== null ||
+          freeCasts.length > 0) && (
           <label className="flex flex-col gap-1 text-sm">
             {t("table.slotLevel")}
             <select
@@ -528,6 +613,15 @@ export function ActionComposer({
               value={slot}
               onChange={(e) => setSlot(e.target.value)}
             >
+              {/* kenli F-002 T12 (review14 R14-02): a free cast (Mystic Arcanum, Spell Mastery, a
+                  feature's spell) pays no slot; the engine charges its use or refuses it. */}
+              {freeCasts.map((f) => (
+                <option key={`free:${f.use}`} value={`free:${f.use}`} data-testid="cast-free">
+                  {f.at_will
+                    ? t("table.freeCastAtWill", { name: f.name })
+                    : t("table.freeCast", { name: f.name, left: f.left })}
+                </option>
+              ))}
               {slotChoices?.length ? (
                 slotChoices.map((x) => (
                   <option key={`${x.pact}:${x.level}`} value={x.pact ? "pact" : String(x.level)}>
@@ -551,6 +645,75 @@ export function ActionComposer({
               )}
             </select>
           </label>
+        )}
+
+        {base.type === "cast" && (play.data?.sheet.cast_options.length ?? 0) > 0 && (
+          <fieldset className="flex flex-col gap-1 text-sm" data-testid="composer-cast-options">
+            <legend>{t("table.castOptions")}</legend>
+            {(play.data?.sheet.cast_options ?? []).map((o) => (
+              <label key={o.key} className="inline-flex items-center gap-1">
+                <input
+                  type="checkbox"
+                  data-testid="composer-cast-option"
+                  checked={castOptions.includes(o.key)}
+                  onChange={(e) =>
+                    setCastOptions(
+                      e.target.checked
+                        ? [...castOptions, o.key]
+                        : castOptions.filter((k) => k !== o.key),
+                    )
+                  }
+                />
+                {t(o.effect === "empowered" ? "sheet.castOptionAfterDamage" : "sheet.castOption", {
+                  option: o.name,
+                  cost: o.cost,
+                })}
+              </label>
+            ))}
+            {castOptions.some(
+              (k) =>
+                play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "heightened",
+            ) && (
+              <label className="flex flex-col gap-1">
+                {t("table.heightenedTarget")}
+                <select
+                  className="field max-w-xs"
+                  value={heightened}
+                  data-testid="heightened-target"
+                  onChange={(e) => setHeightened(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {heightenedChoices.map((id) => (
+                    <option key={id} value={id}>
+                      {name(id)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {castOptions.some(
+              (k) => play.data?.sheet.cast_options.find((o) => o.key === k)?.effect === "careful",
+            ) && (
+              <fieldset className="flex flex-col gap-1" data-testid="careful-targets">
+                <legend>{t("table.carefulTargets")}</legend>
+                {targets.map((id) => (
+                  <label key={id} className="inline-flex items-center gap-1">
+                    <input
+                      type="checkbox"
+                      data-testid="careful-target"
+                      checked={careful.includes(id)}
+                      onChange={(e) =>
+                        setCareful(
+                          e.target.checked ? [...careful, id] : careful.filter((x) => x !== id),
+                        )
+                      }
+                    />
+                    {name(id)}
+                  </label>
+                ))}
+              </fieldset>
+            )}
+          </fieldset>
         )}
 
         {castTriggers.map((tr) => (
@@ -693,41 +856,89 @@ export function ActionComposer({
             <legend className="mb-1 text-sm text-ink-muted">{t("table.strikes")}</legend>
             {entry.strikes.map((x) => {
               const key = `${x.send}:${x.id}`;
-              const reasonId = `strike-${key}`;
-              // By hand only the reasons that still count by hand (the economy doesn't).
-              const reason = byHand
-                ? (byHandReasons(x)[0]?.text ?? null)
-                : x.available
-                  ? null
-                  : x.reason;
-              const available = reason === null;
               return (
-                <div key={key}>
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      className="accent-[var(--blue)]"
-                      disabled={!available}
-                      aria-describedby={available ? undefined : reasonId}
-                      checked={strikes.includes(key)}
-                      onChange={(e) =>
-                        setStrikes(
-                          e.target.checked ? [...strikes, key] : strikes.filter((k) => k !== key),
-                        )
-                      }
-                    />
-                    <span className={available ? "" : "text-ink-muted"}>{x.name}</span>
-                    <span className="text-sm text-ink-muted">{x.cost}</span>
-                  </label>
-                  {reason && (
-                    <p id={reasonId} className="ml-6 text-[13px] text-ink-muted italic">
-                      {reason}
-                    </p>
-                  )}
-                </div>
+                <StrikeChoice
+                  key={key}
+                  encounterId={encounterId}
+                  action={byHand || x.available ? null : withStrike(x)}
+                  listed={
+                    byHand ? (byHandReasons(x)[0]?.text ?? null) : x.available ? null : x.reason
+                  }
+                >
+                  {(reason) => {
+                    const reasonId = `strike-${key}`;
+                    const available = reason === null;
+                    return (
+                      <div>
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="accent-[var(--blue)]"
+                            disabled={!available}
+                            aria-describedby={available ? undefined : reasonId}
+                            checked={strikes.includes(key)}
+                            onChange={(e) =>
+                              setStrikes(
+                                e.target.checked
+                                  ? [...strikes, key]
+                                  : strikes.filter((k) => k !== key),
+                              )
+                            }
+                          />
+                          <span className={available ? "" : "text-ink-muted"}>{x.name}</span>
+                          <span className="text-sm text-ink-muted">{x.cost}</span>
+                        </label>
+                        {reason && (
+                          <p id={reasonId} className="ml-6 text-[13px] text-ink-muted italic">
+                            {reason}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  }}
+                </StrikeChoice>
               );
             })}
           </fieldset>
+        )}
+
+        {featureSlots.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            {t("table.featureSlot")}
+            <select
+              className="field max-w-xs"
+              value={featurePay}
+              data-testid="feature-slot"
+              onChange={(e) => setFeaturePay(e.target.value)}
+            >
+              <option value="">—</option>
+              {featureSlots.map((x) => (
+                <option key={x.value} value={x.value}>
+                  {x.label} · {t("common.left", { left: x.left, total: x.total })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {featureForms.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            {t("table.featureForm")}
+            <select
+              className="field max-w-xs"
+              value={featureForm}
+              data-testid="feature-form"
+              onChange={(e) => setFeatureForm(e.target.value)}
+            >
+              <option value="">—</option>
+              {featureForms.map((x) => (
+                <option key={x.id} value={x.id} disabled={!!x.unavailable}>
+                  {x.name}
+                  {x.unavailable ? ` · ${x.unavailable}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
 
         {damageTypes.length > 0 && (
@@ -879,12 +1090,16 @@ export function ActionComposer({
   );
 }
 
-/** The engine's candidates (enemies first, nearest first), else everyone who's still in it. */
-function orderedCandidates(ids: readonly string[], view: EncounterView) {
+/**
+ * The engine's candidates (enemies first, nearest first), else everyone who's still in it; with
+ * `beyond` (a range-changing cast option), the others too, after them.
+ */
+function orderedCandidates(ids: readonly string[], view: EncounterView, beyond = false) {
   const listed = ids.map((id) => ({ id, inRange: true }));
-  return listed.length
-    ? listed
-    : view.combatants.filter((c) => !c.defeated).map((c) => ({ id: c.id, inRange: false }));
+  const others = view.combatants
+    .filter((c) => !c.defeated && !ids.includes(c.id))
+    .map((c) => ({ id: c.id, inRange: false }));
+  return listed.length ? (beyond ? [...listed, ...others] : listed) : others;
 }
 
 function initialTargets(action: EncounterAction): string[] {
@@ -896,6 +1111,7 @@ function initialTargets(action: EncounterAction): string[] {
 
 function defaultSlot(entry: OptionEntry): string {
   const a = entry.action;
+  if (a.type === "cast" && a.payment) return `free:${a.payment.use}`;
   if (a.type === "cast" && a.pact) return "pact";
   if (a.type === "cast" && a.slot_level) return String(a.slot_level);
   return entry.slot_levels[0] !== undefined
@@ -941,6 +1157,13 @@ interface Fields {
   unaffected: readonly string[];
   /** kenli F-002 T12 (D016): cast triggers paid with a cast. */
   triggers: readonly { key: string; mode: "create" | "restore" }[];
+  /** kenli F-002 T12 B2a: cast options (Metamagic) and the targets Heightened/Careful choose. */
+  castOptions: readonly string[];
+  heightened: string;
+  careful: readonly string[];
+  /** kenli F-002 T12 B1: a feature's slot payment (`slot:N` / `pact`) and form. */
+  featurePay: string;
+  featureForm: string;
 }
 
 /**
@@ -989,9 +1212,10 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...withStrikes(f),
         ...(f.twoHanded ? { two_handed: true } : {}),
         ...(f.masteryAs ? { mastery_as: f.masteryAs as "push" | "sap" | "slow" } : {}),
+        ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
       };
     case "cast": {
-      const { slot_level: _s, pact: _p, ...rest } = base;
+      const { slot_level: _s, pact: _p, payment: _f, ...rest } = base;
       return {
         ...rest,
         ...(f.wall
@@ -999,11 +1223,20 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
           : f.area
             ? { area: f.area, targets: [] }
             : { targets: [...f.targets] }),
-        ...(f.slot === "pact" ? { pact: true } : f.slot ? { slot_level: Number(f.slot) } : {}),
+        ...(f.slot.startsWith("free:")
+          ? { payment: { type: "free" as const, use: f.slot.slice(5) } }
+          : f.slot === "pact"
+            ? { pact: true }
+            : f.slot
+              ? { slot_level: Number(f.slot) }
+              : {}),
         ...(f.mode !== "normal" ? { mode: f.mode } : {}),
         ...(f.damageType ? { damage_type: f.damageType as DamageType } : {}),
         ...(f.unaffected.length ? { unaffected: [...f.unaffected] } : {}),
         ...(f.triggers.length ? { triggers: f.triggers.map((x) => ({ ...x })) } : {}),
+        ...(f.castOptions.length ? { options: [...f.castOptions] } : {}),
+        ...(f.castOptions.length && f.heightened ? { heightened: f.heightened } : {}),
+        ...(f.castOptions.length && f.careful.length ? { careful: [...f.careful] } : {}),
         ...(f.cover
           ? { cover: Object.fromEntries(f.targets.map((id) => [id, f.cover as Cover])) }
           : {}),
@@ -1025,12 +1258,22 @@ function compose(base: EncounterAction, f: Fields): EncounterAction {
         ...(f.targets.length && !("targets" in base) ? { target: firstTarget } : {}),
         ...(f.mode !== "normal" ? { mode: f.mode } : {}),
       };
-    case "feature":
+    case "feature": {
+      const paid = {
+        ...base,
+        ...(f.featurePay === "pact"
+          ? { payment: { type: "pact" as const } }
+          : f.featurePay.startsWith("slot:")
+            ? { payment: { type: "slot" as const, level: Number(f.featurePay.slice(5)) } }
+            : {}),
+        ...(f.featureForm ? { form: f.featureForm } : {}),
+      };
       return f.targets.length > 1 || ("targets" in base && base.targets)
-        ? { ...base, targets: [...f.targets] }
+        ? { ...paid, targets: [...f.targets] }
         : firstTarget
-          ? { ...base, target: firstTarget }
-          : base;
+          ? { ...paid, target: firstTarget }
+          : paid;
+    }
     case "help":
       return { ...base, target: firstTarget, ...(f.skill ? { skill: f.skill as Skill } : {}) };
     case "unarmed":
@@ -1123,4 +1366,31 @@ function SquareInput({
       </label>
     </span>
   );
+}
+
+/**
+ * kenli F-002 T12 B2b (D032): one Strike effect's control, judged by the engine. The option's own
+ * reason (`listed`) stands until the dry run of the composed attack with this effect (`action`:
+ * the composer's Advantage, riders and target) is taken; then the reason is the engine's for that
+ * action, or none.
+ */
+function StrikeChoice({
+  encounterId,
+  action,
+  listed,
+  children,
+}: {
+  encounterId: string;
+  action: EncounterAction | null;
+  listed: string | null;
+  children: (reason: string | null) => ReactNode;
+}) {
+  const check = useActionCheck(encounterId, action);
+  const reason =
+    action === null || !check.data
+      ? listed
+      : check.data.ok
+        ? null
+        : (check.data.reasons[0] ?? listed);
+  return <>{children(reason)}</>;
 }

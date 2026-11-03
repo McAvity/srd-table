@@ -18,6 +18,7 @@ import {
   createBuild,
   type DerivedSheet,
   evaluate,
+  type ItemQuote,
   lookup,
   resolve,
   skillName,
@@ -117,6 +118,8 @@ export type PlanCompileResult =
       readonly context_key: string;
       readonly range: { readonly from: 1; readonly to: number };
       readonly checkpoints: readonly PlanCheckpoint[];
+      /** kenli F-002 T13 (`/2`): the catalog's quote of each item the guide names. */
+      readonly guide_items?: readonly (ItemQuote & { readonly price_text: string | null })[];
     }
   | {
       readonly ok: false;

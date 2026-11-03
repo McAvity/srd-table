@@ -75,6 +75,8 @@ export function rollOf(action: EncounterAction): RollWhat | null {
         type: "cast",
         spell: action.spell,
         ...pick(action, ["via", "slot_level", "pact", "mode", "damage_type", "triggers"]),
+        // kenli F-002 T12 (review14 R14-02): a free cast is paid by its use, by hand too.
+        ...(action.payment ? { payment: { ...action.payment } } : {}),
       };
     case "feature":
       return {
@@ -122,6 +124,8 @@ export function playedAs(
  */
 export function needsComposerByHand(entry: OptionEntry, sheet: PlaySheet | null): boolean {
   if (entry.slot_levels.length > 1 || entry.pact_slot !== null) return true;
+  if (entry.free_casts?.length && (entry.slot_levels.length || entry.free_casts.length > 1))
+    return true;
   // kenli F-011 (review03 R03-02): a leveled spell's slot — spent levels included — is chosen in
   // the form, by hand as in automatic play.
   if (entry.action.type === "cast" && (entry.action.slot_level ?? 0) > 0) return true;

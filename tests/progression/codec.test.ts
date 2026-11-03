@@ -41,7 +41,12 @@ describe("plan codec: the document", () => {
   });
 
   it("format: a newer version and another family are refused, never read as /1", async () => {
+    // kenli F-002 T13a: `/2` is read now (the guided plan): a `/1` body labelled `/2` lacks its
+    // guide, so it is never read as `/1`; the next version is the newer one.
     expect(await code({ ...base(), format: "srd-table.progression-plan/2" })).toBe(
+      "plan_missing_field",
+    );
+    expect(await code({ ...base(), format: "srd-table.progression-plan/3" })).toBe(
       "plan_format_newer",
     );
     expect(await code({ ...base(), format: "srd-table.progression-plan/0" })).toBe(

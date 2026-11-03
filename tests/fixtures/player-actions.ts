@@ -254,3 +254,74 @@ export async function storeCharacter(
   }));
   return id;
 }
+
+/**
+ * kenli F-002 T12 B2b: an invented pack (`source: test`) giving the SRD's Empowered Spell and
+ * Careful Spell their cast options (Empowered's typed `effect: empowered`, after the damage roll).
+ */
+export const EMPOWER_PACK: PackFiles = {
+  "manifest.json": {
+    name: "test-empower",
+    manifest: { id: "test-empower", version: "1.0.0", source: "test", requires: ["srd-5.2.1"] },
+    patches: [
+      ["empowered-spell", "empowered", true],
+      ["careful-spell", "careful", false],
+    ].map(([id, effect, combinable]) => ({
+      target: `features/${id}`,
+      op: "set",
+      path: "grants.cast_options",
+      value: [
+        {
+          id,
+          name: id === "empowered-spell" ? "Empowered Spell" : "Careful Spell",
+          cost: 1,
+          resource_class: "sorcerer",
+          resource: "sorcery-points",
+          combinable,
+          effect,
+        },
+      ],
+    })),
+    tables: {},
+  },
+};
+export const SORCERY = "sorcerer:sorcery-points";
+
+export async function empowerContext(engine: EngineFacade): Promise<ContentContext> {
+  const [ref] = await engine.registerPacks([EMPOWER_PACK]);
+  const srd = await engine.servedPack("srd-5.2.1");
+  if (!ref) throw new Error("empower pack not registered");
+  return { packs: [srd, ref], sources: null };
+}
+
+/** A level 3 human Sorcerer (CHA 17: +3) with Burning Hands, Fire Bolt and Empowered + Careful Spell. */
+export async function empoweredSorcerer(engine: EngineFacade): Promise<CharacterBuild> {
+  let build = await apply(engine, await engine.newBuild(), [
+    { type: "class", id: "sorcerer" },
+    { type: "species", id: "human" },
+    { type: "background", id: "acolyte" },
+    { type: "ability_method", method: "standard_array" },
+    { type: "base_scores", scores: { str: 8, dex: 14, con: 13, int: 10, wis: 12, cha: 15 } },
+    { type: "background_bonus", bonus: { cha: 2, wis: 1 } },
+    { type: "name", name: "Syn Sorcerer" },
+    { type: "alignment", alignment: "NG" },
+    {
+      type: "choice",
+      key: "class:sorcerer#cantrips",
+      values: ["fire-bolt", "light", "mage-hand", "prestidigitation"],
+    },
+    { type: "choice", key: "class:sorcerer#prepared", values: ["burning-hands", "magic-missile"] },
+  ]);
+  build = await fill(engine, build, 1);
+  build = await apply(engine, build, [{ type: "level_up", class_id: "sorcerer", hp: null }]);
+  build = await apply(engine, build, [
+    {
+      type: "choice",
+      key: "class:sorcerer:2#metamagic",
+      values: ["empowered-spell", "careful-spell"],
+    },
+  ]);
+  build = await fill(engine, build, 2);
+  build = await apply(engine, build, [{ type: "level_up", class_id: "sorcerer", hp: null }]);
+  return fill(engine, build, 3);
+}

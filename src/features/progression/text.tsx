@@ -132,6 +132,12 @@ export function StepPreviewView({ preview }: { preview: StepPreview }) {
           {t("progression.newActions")}: {preview.new_actions.join(", ")}
         </p>
       )}
+      {preview.items_gained.length > 0 && (
+        <p className="text-sm" data-testid="items-gained">
+          {t("progression.itemsGained")}:{" "}
+          {preview.items_gained.map((i) => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name)).join(", ")}
+        </p>
+      )}
       {preview.packs_added.length > 0 && (
         <p className="text-sm" data-testid="packs-added">
           {t("progression.packsAdded")}:{" "}
@@ -154,7 +160,7 @@ export async function downloadPlanMarkdown(
   const compiled = await engine().compilePlan(file);
   if (!compiled.ok) return progressionText(compiled.problem.code, compiled.problem.detail);
   const plan = file as Omit<PlanFile, "packs">;
-  const text = planMarkdown(plan, compiled.checkpoints);
+  const text = planMarkdown(plan, compiled.checkpoints, compiled.guide_items ?? []);
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

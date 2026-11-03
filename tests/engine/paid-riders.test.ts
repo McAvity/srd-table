@@ -38,7 +38,11 @@ async function setup(seed: number) {
   const [ref] = await e.registerPacks([pack]);
   const ctx = { packs: [await e.servedPack("srd-5.2.1"), ref as never], sources: null };
   const base = await fighter(e, 1);
-  const r = await e.editBuild(base, { type: "choice", key: "species:human#versatile", values: ["test-pool"] }, ctx);
+  const r = await e.editBuild(
+    base,
+    { type: "choice", key: "species:human#versatile", values: ["test-pool"] },
+    ctx,
+  );
   if (!r.ok) throw new Error(r.reasons.join("; "));
   const build = r.build;
   const state = await e.createState(build, ctx);
@@ -60,7 +64,13 @@ describe("paid riders through the facade (kenli F-002 R04-01)", () => {
   it("over budget (two riders, pool 1): refused, the session's dice don't move, nothing spent", async () => {
     const a = await setup(11);
     const b = await setup(11);
-    const refused = await a.e.rollByHand(a.build, a.state, attack(["first", "second"]), false, a.ctx);
+    const refused = await a.e.rollByHand(
+      a.build,
+      a.state,
+      attack(["first", "second"]),
+      false,
+      a.ctx,
+    );
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.reasons.join(" ")).toMatch(/Test Pool: 0 left/);
     expect(await nextRoll(a)).toBe(await nextRoll(b));
@@ -108,8 +118,19 @@ describe("paid riders through the facade (kenli F-002 R04-01)", () => {
         await act(a as never);
       let refused: unknown = null;
       if (tryPaid)
-        refused = await act({ type: "attack", id: "aerin", target: "ogre", attack: "Greatsword", riders: [{ rider: "first" }] } as never);
-      const plain = await act({ type: "attack", id: "aerin", target: "ogre", attack: "Greatsword" } as never);
+        refused = await act({
+          type: "attack",
+          id: "aerin",
+          target: "ogre",
+          attack: "Greatsword",
+          riders: [{ rider: "first" }],
+        } as never);
+      const plain = await act({
+        type: "attack",
+        id: "aerin",
+        target: "ogre",
+        attack: "Greatsword",
+      } as never);
       return { refused, plain: plain.ok ? JSON.stringify(plain.results) : plain.reasons };
     };
     const tried = await run(9, true);

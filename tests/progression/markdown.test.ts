@@ -141,3 +141,70 @@ describe("the plan's Markdown", () => {
     expect((await md(other)).text).not.toBe(a.text);
   });
 });
+
+describe("kenli F-002 T13a: a guided plan's equipment and play guide", () => {
+  it("each kit with the catalog's price (not the text's), worn items, purchases, alternatives; escaped; each level's note or that the last one holds", async () => {
+    const file = read("fighter-1-6.plan.json");
+    file.format = "srd-table.progression-plan/2";
+    file.plan.guide = {
+      kits: [
+        {
+          from_level: 1,
+          title: "Kit <b>one</b>",
+          items: [
+            {
+              item: "chain-mail",
+              units: 1,
+              equip: true,
+              why: "only 1 CP, says the text",
+              origin: "source",
+            },
+            { item: "arrow", units: 30, equip: false, origin: "author" },
+          ],
+          origin: "author",
+        },
+        {
+          from_level: 4,
+          title: "Kit two",
+          items: [{ item: "whip", units: 1, equip: false, origin: "adaptation" }],
+          origin: "author",
+        },
+      ],
+      play: {
+        base: { text: "Hit *hard*.", origin: "author" },
+        levels: [{ level: 3, text: "Level three [link](javascript:x)", origin: "source" }],
+      },
+      purchases: [{ item: "plate-armor", priority: 1, text: "Later.", origin: "author" }],
+      alternatives: [
+        { item: "scale-mail", instead_of: "chain-mail", text: "Cheaper.", origin: "author" },
+      ],
+      controls: [{ text: "Feature buttons.", origin: "author" }],
+    };
+    file.plan_sha256 = await contentSha(file.plan);
+    const r = await nodeFacade({ seed: 1 }).compilePlan(file);
+    if (!r.ok) throw new Error(r.problem.detail);
+    const { packs: _p, ...plan } = file;
+    const text = planMarkdown(plan, r.checkpoints, r.guide_items ?? []);
+    expect(text).toContain("## Equipment");
+    expect(text).toContain("**Chain Mail** × 1 — 75 GP each (catalog) — worn / held — Source");
+    expect(text).toContain("**Arrow** × 30 — 1 GP per 20 (catalog)");
+    expect(text).toContain("Kit \\<b\\>one\\</b\\>");
+    expect(text).toContain("1. **Plate Armor** (1500 GP)");
+    expect(text).toContain("**Scale Mail** instead of **Chain Mail**");
+    expect(text).toContain("Hit \\*hard\\*.");
+    expect(text).not.toContain("[link](javascript");
+    const l2 = section(text, 2);
+    const l3 = section(text, 3);
+    const l4 = section(text, 4);
+    expect(l2).toContain("No change: the base (How to play) still applies.");
+    expect(l3).toContain("Level three");
+    expect(l4).toContain("Kit from this level: Kit two");
+    expect(l4).toContain("No change: level 3's note and the base still apply.");
+    // A /1 plan's Markdown has no guide.
+    const one = await nodeFacade({ seed: 1 }).compilePlan(read("fighter-1-6.plan.json"));
+    if (!one.ok) throw new Error("compile");
+    expect(planMarkdown(read("fighter-1-6.plan.json"), one.checkpoints)).not.toContain(
+      "## Equipment",
+    );
+  });
+});
