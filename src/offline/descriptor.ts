@@ -6,6 +6,7 @@
  */
 
 import { canonicalJson } from "../lib/canonical";
+import { isAppVersion } from "./version";
 
 export const RELEASE_FORMAT = "srd-table.release/1";
 export const RELEASE_INPUTS_FORMAT = "srd-table.release-inputs/1";
@@ -43,6 +44,12 @@ export interface ReleaseInputs {
     readonly state_versions?: readonly number[];
   };
   readonly toolchain: { readonly bun: string; readonly vite: string };
+  /**
+   * kenli F-014 T01 (docs/deployment.md §2), additive and optional: the readable version this release
+   * is published as (`0.2.0`, `0.2.0-rc.1`; tag `v…`). Part of the hashed inputs, so the same code
+   * under two versions gives two ids. Absent: a release without a number (every one before F-014).
+   */
+  readonly app_version?: string;
   /** A named variant of the same inputs (probes); absent in a normal release. */
   readonly variant?: string;
   /** Built from a tree with uncommitted changes: never published (the publisher refuses it). */
@@ -199,6 +206,18 @@ export function dataProblems(data: unknown): string[] {
   return out;
 }
 
+/**
+ * kenli F-014 T01: `inputs.app_version` is optional (a release before F-014 has none and keeps its
+ * id); when present it is a supported version, and only a clean build may carry one.
+ */
+export function appVersionProblems(inputs: unknown): string[] {
+  if (typeof inputs !== "object" || inputs === null) return [];
+  const o = inputs as Record<string, unknown>;
+  if (!("app_version" in o)) return [];
+  if (!isAppVersion(o.app_version)) return ["app_version"];
+  return o.dirty === true ? ["app_version on a dirty build"] : [];
+}
+
 /** Contract checks of a descriptor (offline.md §2.2–2.4); `[]` when valid. */
 export function descriptorProblems(
   d: ReleaseDescriptor,
@@ -217,6 +236,7 @@ export function descriptorProblems(
   )
     bad("release_inputs", "commits");
   for (const problem of dataProblems(d.inputs?.data)) bad("release_data", problem);
+  for (const problem of appVersionProblems(d.inputs)) bad("release_inputs", problem);
   if (d.sw.path !== swPathOf(d.release_id)) bad("release_sw_path", d.sw.path);
   if (d.html.path !== htmlPathOf(d.release_id)) bad("release_html_path", d.html.path);
   if (d.webmanifest.path !== manifestPathOf(d.release_id))

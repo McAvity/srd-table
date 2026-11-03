@@ -1340,6 +1340,22 @@ export const it: Messages = {
   "update.reason.update_activation_timeout": "la nuova versione non è subentrata in tempo",
   "update.reason.update_reload_required": "ricarica l'app prima di riprovare",
   "about.version": "Versione {id}",
+  // kenli F-014 T01: versione e identità della build (Informazioni, piè di pagina).
+  "about.build.title": "Versione e build",
+  "about.build.version": "Versione",
+  "about.build.release": "Rilascio",
+  "about.build.table": "Commit dell'app",
+  "about.build.engine": "Commit del motore",
+  "about.build.unknown": "sconosciuto",
+  "about.build.dev": "build di sviluppo",
+  "about.build.noVersion": "nessun numero di versione",
+  "about.build.dirtyLabel": "Modifiche",
+  "about.build.dirty": "compilata con modifiche non salvate in Git (mai pubblicata)",
+  "about.build.copy": "Copia i dettagli",
+  "about.build.copied": "Copiato.",
+  "about.build.copyFailed":
+    "Qui non si può copiare: seleziona il testo qui sopra e copialo a mano.",
+  "about.build.footerLabel": "Versione {version}: dettagli in Informazioni",
 
   // kenli F-002 T05/T06: progression plans and their Markdown.
   "progression.importOpen": "Importa piano",

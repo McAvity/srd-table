@@ -1,0 +1,1208 @@
+{
+  "format": "srd-table.release/1",
+  "release_id": "r-0af9ad3bab7f73e6",
+  "base": "/srd-table/",
+  "inputs": {
+    "format": "srd-table.release-inputs/1",
+    "base": "/srd-table/",
+    "table_commit": "0d64dc4dae2cf7c1e973065297d53ed19a8618aa",
+    "engine_commit": "65ff5e28f6bd03a5abf7521c29913e3276b48013",
+    "protocol": 1,
+    "data": {
+      "db_version": 5,
+      "history_schema": "kenli.history/1",
+      "history_meta_schema": "kenli.history-meta/1",
+      "transfer_formats": [
+        "srd-table.transfer/1"
+      ],
+      "local_copy_formats": [
+        "srd-table.local-copy/1",
+        "srd-table.local-copy/2",
+        "srd-table.local-copy/3"
+      ],
+      "history_entry_schemas": [
+        "kenli.history/1",
+        "kenli.history/2",
+        "kenli.history/3"
+      ],
+      "state_versions": [
+        1,
+        2,
+        3
+      ]
+    },
+    "toolchain": {
+      "bun": "1.3.10",
+      "vite": "8.3.2"
+    }
+  },
+  "sw": {
+    "path": "sw-r-0af9ad3bab7f73e6.js",
+    "sha256": "49f6d27bc40c6db020186da672e73ae267a027cab9bd3197ea5b96c4a6562e88",
+    "size": 20816
+  },
+  "html": {
+    "path": "releases/r-0af9ad3bab7f73e6/index.html",
+    "sha256": "24659e508ddccdac8b22372ff4b21164ae1b088c93a7807bab5c9fb43f57e30c",
+    "size": 1457
+  },
+  "webmanifest": {
+    "path": "releases/r-0af9ad3bab7f73e6/manifest.webmanifest",
+    "sha256": "6727a3825523daf7ab53217935fb2b6699b8e1ee08c3b194fbc3ae53d61bacb0",
+    "size": 927,
+    "id": "/srd-table/",
+    "start_url": "/srd-table/",
+    "scope": "/srd-table/"
+  },
+  "assets": [
+    {
+      "path": "assets/AboutPage-C5O4XtgQ.js",
+      "sha256": "6ebe6f0bda6d9faafafab3d4d813ba0927eaaaa3e3bda1f23dc81b47247614e1",
+      "size": 690,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/BuilderPage-C_STK-pl.js",
+      "sha256": "75c28c5624a8e2b7a2ed32e707446adc05b05a64cba30e5749d9d4db868a8799",
+      "size": 22413,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/CharactersPage-DHHK1_5X.js",
+      "sha256": "363c7e03f44ab51bdb9747555714a6f38e2732788f6f88fff542d2cd924b08c7",
+      "size": 39988,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ChoiceCard-BuPM5sVE.js",
+      "sha256": "5b69c03364b34315e19d3e5480e4416bd2b7c9e99a5f1a669df9b417d75c2ce2",
+      "size": 7349,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/CompendiumPage-BjPybenI.js",
+      "sha256": "e796d0d4a27622faeb88be90eb87c84c228ac3317d51f9c0317e8f78dc47ddc7",
+      "size": 9250,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/EncounterPage-C9AXaH_W.js",
+      "sha256": "e147820265d499f01c10b1b977985d597df73e1103ecd365b006cb504c0fc600",
+      "size": 79527,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/EncountersPage-B-liVe0u.js",
+      "sha256": "5cb56b730e23bb6f8a4513d0cd78a1d1b74045cdf1cc6bbaf3a4897efda0aae0",
+      "size": 3194,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/Explain-Ch3oou_i.js",
+      "sha256": "12fe911fda39e5cfb6742e7aff80a076591d40f23d141c2ad66a51911e5037ba",
+      "size": 5725,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/HitPoints-BOkst33H.js",
+      "sha256": "dc5e599ed620a4895eeda31f6d07e8e44b27cd4fa784062b64a58e5de6e2bb8f",
+      "size": 13199,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ImportDialog-D82N4asL.js",
+      "sha256": "1b0833f7f85fe305e43dec6a429f5cade69be37ad60f6d7af93f4c51aa034330",
+      "size": 21995,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/OptionButton-BZUrUArA.js",
+      "sha256": "375c1cf774f0133b162ca3c398f6d4b8daa3471c56c671b1a2e0b9eb0d794b69",
+      "size": 1720,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/Portrait-L1xHYJL1.js",
+      "sha256": "b58c53c0fbfc02eb215f81ae6979fc1e7e334b5874eed80cc48b7eaeab54859a",
+      "size": 3843,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SettingsPage-C_gxvJoF.js",
+      "sha256": "fad78a7ad8a76fe20f35a740b9cefbdf9806580b41827467594b1961421f6d8a",
+      "size": 9206,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SheetPage-DsBIcX3S.js",
+      "sha256": "89fd362ce1a2aa2ac7e451f0c569271bd45c88103c3037477004cad9573ceaf2",
+      "size": 66734,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/SrdText-VuqW0-c-.js",
+      "sha256": "b16982010105654fe8f4ab5ca4c9d05eaa9b765eb9b92b3e6c76a2c2edb8cc4c",
+      "size": 2005,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/VirtualList-3WODd1gK.js",
+      "sha256": "e45a03d0e0b4e8fb66a60b5e2dacaa749db794c68b01d97394d0bfe7db2d08f7",
+      "size": 25828,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/advance-3SxWPbtl.js",
+      "sha256": "8310fc3abb1b76fbba7dde9f89f5d0cf32cfd726571e56a7f583041e5b90cefa",
+      "size": 13737,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/apple-touch-icon-cfd1c2a5.png",
+      "sha256": "cfd1c2a597667353f1026e293b1b9ec25da4dabfaf9e2000baf05a01bdac1fc7",
+      "size": 2519,
+      "role": "icon"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff",
+      "sha256": "bc8b17bc3aea99703f7e868b5707a354fbdc7ec77a320f50b9c679579ec03371",
+      "size": 17472,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2",
+      "sha256": "59bc0e965694b9409ac2684c6c8d08994f4fee8a474bc63c4653714f8f441435",
+      "size": 14152,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff",
+      "sha256": "97d093d1f1ac67747942215d8f342cb29264ac649d11d775a10721c9907f279a",
+      "size": 14944,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2",
+      "sha256": "5cb240a4d99ab7e6fc3a4d4e6d11d89789fdffe9c86a8384000d662c53283f6f",
+      "size": 12096,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff",
+      "sha256": "d621ee4703e1f311c82c50b54257710b7197a99a6ff42a95840cb7b6ffab48a0",
+      "size": 15500,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2",
+      "sha256": "f5243b80fbcabc6756a4f67a2843a581216ecb89019a789335b85c924f05702e",
+      "size": 12620,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff",
+      "sha256": "c5125982a94a2cfa7e504d852a64f75ca6bc1188be8b32697715760f09da6d25",
+      "size": 15648,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2",
+      "sha256": "0dbe07ed7679407db9d90f747d5ca3bd1b2bb7ccbcbe41c8246cfc6d2c7bc3bc",
+      "size": 12732,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2",
+      "sha256": "377d6c32d80cdc2c257b48b4e02a6437ff1019c77e49c160ede8ebd6453be061",
+      "size": 12644,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff",
+      "sha256": "8fc3e1a7e8b1cd0dbe10e6213ca21d5f53392b07dcee2df06a092ce1ac0b6a6d",
+      "size": 15512,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff",
+      "sha256": "2130f1a6030c8f537498a82c0b81f6cf482cba2c77d7cdd928a12f4ea943b813",
+      "size": 10084,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2",
+      "sha256": "d78c26d0c18f8d0f81efde4aa48a05d8e4d01c696a2683c1d1bdb8471ed0e827",
+      "size": 7872,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2",
+      "sha256": "0f9e442184b58992113a9b26c0b85c380410a60e5f8f3ddc03c54fe80f81bbe8",
+      "size": 7376,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff",
+      "sha256": "aabf095854f4e0602b6968333e9b68d5964eefd3085852e0c6a5eb616dc383b7",
+      "size": 9372,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2",
+      "sha256": "0b3a72e74f915124c73048d3a6970463c9d2f14d3877ccb1f2cd0d7e33e0c5d6",
+      "size": 7548,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff",
+      "sha256": "1e3fd2bcbefa57e28db1c1dc1dfb2abef0a7aa9123707cd0e1d219e263162837",
+      "size": 9556,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff",
+      "sha256": "2b0acf6f235ddd632a7182cef7ca0971454be08af3b92198206a5d1252762bf6",
+      "size": 9592,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2",
+      "sha256": "acd5d0771650ceddafa2beb172dc7ada45581f7641db03a70f4a13677ce799d1",
+      "size": 7556,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2",
+      "sha256": "c88ff1b0c5a48b7cd48157a8ef47c0d8a375ebd4aa66e574ad6655abdd2537bc",
+      "size": 7464,
+      "role": "font"
+    },
+    {
+      "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff",
+      "sha256": "6eb38e4899c170f75d3bc4c81f728b1e244de40da7101f23eb864b4aa9be9a2d",
+      "size": 9524,
+      "role": "font"
+    },
+    {
+      "path": "assets/checkCharacter-Q0xTfaOG.js",
+      "sha256": "c94f73ba399f2523963ecda71f7ae42718fcd3ea99a6297775c79f5e2aebeb75",
+      "size": 6078,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/codec-m1y6YfTP.js",
+      "sha256": "3efd6cae8cb759f2c427ab787169b2344fff31f675386dc75a3dde08d506c003",
+      "size": 39441,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/documents-HzjR9-wW.js",
+      "sha256": "f22b842cb348354b3a3557134fbe82962df60fa3a0ebfc12085e69be3ce6f540",
+      "size": 56547,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/export-kntMMZke.js",
+      "sha256": "6dc5731c7fc78b32fd8cbf3cc2a8eb00c0cb1f64ee889f15a74f02d438044834",
+      "size": 2548,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/favicon-81cb33b4.svg",
+      "sha256": "81cb33b499684f099ba3e3fac7d56a67e26f7a0defdda4f5b528e65d286e8a9c",
+      "size": 315,
+      "role": "icon"
+    },
+    {
+      "path": "assets/fetch-CCWvOV80.js",
+      "sha256": "add4c649e094a595cccb37ec390c7f07c5c7639b4b1f666ae949293b50b27b3a",
+      "size": 2603,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/format-BcXSg7zn.js",
+      "sha256": "fe027865a3f8f13760b700eba5a247be52503f0e4b54d0c5d6b4422037648d44",
+      "size": 372,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/icon-192-598fe347.png",
+      "sha256": "598fe3478cd26bc809688530146df834c4f8f52c93363b46fed8dc438b2505dd",
+      "size": 2608,
+      "role": "icon"
+    },
+    {
+      "path": "assets/icon-512-ff56c35c.png",
+      "sha256": "ff56c35c1011f40550372dd26a14c01d2d51a8c2bf92dabe9242bbf62484781b",
+      "size": 7362,
+      "role": "icon"
+    },
+    {
+      "path": "assets/icon-maskable-512-0af63a55.png",
+      "sha256": "0af63a55ff4ab7becc61bab415c20ca9245b9ba890fe3637f5be327c00e2d9a0",
+      "size": 6351,
+      "role": "icon"
+    },
+    {
+      "path": "assets/image-BCQOi46L.js",
+      "sha256": "9e10b9bcebcf168fa73141066e4dbf0c3569e419c5f76207526ab51b0a5c4bab",
+      "size": 6527,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/index-CUFC3-jE.css",
+      "sha256": "799636788fc290233d4f90b70386eea90734022a9158a0bba1e4ab2a85d52b92",
+      "size": 46356,
+      "role": "css"
+    },
+    {
+      "path": "assets/index-DsQW_w-M.js",
+      "sha256": "6d4b63a8c2538d07c251b72509a915197f2d623a2e0e1d31226ce5a93e4bf7f7",
+      "size": 448922,
+      "role": "entry"
+    },
+    {
+      "path": "assets/plan-DVArNyhU.js",
+      "sha256": "a3ef382481ecbcec93063df3ec340ef7e922fde3b4744567727cda28bcf0e0f1",
+      "size": 7366,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/readiness-DIknbcZc.js",
+      "sha256": "fa7d04c3dd6190514f343dc35e3f8b7e88b701c827866fdda4cb71dafd55624e",
+      "size": 8912,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/text-BNoro7Rt.js",
+      "sha256": "8d0eec712e200b33fbf8b775255636191978f138b853d81061b1f8ccb4771af5",
+      "size": 12829,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/ui-CP9KsUSo.js",
+      "sha256": "e6962506f89d8f1d6dd89c17ae86d446e5b9863286973410da4a899030f1d654",
+      "size": 237822,
+      "role": "chunk"
+    },
+    {
+      "path": "assets/worker-CDwNGw-o.js",
+      "sha256": "6d5e1f1efccc2d19eeaf36328cbec279de2cd0a0426ca668c9e2fe2d4fabe960",
+      "size": 624289,
+      "role": "worker"
+    }
+  ],
+  "graph": {
+    "roots": [
+      "releases/r-0af9ad3bab7f73e6/index.html",
+      "releases/r-0af9ad3bab7f73e6/manifest.webmanifest"
+    ],
+    "edges": [
+      [
+        "assets/AboutPage-C5O4XtgQ.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/ChoiceCard-BuPM5sVE.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/OptionButton-BZUrUArA.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/advance-3SxWPbtl.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/BuilderPage-C_STK-pl.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/OptionButton-BZUrUArA.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/Portrait-L1xHYJL1.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/advance-3SxWPbtl.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/fetch-CCWvOV80.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/plan-DVArNyhU.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/text-BNoro7Rt.js"
+      ],
+      [
+        "assets/CharactersPage-DHHK1_5X.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/OptionButton-BZUrUArA.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/SrdText-VuqW0-c-.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/VirtualList-3WODd1gK.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/ChoiceCard-BuPM5sVE.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/CompendiumPage-BjPybenI.js",
+        "assets/SrdText-VuqW0-c-.js"
+      ],
+      [
+        "assets/CompendiumPage-BjPybenI.js",
+        "assets/VirtualList-3WODd1gK.js"
+      ],
+      [
+        "assets/CompendiumPage-BjPybenI.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/CompendiumPage-BjPybenI.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/CompendiumPage-BjPybenI.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/HitPoints-BOkst33H.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/OptionButton-BZUrUArA.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/Portrait-L1xHYJL1.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/VirtualList-3WODd1gK.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/EncounterPage-C9AXaH_W.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/ImportDialog-D82N4asL.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/plan-DVArNyhU.js"
+      ],
+      [
+        "assets/EncountersPage-B-liVe0u.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/Explain-Ch3oou_i.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/Explain-Ch3oou_i.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/Explain-Ch3oou_i.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/HitPoints-BOkst33H.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/HitPoints-BOkst33H.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/HitPoints-BOkst33H.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/HitPoints-BOkst33H.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/HitPoints-BOkst33H.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/fetch-CCWvOV80.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/plan-DVArNyhU.js"
+      ],
+      [
+        "assets/ImportDialog-D82N4asL.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/OptionButton-BZUrUArA.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/OptionButton-BZUrUArA.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/Portrait-L1xHYJL1.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/Portrait-L1xHYJL1.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/Portrait-L1xHYJL1.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/Portrait-L1xHYJL1.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/ImportDialog-D82N4asL.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/readiness-DIknbcZc.js"
+      ],
+      [
+        "assets/SettingsPage-C_gxvJoF.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/ChoiceCard-BuPM5sVE.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/HitPoints-BOkst33H.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/Portrait-L1xHYJL1.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/SrdText-VuqW0-c-.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/VirtualList-3WODd1gK.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/advance-3SxWPbtl.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/readiness-DIknbcZc.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/text-BNoro7Rt.js"
+      ],
+      [
+        "assets/SheetPage-DsBIcX3S.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/SrdText-VuqW0-c-.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/VirtualList-3WODd1gK.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/advance-3SxWPbtl.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/advance-3SxWPbtl.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/advance-3SxWPbtl.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/advance-3SxWPbtl.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/checkCharacter-Q0xTfaOG.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/codec-m1y6YfTP.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/codec-m1y6YfTP.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/codec-m1y6YfTP.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/documents-HzjR9-wW.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/documents-HzjR9-wW.js",
+        "assets/worker-CDwNGw-o.js"
+      ],
+      [
+        "assets/export-kntMMZke.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/export-kntMMZke.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/fetch-CCWvOV80.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2"
+      ],
+      [
+        "assets/index-CUFC3-jE.css",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/AboutPage-C5O4XtgQ.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/BuilderPage-C_STK-pl.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/CharactersPage-DHHK1_5X.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/ChoiceCard-BuPM5sVE.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/CompendiumPage-BjPybenI.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/EncounterPage-C9AXaH_W.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/EncountersPage-B-liVe0u.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/Explain-Ch3oou_i.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/HitPoints-BOkst33H.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/ImportDialog-D82N4asL.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/OptionButton-BZUrUArA.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/Portrait-L1xHYJL1.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/SettingsPage-C_gxvJoF.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/SheetPage-DsBIcX3S.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/SrdText-VuqW0-c-.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/VirtualList-3WODd1gK.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/advance-3SxWPbtl.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/export-kntMMZke.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/fetch-CCWvOV80.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/format-BcXSg7zn.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/index-CUFC3-jE.css"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/plan-DVArNyhU.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/readiness-DIknbcZc.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/text-BNoro7Rt.js"
+      ],
+      [
+        "assets/index-DsQW_w-M.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/plan-DVArNyhU.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/plan-DVArNyhU.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/readiness-DIknbcZc.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/readiness-DIknbcZc.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/readiness-DIknbcZc.js",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "assets/readiness-DIknbcZc.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "assets/text-BNoro7Rt.js",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "assets/text-BNoro7Rt.js",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "assets/text-BNoro7Rt.js",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "assets/text-BNoro7Rt.js",
+        "assets/fetch-CCWvOV80.js"
+      ],
+      [
+        "assets/text-BNoro7Rt.js",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/apple-touch-icon-cfd1c2a5.png"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/checkCharacter-Q0xTfaOG.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/codec-m1y6YfTP.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/documents-HzjR9-wW.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/favicon-81cb33b4.svg"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/image-BCQOi46L.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/index-CUFC3-jE.css"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/index-DsQW_w-M.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/index.html",
+        "assets/ui-CP9KsUSo.js"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/manifest.webmanifest",
+        "assets/apple-touch-icon-cfd1c2a5.png"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/manifest.webmanifest",
+        "assets/icon-192-598fe347.png"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/manifest.webmanifest",
+        "assets/icon-512-ff56c35c.png"
+      ],
+      [
+        "releases/r-0af9ad3bab7f73e6/manifest.webmanifest",
+        "assets/icon-maskable-512-0af63a55.png"
+      ]
+    ]
+  },
+  "total_bytes": 2077818
+}

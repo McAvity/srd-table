@@ -1307,6 +1307,22 @@ export const en = {
   "update.reason.update_activation_timeout": "the new version didn't take over in time",
   "update.reason.update_reload_required": "reload the app before trying again",
   "about.version": "Version {id}",
+  // kenli F-014 T01: the build's version and identity (About, footer).
+  "about.build.title": "Version and build",
+  "about.build.version": "Version",
+  "about.build.release": "Release",
+  "about.build.table": "App commit",
+  "about.build.engine": "Engine commit",
+  "about.build.unknown": "unknown",
+  "about.build.dev": "development build",
+  "about.build.noVersion": "no version number",
+  "about.build.dirtyLabel": "Changes",
+  "about.build.dirty": "built with uncommitted changes (never published)",
+  "about.build.copy": "Copy details",
+  "about.build.copied": "Copied.",
+  "about.build.copyFailed":
+    "Copying isn't available here: select the text above and copy it by hand.",
+  "about.build.footerLabel": "Version {version}: details in About",
 
   // kenli F-002 T05/T06: progression plans and their Markdown.
   "progression.importOpen": "Import plan",
