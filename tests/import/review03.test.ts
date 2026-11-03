@@ -99,6 +99,8 @@ const gate = () => {
   return { closed, open };
 };
 const tick = () => new Promise((r) => setTimeout(r, 100));
+/** kenli F-014 D014-002: long enough for an import's pre-queue work under a fully parallel run. */
+const settle = () => new Promise((r) => setTimeout(r, 1500));
 
 async function reload(facade: EngineFacade = engineWithDice().engine) {
   stop?.();
@@ -366,7 +368,11 @@ describe("R03-03: a change's records are taken again when its turn comes", () =>
       plan,
       choose(plan, { Sable: { kind: "replace", target: id, confirmed: true } }),
     );
-    await tick(); // the import waits for Wren's queue (the join holds it)
+    // the import waits for Wren's queue (the join holds it). kenli F-014 D014-002: before taking
+    // that queue the import hashes its packs (packRefOf); under a fully parallel run this took more
+    // than one 100 ms tick, the action then reached the held engine first and the test hung until
+    // its 30 s timeout. A longer settle only; the order and every assertion are unchanged.
+    await settle();
     gates[0]?.open();
     expect((await join).ok).toBe(true);
     expect((await committing).ok).toBe(true);
