@@ -570,7 +570,10 @@ async function loadCopy(page, file) {
   await page.getByRole("button", { name: "Import character" }).click();
   await page.getByTestId("local-copy-file").setInputFiles(file);
   await page.getByTestId("local-copy-preview").waitFor({ timeout: 60_000 });
-  await page.getByRole("button", { name: /^Create (the|another separate) copy$/ }).last().click();
+  await page
+    .getByRole("button", { name: /^Create (the|another separate) copy$/ })
+    .last()
+    .click();
   await page.waitForURL(/\/characters\/c-[^/]+\/sheet/, { timeout: 60_000 });
   return /\/characters\/(c-[^/]+)\/sheet/.exec(page.url())?.[1];
 }
