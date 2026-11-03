@@ -232,13 +232,24 @@ writeFileSync(join(out, manifestPathOf(releaseId)), manifestText);
 const assets = new Map<string, Uint8Array>();
 for (const abs of walk(join(out, "assets"))) assets.set(relative(out, abs), readFileSync(abs));
 // kenli F-014 T01: the metadata the running JS shows is this release's (embedded, never fetched).
+// Each field as `key:<string literal>` (any quote the minifier picks), in one file.
+const literal = (key: string, value: string | null) =>
+  new RegExp(
+    value === null
+      ? `\\b${key}:\\s*null\\b`
+      : `\\b${key}:\\s*([\`"'])${value.replace(/[.+]/g, "\\$&")}\\1`,
+  );
+const fields = [
+  literal("version", buildInfo.version),
+  literal("release_id", releaseId),
+  literal("table_commit", tableCommit),
+  literal("engine_commit", pin),
+];
 const embedded = [...assets]
   .filter(([p]) => p.endsWith(".js"))
   .some(([, bytes]) => {
     const text = Buffer.from(bytes).toString("utf8");
-    return [releaseId, tableCommit, pin, ...(appVersion ? [`"${appVersion}"`] : [])].every((s) =>
-      text.includes(s),
-    );
+    return fields.every((re) => re.test(text));
   });
 if (!embedded) fail("the build metadata is not embedded in the app's JS");
 const graph = buildGraph({
