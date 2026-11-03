@@ -3,11 +3,12 @@
 // pushes, fresh clones = restarts) with an explicitly FAKE GitHub/Pages (tests/publish/helpers.ts).
 // Checked: pointers and bytes (archive, exported artifact, fake live), not only status JSON.
 
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Archive, initialize, receipt, resolve, retry, stage } from "../../scripts/publish/archive";
-import { CURRENT_POINTER, LEGACY_POINTER, sha256 } from "../../scripts/publish/lib";
+import { CURRENT_POINTER, json, LEGACY_POINTER, sha256 } from "../../scripts/publish/lib";
+import { siteManifest } from "../../scripts/publish/site";
 import {
   BASE,
   bareRepo,
@@ -544,5 +545,65 @@ describe("history and witnesses", () => {
     git(a.dir, "-c", "user.name=x", "-c", "user.email=x@x", "commit", "-qam", "tamper");
     git(a.dir, "push", "-q", "origin", "HEAD:refs/heads/pages-state");
     await refused(() => ctx.open(), "archive_invalid");
+  });
+});
+
+describe("R03-04 / D014-001: the archive and the artifact hold only owned files", () => {
+  const CANARY = "SYNTHETIC_PARENT_CANARY_DO_NOT_PUBLISH";
+  /** Commit a change to site/ with a consistent site-manifest.json and state hash (a forged archive). */
+  async function forge(ctx: Awaited<ReturnType<typeof setup>>, change: (site: string) => void) {
+    const a = await ctx.open();
+    change(a.site);
+    const m = siteManifest(a.site);
+    const mf = json({ format: "srd-table.site-manifest/1", ...m });
+    writeFileSync(join(a.dir, "site-manifest.json"), mf);
+    const state = JSON.parse(readFileSync(join(a.dir, "state.json"), "utf8"));
+    writeFileSync(join(a.dir, "state.json"), json({ ...state, site_manifest_sha256: sha256(mf) }));
+    git(a.dir, "add", "-A");
+    git(a.dir, "-c", "user.name=x", "-c", "user.email=x@x", "commit", "-qm", "forge");
+    git(a.dir, "push", "-q", "origin", "HEAD:refs/heads/pages-state");
+  }
+
+  it.each([
+    ["assets/parent-canary.json"],
+    ["sw-r-0123456789abcdef.js"],
+    ["releases/r-0123456789abcdef/index.html"],
+    ["content/srd-5.2.1/kenli-character.json"],
+  ])("an orphan %s listed in the full site manifest is refused", async (path) => {
+    const ctx = await setup();
+    await ctx.ship(makeRelease("a", { version: "0.2.0" }));
+    await forge(ctx, (site) => put(site, path, CANARY));
+    await refused(() => ctx.open(), "archive_invalid");
+  });
+
+  it("an SRD manifest rewritten to name a parent file is refused by the version records", async () => {
+    const ctx = await setup();
+    await ctx.ship(makeRelease("a", { version: "0.2.0" }));
+    await forge(ctx, (site) => {
+      const p = join(site, "content/srd-5.2.1/manifest.json");
+      const m = JSON.parse(readFileSync(p, "utf8"));
+      m.tables.k = { file: "kenli.json" };
+      writeFileSync(p, JSON.stringify(m));
+      put(site, "content/srd-5.2.1/kenli.json", CANARY);
+    });
+    const e = await refused(() => ctx.open(), "archive_invalid");
+    expect(e.message).toMatch(/no version owns: .*content\/srd-5\.2\.1\/kenli\.json/);
+  });
+
+  it("export refuses a file that appeared after the archive was verified; nothing exported", async () => {
+    const ctx = await setup();
+    await ctx.ship(makeRelease("a", { version: "0.2.0" }));
+    const a = await ctx.open();
+    put(a.site, "assets/parent-canary.json", CANARY);
+    const out = join(tmp("art"), "site");
+    await refused(() => a.exportSite(out), "export_invalid");
+    expect(existsSync(out)).toBe(false);
+    // the valid archive still exports exactly its owned files
+    const b = await ctx.open();
+    const ok = join(tmp("art"), "site");
+    const files = b.exportSite(ok);
+    const owned = b.recordedPaths();
+    expect(files.every((f) => owned.has(f.path))).toBe(true);
+    expect(Object.keys(tree(ok)).sort()).toEqual(files.map((f) => f.path).sort());
   });
 });

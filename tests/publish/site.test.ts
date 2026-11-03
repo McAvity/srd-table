@@ -14,8 +14,9 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { CURRENT_POINTER, LEGACY_POINTER, MANIFEST } from "../../scripts/publish/lib";
+import { CURRENT_POINTER, LEGACY_POINTER, MANIFEST, sha256 } from "../../scripts/publish/lib";
 import {
+  ownershipProblems,
   publishRelease,
   readSrd,
   readStaging,
@@ -277,5 +278,93 @@ describe("interrupted at every write", () => {
       expect(got).toEqual(expected);
     }
     expect(total).toBeGreaterThan(10);
+  });
+});
+
+describe("R03-04 / D014-001: every file has an owner (no orphan reaches the artifact)", () => {
+  const CANARY = "SYNTHETIC_PARENT_CANARY_DO_NOT_PUBLISH";
+  const A = makeRelease("own-a", { version: "0.2.0" });
+  const B = makeRelease("own-b", { version: "0.3.0" });
+  const published = () => {
+    const site = tmp("own");
+    pub(site, A);
+    return site;
+  };
+
+  it("an orphan before the first publication is refused, nothing written", async () => {
+    const site = tmp("own0");
+    put(site, "assets/parent-canary.json", CANARY);
+    const before = tree(site);
+    await refused(() => pub(site, A), "site_unowned");
+    expect(tree(site)).toEqual(before);
+  });
+
+  it.each([
+    ["an asset", "assets/parent-canary.json"],
+    ["a service worker", "sw-r-0123456789abcdef.js"],
+    ["an older release directory", "releases/r-0123456789abcdef/index.html"],
+    ["a release record", "releases/r-0123456789abcdef/release.json"],
+    ["an SRD-looking file the pack doesn't name", "content/srd-5.2.1/kenli-character.json"],
+  ])("%s nobody declares is refused before any write", async (_, path) => {
+    const site = published();
+    put(site, path, CANARY);
+    const before = tree(site);
+    expect(ownershipProblems(site)).toEqual([`unowned ${path}`]);
+    await refused(() => pub(site, B), "site_unowned");
+    expect(tree(site)).toEqual(before);
+  });
+
+  it("forged manifest membership (a file added to a release's list) is refused", async () => {
+    const site = published();
+    put(site, "assets/parent-canary.json", CANARY);
+    const m = JSON.parse(readFileSync(join(site, MANIFEST), "utf8"));
+    m.releases[0].files.push({
+      path: "assets/parent-canary.json",
+      sha256: sha256(CANARY),
+      size: CANARY.length,
+    });
+    writeFileSync(join(site, MANIFEST), `${JSON.stringify(m, null, 2)}\n`);
+    expect(ownershipProblems(site).join(" ")).toMatch(/listed files are not its descriptor's/);
+    await refused(() => pub(site, B), "site_unowned");
+    // the same with a forged record path or a changed descriptor
+    const m2 = JSON.parse(readFileSync(join(site, MANIFEST), "utf8"));
+    m2.releases[0].files.pop();
+    m2.releases[0].record = "assets/parent-canary.json";
+    m2.releases[0].record_sha256 = sha256(CANARY);
+    writeFileSync(join(site, MANIFEST), `${JSON.stringify(m2, null, 2)}\n`);
+    expect(ownershipProblems(site).join(" ")).toMatch(/is not its descriptor/);
+  });
+
+  it("an SRD manifest naming a parent file can't replace the pack's (immutable)", async () => {
+    const site = published();
+    const forged = JSON.stringify({
+      name: "srd-5.2.1",
+      tables: { spells: { file: "spells.json" }, k: { file: "kenli.json" } },
+    });
+    writeFileSync(join(site, "content/srd-5.2.1/manifest.json"), forged);
+    put(site, "content/srd-5.2.1/kenli.json", CANARY);
+    await refused(() => pub(site, B), "content_conflict");
+  });
+
+  it("an interrupted publication's own files are accepted only to resume that publication", async () => {
+    const site = published();
+    let n = 0;
+    expect(() =>
+      publishRelease(site, readStaging(B.dir), readSrd(SRD), {
+        base: BASE,
+        version: "0.3.0",
+        hooks: {
+          fault: ({ step }) => {
+            if (step === "immutable" && n++ === 2) throw new Error("killed");
+          },
+        },
+      }),
+    ).toThrow(/killed/);
+    expect(ownershipProblems(site).length).toBeGreaterThan(0); // B's first files, not yet listed
+    const C = makeRelease("own-c", { version: "0.4.0" });
+    await refused(() => pub(site, C), "site_unowned");
+    pub(site, B); // resuming B itself
+    expect(ownershipProblems(site)).toEqual([]);
+    expect(siteProblems(site)).toEqual([]);
   });
 });

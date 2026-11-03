@@ -18,7 +18,15 @@
  * remote branch and the live site as they were.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import {
   CURRENT_POINTER,
@@ -28,6 +36,7 @@ import {
   json,
   LEGACY_POINTER,
   MANIFEST,
+  MUTABLE,
   type PublishManifest,
   parseVersion,
   sha256,
@@ -38,6 +47,7 @@ import {
   type MutableState,
   manifestDiff,
   mutableOf,
+  ownershipProblems,
   publishRelease,
   readSrd,
   readStaging,
@@ -290,9 +300,15 @@ export class Archive {
     const diff = manifestDiff(this.site, mf.files);
     if (diff.length)
       fail("archive_invalid", `site/ ≠ site-manifest.json: ${diff.slice(0, 10).join(", ")}`);
-    const problems = siteProblems(this.site);
-    if (problems.length) fail("archive_invalid", `site: ${problems.join("; ")}`);
+    const problems = [...siteProblems(this.site), ...ownershipProblems(this.site)];
+    if (problems.length) fail("archive_invalid", `site: ${problems.slice(0, 10).join("; ")}`);
     if (mf.files.length) inspectSite(this.site, s.base);
+    // R03-04: every archived site path belongs to a reserved version's verified release or SRD
+    // (as stage recorded them from readStaging/readSrd), or is a mutable file
+    const recorded = this.recordedPaths();
+    const orphans = mf.files.map((f) => f.path).filter((p) => !recorded.has(p));
+    if (orphans.length)
+      fail("archive_invalid", `site files no version owns: ${orphans.slice(0, 10).join(", ")}`);
     // the root, pointers and marker are the pending or served version's (or absent before any)
     const owner = s.pending ?? s.served;
     const expected: MutableState = owner
@@ -304,6 +320,17 @@ export class Archive {
         };
     if (!sameMutable(mutableOf(this.site), expected))
       fail("archive_invalid", `site root/pointers/marker are not ${owner ?? "absent"}`);
+  }
+
+  /** The paths the reserved versions' records own (release files, descriptors, SRD), and the mutable files. */
+  recordedPaths(): Set<string> {
+    const owned = new Set<string>(MUTABLE);
+    for (const v of Object.keys(this.state.versions)) {
+      const r = this.record(v);
+      owned.add(`releases/${r.release_id}/release.json`);
+      for (const f of [...r.release_files, ...r.srd.files]) owned.add(f.path);
+    }
+    return owned;
   }
 
   record(version: string): VersionRecord {
@@ -443,8 +470,18 @@ export class Archive {
     if (existsSync(out)) fail("export_exists", out);
     cpSync(this.site, out, { recursive: true });
     const mf = readJson<SiteManifestFile>(join(this.dir, "site-manifest.json"));
-    const diff = manifestDiff(out, mf.files);
-    if (diff.length) fail("export_invalid", diff.slice(0, 10).join(", "));
+    // the archive's exact bytes, and (R03-04) only owned files: verified releases, the SRD's list,
+    // the mutable files — anything else and no artifact is left behind
+    const recorded = this.recordedPaths();
+    const problems = [
+      ...manifestDiff(out, mf.files),
+      ...ownershipProblems(out),
+      ...mf.files.filter((f) => !recorded.has(f.path)).map((f) => `unrecorded ${f.path}`),
+    ];
+    if (problems.length) {
+      rmSync(out, { recursive: true, force: true });
+      fail("export_invalid", problems.slice(0, 10).join("; "));
+    }
     return [...mf.files];
   }
 }

@@ -36,6 +36,7 @@ import {
   type FileRef,
   fail,
   fileRefOf,
+  jcs,
   json,
   LEGACY_POINTER,
   MANIFEST,
@@ -179,7 +180,83 @@ interface Inspected {
 }
 
 /** The site as it is, strictly (also mid-publication): every refusal before any write. */
-export function inspectSite(site: string, base: string): Inspected {
+/**
+ * R03-04 / D014-001: who owns each file of a site. A path is owned only by
+ *  - the mutable files (root, pointers, marker, release manifest);
+ *  - a release the manifest lists, through its own descriptor: the entry's record must be
+ *    `releases/<id>/release.json` with the recorded hash, the descriptor must pass the publisher's
+ *    checks under that id and base, and the entry's files must be exactly the descriptor's files
+ *    (no file can be "listed" without its release declaring it);
+ *  - the SRD pack: `content/<pack>/manifest.json` and exactly the table files it names;
+ *  - `also`: the files of the release and SRD being published now (an interrupted publication's own
+ *    files, before its manifest entry is written), already verified by readStaging/readSrd.
+ * Anything else under an allowed prefix — an orphan asset, SW, release directory or content file —
+ * is not srd-table's to publish. Temp files of an interrupted write are left to the caller.
+ */
+export function ownershipProblems(site: string, also: Iterable<string> = []): string[] {
+  const out: string[] = [];
+  const read = (p: string) => (existsSync(join(site, p)) ? readFileSync(join(site, p)) : null);
+  const owned = new Set<string>([...MUTABLE, ...also]);
+  const mb = read(MANIFEST);
+  let manifest: PublishManifest | null = null;
+  if (mb) {
+    try {
+      manifest = JSON.parse(mb.toString("utf8")) as PublishManifest;
+    } catch {
+      return [`${MANIFEST} is not JSON`];
+    }
+  }
+  for (const r of manifest?.releases ?? []) {
+    const record = `releases/${r.release_id}/release.json`;
+    const db = read(record);
+    if (r.kind !== "release" || r.record !== record || !db || sha256(db) !== r.record_sha256) {
+      out.push(`release ${r.release_id}: record ${r.record} is not its descriptor`);
+      continue;
+    }
+    let d: Descriptor;
+    try {
+      d = JSON.parse(db.toString("utf8")) as Descriptor;
+    } catch {
+      out.push(`release ${r.release_id}: descriptor is not JSON`);
+      continue;
+    }
+    const problems = descriptorProblems(d);
+    if (problems.length || d.release_id !== r.release_id || d.base !== manifest?.base) {
+      out.push(`release ${r.release_id}: descriptor invalid (${problems.join("; ") || "id/base"})`);
+      continue;
+    }
+    if (jcs(r.files) !== jcs(releaseFiles(d))) {
+      out.push(`release ${r.release_id}: listed files are not its descriptor's`);
+      continue;
+    }
+    owned.add(record);
+    for (const f of r.files) owned.add(f.path);
+  }
+  for (const pack of SRD_PACKS) {
+    const mp = `content/${pack}/manifest.json`;
+    const m = read(mp);
+    if (!m) continue;
+    let tables: unknown;
+    try {
+      const parsed = JSON.parse(m.toString("utf8")) as { name?: unknown; tables?: unknown };
+      if (parsed.name !== pack) throw new Error("name");
+      tables = parsed.tables;
+    } catch {
+      out.push(`${mp} is not ${pack}'s manifest`);
+      continue;
+    }
+    owned.add(mp);
+    if (typeof tables !== "object" || tables === null) continue;
+    for (const v of Object.values(tables as Record<string, { file?: unknown }>))
+      if (typeof v?.file === "string") owned.add(`content/${pack}/${v.file}`);
+  }
+  const { files } = walk(site);
+  for (const f of files)
+    if (!owned.has(f) && !TEMP_FILE.test(basename(f))) out.push(`unowned ${f}`);
+  return out;
+}
+
+export function inspectSite(site: string, base: string, also: Iterable<string> = []): Inspected {
   const { files, symlinks, hardlinks } = walk(site);
   if (symlinks.length) fail("site_symlink", symlinks.join(", "));
   if (hardlinks.length) fail("site_symlink", `hard links: ${hardlinks.join(", ")}`);
@@ -207,7 +284,9 @@ export function inspectSite(site: string, base: string): Inspected {
       if (f.size) retained.set(f.path, f);
     }
   }
-  // a release file nobody lists (other than an interrupted publication's own) is checked by the caller
+  // R03-04: every file owned (a verified release, the SRD's own list, or this publication's files)
+  const unowned = ownershipProblems(site, also);
+  if (unowned.length) fail("site_unowned", unowned.slice(0, 10).join("; "));
   return { manifest, retained, temps };
 }
 
@@ -336,7 +415,11 @@ export function publishRelease(
       `release is ${d.inputs.app_version ?? "unnumbered"}, not ${opts.version}`,
     );
   hooks.fault?.({ step: "verify", path: "", stage: "before" });
-  const before = inspectSite(site, opts.base);
+  const before = inspectSite(site, opts.base, [
+    ...staged.files.map((f) => f.path),
+    `releases/${d.release_id}/release.json`,
+    ...srd.files.map((f) => f.path),
+  ]);
   // immutable and content conflicts, before anything is written
   const descriptorPath = `releases/${d.release_id}/release.json`;
   const descriptorRef = {
@@ -415,7 +498,7 @@ export function publishRelease(
   const marker = markerOf(d, opts.version);
   atomicWrite(site, MARKER, json(marker), "marker", hooks);
   written.push("index.html", MARKER);
-  const problems = siteProblems(site);
+  const problems = [...siteProblems(site), ...ownershipProblems(site)];
   if (problems.length) fail("site_invalid_after", problems.join("; "));
   return {
     release_id: d.release_id,
@@ -464,7 +547,7 @@ export function restoreMutable(site: string, m: MutableState): void {
   else rmSync(join(site, "index.html"), { force: true });
   if (m.marker) atomicWrite(site, MARKER, json(m.marker), "marker", hooks);
   else rmSync(join(site, MARKER), { force: true });
-  const problems = siteProblems(site);
+  const problems = [...siteProblems(site), ...ownershipProblems(site)];
   if (problems.length) fail("site_invalid_after", problems.join("; "));
 }
 

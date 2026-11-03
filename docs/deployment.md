@@ -114,6 +114,24 @@ repository and the engine's SRD pack. No file of a parent workspace (dnd5), no p
 library or history, whatever its name; the publisher imports nothing outside `scripts/publish/`
 and Node (a test checks both).
 
+**Ownership (R03-04, D014-001).** An allowed path is not enough: every file of a site must have an
+owner, or the site is refused before any write (`site_unowned`), at archive verification
+(`archive_invalid`) and at export (`export_invalid`, nothing left behind). Owners are:
+
+- the mutable files (root, both pointers, marker, `releases/index.json`);
+- each release the manifest lists, through its own descriptor: the entry's record is
+  `releases/<id>/release.json` with the recorded hash, the descriptor passes the publisher's checks
+  under that id and the manifest's base, and the entry's files are exactly the descriptor's files —
+  a file added to an entry's list ("forged membership") owns nothing;
+- the SRD pack: `content/srd-5.2.1/manifest.json` and exactly the table files it names;
+- while resuming an interrupted publication, only the files of that same verified release staging
+  and SRD (a different release refuses the leftovers).
+
+In the archive, every path of `site-manifest.json` must also be owned by a reserved version's record
+(its release files, descriptor and SRD files, recorded by publish from the verified staging and SRD)
+or be a mutable file, so an orphan added to `site/` together with a consistent site manifest and
+state hash, or an SRD manifest rewritten to name a foreign file, is refused.
+
 ### 5.2 Nothing is overwritten or deleted
 
 - Every release file and descriptor is immutable: an existing path with other bytes is
