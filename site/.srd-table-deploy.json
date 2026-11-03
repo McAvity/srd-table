@@ -1,0 +1,8 @@
+{
+  "publisher": "srd-table.pages-publish/1",
+  "version": "0.2.0-rc.1",
+  "release_id": "r-71e64410f7a78e1d",
+  "table_commit": "ce5c52e9f8eb40a513ab8650ab7a1e7fe56d14db",
+  "engine_commit": "65ff5e28f6bd03a5abf7521c29913e3276b48013",
+  "base_url": "/srd-table/"
+}

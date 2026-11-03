@@ -1,0 +1,309 @@
+{
+  "format": "srd-table.publish-manifest/1",
+  "base": "/srd-table/",
+  "releases": [
+    {
+      "release_id": "r-71e64410f7a78e1d",
+      "kind": "release",
+      "record": "releases/r-71e64410f7a78e1d/release.json",
+      "record_sha256": "dfd9da44efc56269ad3adb0aa84f34fa79c407d5fad057fa4d2a8e0c654bfa69",
+      "files": [
+        {
+          "path": "sw-r-71e64410f7a78e1d.js",
+          "sha256": "7ab354d9c8d44e26abf6d6e22e3576fb895101a673aa885dbc7b0cf92b69faaf",
+          "size": 20959
+        },
+        {
+          "path": "releases/r-71e64410f7a78e1d/index.html",
+          "sha256": "b753c00b253d7bf9fc5fc8790d4ddc8adb700d05a63f2105b1c5c374d499a95c",
+          "size": 1457
+        },
+        {
+          "path": "releases/r-71e64410f7a78e1d/manifest.webmanifest",
+          "sha256": "6727a3825523daf7ab53217935fb2b6699b8e1ee08c3b194fbc3ae53d61bacb0",
+          "size": 927
+        },
+        {
+          "path": "assets/AboutPage-DBr0x0zW.js",
+          "sha256": "3a06e546875fc7b7248518816ffbf05de2de914e988503ff212a624f6fd073b9",
+          "size": 2732
+        },
+        {
+          "path": "assets/BuilderPage-DgQQjqDs.js",
+          "sha256": "4c5616043ea684223d3aa2f7095f0a103e2b209ebf56126f4a3bc0273ce33f37",
+          "size": 22413
+        },
+        {
+          "path": "assets/CharactersPage-Dt7Fewhp.js",
+          "sha256": "14612cddac638b22f47f4745978ab997daa871b118130eeb390b0d633c55162e",
+          "size": 39989
+        },
+        {
+          "path": "assets/ChoiceCard-Dwg8LTH2.js",
+          "sha256": "9a3863c3d738f592439c1b195f8014b8edd4afc397c00ffff5e9e728950158cc",
+          "size": 7349
+        },
+        {
+          "path": "assets/CompendiumPage-gtn2CiTm.js",
+          "sha256": "9b9b8403d0ece6234cad07c5c0bab0cbc330f2362534d2ce852754d7c07d00c8",
+          "size": 9250
+        },
+        {
+          "path": "assets/EncounterPage-qRHSFm3r.js",
+          "sha256": "fe1e3449cee6dbe8e9994b85c8b3284acebf4ebcb8680c3516777756010c95f8",
+          "size": 79522
+        },
+        {
+          "path": "assets/EncountersPage-DGtwzoX7.js",
+          "sha256": "aebae430fac4e423fc15a5de8b55817088fa18ddd6021f3205e71768705a0397",
+          "size": 3194
+        },
+        {
+          "path": "assets/Explain-DsZpTyAQ.js",
+          "sha256": "2fa865a6b170d0aff5cb396cbf176f7d4d489c4301b8a833dbc6fcc9a6e7669b",
+          "size": 5725
+        },
+        {
+          "path": "assets/HitPoints-DHy2hGD9.js",
+          "sha256": "3a042f54c9c6dde6beafb753272787717f23c5b58c70878404889656782a6765",
+          "size": 13199
+        },
+        {
+          "path": "assets/ImportDialog-dQL39zKK.js",
+          "sha256": "ede96ac20c949589242f154482c23daf609b572994474d68247e929831f0aea8",
+          "size": 21996
+        },
+        {
+          "path": "assets/OptionButton-DnTT-BW0.js",
+          "sha256": "232e578f8be5640fa934fdd444c0320721897a20f84e1185a13bdc2aa7a1d131",
+          "size": 1725
+        },
+        {
+          "path": "assets/Portrait-DqmLZ4_p.js",
+          "sha256": "7591f8892823fa7655be6b62b5f2f14d1ecf6a97f1de65cbf505dc28a8dce039",
+          "size": 3844
+        },
+        {
+          "path": "assets/SettingsPage-D0mlWOxB.js",
+          "sha256": "0dbf038c842eb786527432c973bdb4a1485a5f4da40981d772549d0bd2224f83",
+          "size": 9206
+        },
+        {
+          "path": "assets/SheetPage-D0f79nTW.js",
+          "sha256": "30f0882aa3c678e8d0c77cfe6b46a982289a42059b93291413081f7019002417",
+          "size": 66735
+        },
+        {
+          "path": "assets/SrdText-Clw-lsYj.js",
+          "sha256": "b892f60e152ca66997877a5c81b4e5775be879627bbe35eccbecb7ee5e7d4efe",
+          "size": 2005
+        },
+        {
+          "path": "assets/VirtualList-C45U6M8m.js",
+          "sha256": "ec45b259b7e7ab14c86f693af7f2f8ae0d694370a0f679e5b056678c10d818d0",
+          "size": 25828
+        },
+        {
+          "path": "assets/advance-p4vm1CQ6.js",
+          "sha256": "fba5d4466c46bdf288d63d9ffb080c7d9b3cfe275b04e16f8b7206b39492e204",
+          "size": 13738
+        },
+        {
+          "path": "assets/apple-touch-icon-cfd1c2a5.png",
+          "sha256": "cfd1c2a597667353f1026e293b1b9ec25da4dabfaf9e2000baf05a01bdac1fc7",
+          "size": 2519
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-400-italic-C-uEjDrs.woff",
+          "sha256": "bc8b17bc3aea99703f7e868b5707a354fbdc7ec77a320f50b9c679579ec03371",
+          "size": 17472
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-400-italic-DZBmTazM.woff2",
+          "sha256": "59bc0e965694b9409ac2684c6c8d08994f4fee8a474bc63c4653714f8f441435",
+          "size": 14152
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-400-normal-DPp7N0cD.woff",
+          "sha256": "97d093d1f1ac67747942215d8f342cb29264ac649d11d775a10721c9907f279a",
+          "size": 14944
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-400-normal-FfmJh7DR.woff2",
+          "sha256": "5cb240a4d99ab7e6fc3a4d4e6d11d89789fdffe9c86a8384000d662c53283f6f",
+          "size": 12096
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-500-normal-B0CYqHl3.woff",
+          "sha256": "d621ee4703e1f311c82c50b54257710b7197a99a6ff42a95840cb7b6ffab48a0",
+          "size": 15500
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-500-normal-gHP6TDRs.woff2",
+          "sha256": "f5243b80fbcabc6756a4f67a2843a581216ecb89019a789335b85c924f05702e",
+          "size": 12620
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-700-normal-C2qZD_Q9.woff",
+          "sha256": "c5125982a94a2cfa7e504d852a64f75ca6bc1188be8b32697715760f09da6d25",
+          "size": 15648
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-700-normal-Dpiyiu63.woff2",
+          "sha256": "0dbe07ed7679407db9d90f747d5ca3bd1b2bb7ccbcbe41c8246cfc6d2c7bc3bc",
+          "size": 12732
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-800-normal-D32lleIF.woff2",
+          "sha256": "377d6c32d80cdc2c257b48b4e02a6437ff1019c77e49c160ede8ebd6453be061",
+          "size": 12644
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-800-normal-DtRtCSx4.woff",
+          "sha256": "8fc3e1a7e8b1cd0dbe10e6213ca21d5f53392b07dcee2df06a092ce1ac0b6a6d",
+          "size": 15512
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-B2AfEDP4.woff",
+          "sha256": "2130f1a6030c8f537498a82c0b81f6cf482cba2c77d7cdd928a12f4ea943b813",
+          "size": 10084
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-400-italic-ChwMQj-S.woff2",
+          "sha256": "d78c26d0c18f8d0f81efde4aa48a05d8e4d01c696a2683c1d1bdb8471ed0e827",
+          "size": 7872
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-BalHKn7d.woff2",
+          "sha256": "0f9e442184b58992113a9b26c0b85c380410a60e5f8f3ddc03c54fe80f81bbe8",
+          "size": 7376
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-400-normal-qxMiU51n.woff",
+          "sha256": "aabf095854f4e0602b6968333e9b68d5964eefd3085852e0c6a5eb616dc383b7",
+          "size": 9372
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-CUASR3PD.woff2",
+          "sha256": "0b3a72e74f915124c73048d3a6970463c9d2f14d3877ccb1f2cd0d7e33e0c5d6",
+          "size": 7548
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-500-normal-oZS3KxrF.woff",
+          "sha256": "1e3fd2bcbefa57e28db1c1dc1dfb2abef0a7aa9123707cd0e1d219e263162837",
+          "size": 9556
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-292QVhS1.woff",
+          "sha256": "2b0acf6f235ddd632a7182cef7ca0971454be08af3b92198206a5d1252762bf6",
+          "size": 9592
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-700-normal-CBw-mJf_.woff2",
+          "sha256": "acd5d0771650ceddafa2beb172dc7ada45581f7641db03a70f4a13677ce799d1",
+          "size": 7556
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-CCpWmrAz.woff2",
+          "sha256": "c88ff1b0c5a48b7cd48157a8ef47c0d8a375ebd4aa66e574ad6655abdd2537bc",
+          "size": 7464
+        },
+        {
+          "path": "assets/atkinson-hyperlegible-next-latin-ext-800-normal-DJxWoX6k.woff",
+          "sha256": "6eb38e4899c170f75d3bc4c81f728b1e244de40da7101f23eb864b4aa9be9a2d",
+          "size": 9524
+        },
+        {
+          "path": "assets/checkCharacter-ChbbonFU.js",
+          "sha256": "b6cf47aa5d0fca3c24d7be124d00bda92992691a11d2f4fad88a135404da817a",
+          "size": 6078
+        },
+        {
+          "path": "assets/codec-ChnurWKN.js",
+          "sha256": "6695d13dfceaed84db6a70a51f8afe3967697846e782add1717deb86c5448236",
+          "size": 39441
+        },
+        {
+          "path": "assets/documents-CWuwvF22.js",
+          "sha256": "af2452b0c69ff2629dfbe3871479948093532db1ac7eca7a19aa4e64542d30b8",
+          "size": 56547
+        },
+        {
+          "path": "assets/export-CdjXfk4E.js",
+          "sha256": "4e8b9a8d3c2e080f88b179ad7314804577b8ec2f4181fdbdcd1bf52b55699502",
+          "size": 2548
+        },
+        {
+          "path": "assets/favicon-81cb33b4.svg",
+          "sha256": "81cb33b499684f099ba3e3fac7d56a67e26f7a0defdda4f5b528e65d286e8a9c",
+          "size": 315
+        },
+        {
+          "path": "assets/fetch-BOBJst5s.js",
+          "sha256": "905d9631415a9cac78c125a2b0515a9d48c576db54d44aa77b4648cd2eeb6392",
+          "size": 2603
+        },
+        {
+          "path": "assets/format-BcXSg7zn.js",
+          "sha256": "fe027865a3f8f13760b700eba5a247be52503f0e4b54d0c5d6b4422037648d44",
+          "size": 372
+        },
+        {
+          "path": "assets/icon-192-598fe347.png",
+          "sha256": "598fe3478cd26bc809688530146df834c4f8f52c93363b46fed8dc438b2505dd",
+          "size": 2608
+        },
+        {
+          "path": "assets/icon-512-ff56c35c.png",
+          "sha256": "ff56c35c1011f40550372dd26a14c01d2d51a8c2bf92dabe9242bbf62484781b",
+          "size": 7362
+        },
+        {
+          "path": "assets/icon-maskable-512-0af63a55.png",
+          "sha256": "0af63a55ff4ab7becc61bab415c20ca9245b9ba890fe3637f5be327c00e2d9a0",
+          "size": 6351
+        },
+        {
+          "path": "assets/image-BCQOi46L.js",
+          "sha256": "9e10b9bcebcf168fa73141066e4dbf0c3569e419c5f76207526ab51b0a5c4bab",
+          "size": 6527
+        },
+        {
+          "path": "assets/index-CiMIoKuO.css",
+          "sha256": "cb1424cdd01cc34329de7655cd3e5f82dfa4d67cd1d3114dfbe4ff0b0f63c4ce",
+          "size": 46474
+        },
+        {
+          "path": "assets/index-Dd6aKhDs.js",
+          "sha256": "5aaf5a3bc66491e840bd52692fabf1b06e5f42fde34e5e540a708e3787adae06",
+          "size": 449826
+        },
+        {
+          "path": "assets/plan-Csld0GnO.js",
+          "sha256": "cf2c2e74c4caa8c0e6154bc75638c09ac054cda9f8775e76b0f82ca429bc36c7",
+          "size": 7366
+        },
+        {
+          "path": "assets/readiness-ChumEGFn.js",
+          "sha256": "afc2ac58abf6bbb8407364cd6e8bd9a4fa58d18d87678eb3830149802483391c",
+          "size": 8914
+        },
+        {
+          "path": "assets/text-CgxntuEt.js",
+          "sha256": "4e6ef17ba4b8a3cc77025d6c3e5b9e177af8dbb35f5a35efab86981b942d8a8a",
+          "size": 12829
+        },
+        {
+          "path": "assets/ui-BIFIzQkt.js",
+          "sha256": "1c1f802c727ebacb94d61203a519c283da4bb9a0a58e198d1883ef3c84938e02",
+          "size": 239116
+        },
+        {
+          "path": "assets/worker-D2suzbq1.js",
+          "sha256": "84a60cc53ff5621f7e06b5fa5eb151eb87f2d32c7ee438b4350b4fedeb48fcb7",
+          "size": 624289
+        }
+      ]
+    }
+  ]
+}

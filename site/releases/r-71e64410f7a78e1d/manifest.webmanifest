@@ -1,0 +1,37 @@
+{
+  "name": "SRD Table",
+  "short_name": "SRD Table",
+  "description": "5th-edition play at the table: characters, sheets and encounters.",
+  "id": "/srd-table/",
+  "start_url": "/srd-table/",
+  "scope": "/srd-table/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1d3b2a",
+  "theme_color": "#1d3b2a",
+  "icons": [
+    {
+      "src": "/srd-table/assets/icon-192-598fe347.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/srd-table/assets/icon-512-ff56c35c.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/srd-table/assets/icon-maskable-512-0af63a55.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/srd-table/assets/apple-touch-icon-cfd1c2a5.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}

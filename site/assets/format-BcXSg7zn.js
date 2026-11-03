@@ -1,0 +1,1 @@
+function e(e){return e.map((e,t)=>t===0?`${e.value} ${e.source}`:`${e.value>=0?`+`:`−`} ${Math.abs(e.value)} ${e.source}`).join(` `)}function t(e){return e.split(/[-_\s]+/).filter(Boolean).map(e=>e[0]?.toUpperCase()+e.slice(1)).join(` `)}function n(e,t){return e.toLowerCase().normalize(`NFKD`).replace(/[^a-z0-9]+/g,`-`).replace(/^-|-$/g,``)||t}export{n,t as r,e as t};

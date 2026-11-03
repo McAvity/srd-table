@@ -2,8 +2,15 @@
   "format": "srd-table.pages-state/1",
   "base": "/srd-table/",
   "site_url": "https://mcavity.github.io/srd-table/",
-  "versions": {},
-  "pending": null,
+  "versions": {
+    "0.2.0-rc.1": {
+      "status": "pending",
+      "record": "versions/0.2.0-rc.1.json",
+      "record_sha256": "db2d171699eb0d1c0b95ba98257aa0ec1936b6bf0d13db0fd713abaaf170d2f9",
+      "release_id": "r-71e64410f7a78e1d"
+    }
+  },
+  "pending": "0.2.0-rc.1",
   "served": null,
-  "site_manifest_sha256": "d20c1be52edbb820133820235ec353e564cf84eb71ef604d27b26b31ab0af619"
+  "site_manifest_sha256": "5e015b6b9399e3034a78055cd4ab0f2da92aca43f64f721d3ecc80f014abe605"
 }
