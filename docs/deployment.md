@@ -163,27 +163,37 @@ state hash, or an SRD manifest rewritten to name a foreign file, is refused.
 Before any write (and before a retry or resolve) the archive is checked against independent
 witnesses. They only refuse; files always come from the archive, never from the live site.
 
-- **Rulesets** (`RulesetFacts`): `pages-state` deletion and non-fast-forward blocked, `v*` tag update
-  and deletion blocked, no bypass for the workflow. Anything else: `ruleset_missing`. (T03 maps the
-  effective rules the runner's token can see, R02-02; the operator confirms the full configuration.)
-- **github-pages deployments** (`DeploymentFacts`): whether any deployment ever succeeded, and the
-  state of the pending candidate's deployment. A deployed site with an archive that served nothing is
-  `history_lost` (archive reset or replaced). A **confirmed** deployment in the archive (a receipt, or
-  observed-unverified with a successful deployment) without any successful github-pages deployment is
-  `witness_mismatch`. A version observed live under a failed or missing deployment status (R03-02:
-  e.g. the first release served although its job or smoke failed) is backed by the live evidence
-  recorded in its resolution instead; the live checks keep applying to it, so a higher forward fix
-  can follow while a lost or rolled-back history is still refused.
-- **Aggregating deployment statuses (for the T03 adapter; safety rules):**
-  - `everSucceeded` is true when any github-pages deployment of this repository ever had a `success`
-    status — also one later marked `inactive` (superseded) or older than the latest. A deployment
-    becoming `inactive` never erases an earlier success.
-  - `candidate` is about the deployments of the pending version's run/artifact only: `success` if
-    any of them ever reported success (later `inactive` included); else in progress (`queued`,
-    `pending`, `waiting`, `in_progress`) if any is not terminal; else `failure`/`error`/`cancelled`
-    when all of them ended so; `none` only when the run never created one. Never report `failure`
-    just because the latest status is `inactive`, and when the API can't be read, fail the
-    witness (no facts) rather than guessing.
+- **Rulesets** (`RulesetFacts`): `pages-state` deletion and non-fast-forward blocked; every release
+  tag's update and deletion blocked — only by an active tag ruleset whose `ref_name.include` is
+  exactly `refs/tags/v*` or `~ALL` with no `exclude` (R04-02: a ruleset protecting one sample tag,
+  the current tag only, or `v*` minus some releases is not protection); no bypass for the workflow.
+  Anything else: `ruleset_missing`. (The runner sees the effective rules its token can; the operator
+  confirms the full configuration, R02-02.)
+- **github-pages deployments** (`DeploymentFacts`, R04-01). GitHub keeps deployment statuses for a
+  limited time (about 90 days) and a status's run URL is optional, so the facts are only ever
+  positive evidence:
+  - `everSucceeded`: a `success` is visible in the retained statuses — a lower bound; `false`
+    proves nothing about the past.
+  - `deployments`: how many github-pages deployment objects exist (any state).
+  - `records`: per deployment its `created_at`, the run of this repository its statuses name
+    (`null`: no URL, another repository's, or several runs), its own state (`success` if any
+    retained status was; its latest in-progress or terminal-failure state; else `unknown` — only
+    `inactive` left, no status, or a state not known here) and whether that run is the candidate's.
+  - Rules: an archive that served nothing while a success is visible is `history_lost`; an archive
+    that reserved **no** version while any deployment exists is `history_lost` (old statuses expire:
+    a lost archive never passes as a first one); `initialize` refuses either. There is no
+    "confirmed receipt but no visible success" refusal any more: a long-lived archive would be
+    blocked for ever once old statuses expire. A served version is held to the live site instead
+    (below), which also covers a version observed live under a failed status (R03-02).
+  - The pending version's deployment state is judged from the records created since its checkpoint
+    commit (10 minutes of margin): `success` if any candidate deployment succeeded; else its
+    in-progress state; else **`unknown`** if a candidate deployment is unknown or any deployment of
+    that period is not tied to a run of this repository (it could be the candidate's); else its
+    terminal failure; else `none`. Records from before the checkpoint can't be the candidate's, so
+    expired history never blocks resolving a new pending version.
+  - Terminal evidence of a failed deployment is only `none`, `failure`, `error`, `cancelled`;
+    `inactive` and `unknown` are not. When the API can't be read completely the witness fails (no
+    facts), never a guess.
 - **Live** (`httpLive`: `cache: "no-store"`, a unique query, `cache-control: no-cache`; 404 =
   absent, anything else = error): `index.html`, both pointers and `releases/index.json`. Once anything
   is served, an unreadable file is `live_unavailable`, a missing root or manifest `live_missing`.
@@ -242,7 +252,10 @@ with its bytes, also after it was abandoned.
   included) → **observed-unverified**: `served` = v, its data direction stays (a later release can't
   lower the database), the deployment state and a summary of live are recorded; a higher version
   follows as a forward fix (§6: no confirmed success needed for that).
-- The deployment never started or ended terminally (`none`, `failure`, `error`, `inactive`,
+- No evidence either way (`unknown`, §6: a deployment of this period not tied to a run, only
+  `inactive` or no status left) while live is the previous site → `deployment_unknown`, nothing
+  written (R04-01): never abandoned without terminal evidence.
+- The deployment never started or ended terminally (`none`, `failure`, `error`,
   `cancelled`) and live is exactly the previous served site → **abandoned**: only the root, pointers
   and marker go back to the served version's (or are removed before the first deployment); the
   candidate's record, immutable files and manifest entry stay.
@@ -332,17 +345,17 @@ shapes were taken from real read-only calls, not assumed (T03 ledger).
 
 - Rulesets: `GET /repos/{o}/{r}/rules/branches/pages-state` (effective rules: `deletion`,
   `non_fast_forward`); active tag rulesets from `GET …/rulesets?includes_parents=true&targets=tag`
-  and `GET …/rulesets/{id}` whose `conditions.ref_name` include a `v*` tag (`update`, `deletion`).
-  The workflow may bypass when any ruleset used says `current_user_can_bypass` other than `never`
-  (bypass actors are visible to admins only: the operator confirms them, R02-02).
+  and `GET …/rulesets/{id}` counted only when `conditions.ref_name.include` has exactly
+  `refs/tags/v*` or `~ALL` and `exclude` is empty (`update`, `deletion`; §6, R04-02). The workflow may
+  bypass when any ruleset used says `current_user_can_bypass` other than `never` (bypass actors are
+  visible to admins only: the operator confirms them, R02-02).
 - Deployments: every `github-pages` deployment and all its statuses (newest first; all pages read,
-  more than the page limit is no fact). `everSucceeded` = any `success` ever, also one later
-  `inactive`. The candidate's deployments are those whose status `log_url`/`target_url`
-  (`…/actions/runs/<run>/job/<job>`) names a run of `pages-release.yml` titled
-  `pages publish <tag>` or `pages retry <tag>`, or the current run. The deployment SHA is never
-  used (it is main's: 0.2.0-rc.1 and 0.2.0 from one commit share it). Aggregation per §6:
-  `success` if any; else in progress if any deployment's latest status is queued/pending/waiting/
-  in_progress (or unknown); else the terminal failure; `inactive` alone stays `inactive`; `none`.
+  more than the page limit is no fact) → `records` (§6). A record's run comes from the statuses'
+  `log_url`/`target_url` `https://github.com/<this repo>/actions/runs/<run>/…`; a run of
+  `pages-release.yml` titled `pages publish <tag>` or `pages retry <tag>`, or the current run, is
+  the candidate's. The deployment SHA is never used (it is main's: 0.2.0-rc.1 and 0.2.0 from one
+  commit share it). The archive judges the pending version from the records (§6); an untied, empty
+  or `inactive`-only deployment is `unknown`, and `resolve` refuses it (`deployment_unknown`).
 
 ### 9.4 The artifact (`scripts/publish/artifact.ts`)
 
@@ -376,3 +389,75 @@ with the runner lost after the checkpoint, retry (archived bytes, same tar), ret
 an older version, resolve with nothing pending; `receipt.sh` against the tar served over local HTTP.
 It stands in for GitHub only: `pages-state` is a local bare repository, Pages a local directory,
 the facts are stated. It is not a run on GitHub.
+
+## 10. Operator guide (kenli F-014 T04)
+
+Two hostings, one app. **Public:** https://mcavity.github.io/srd-table/ — GitHub Pages from this
+public repository: the app and the SRD only, built by GitHub Actions from public sources. **Private:**
+the Tailscale site (`/dnd/`) of the dnd5 workspace — the same app plus the private library and packs,
+published by dnd5's own publisher (`tools/migration/DEPLOY.md`), never by this repository. Nothing
+private is ever in this repository, its CI or the public site (§5.1).
+
+### 10.1 One-time setup (repository settings; an administrator)
+
+1. Settings → Pages → Source: **GitHub Actions** (`build_type=workflow`).
+2. Settings → Environments → `github-pages`: deployment branches **main only**; no secrets.
+3. Actions → General → Workflow permissions: **read** (the jobs ask for more themselves, §9.2); no
+   PAT anywhere.
+4. Rulesets (active, no bypass for GitHub Actions or the workflow's app):
+   - branch `pages-state`: block **deletion** and **non-fast-forward** updates;
+   - tags: target `refs/tags/v*` exactly (or All tags), no exclusion: block **update** and
+     **deletion** (creation stays allowed). Any other pattern is not recognised (§6).
+5. Run **pages-release** with mode `initialize` (no tag). It creates the empty first commit of
+   `pages-state` and prints the anchor SHA; set the repository variable **`PAGES_STATE_ANCHOR`** to
+   it. `initialize` refuses when `pages-state` exists, when github-pages has any deployment, or when
+   the site already serves something: it never recovers a lost archive.
+
+### 10.2 A release
+
+1. Merge to `main`; CI (read-only) must be green.
+2. Choose the next version (§1: above every reserved one, abandoned ones included; `-rc.N` before
+   the final), tag the commit on `main`: `git tag v0.2.0 <sha> && git push origin v0.2.0`.
+3. Actions → pages-release → mode `publish`, tag `v0.2.0`. The run builds the tag fresh (the engine at
+   the tag's pin), checkpoints the complete site in `pages-state` (`pending`), uploads the checked tar,
+   deploys, smoke-tests every file by hash over HTTPS and writes the receipt (`deployed`).
+4. On a device: Settings → App updates → Download → **Update now** (Later keeps the old version).
+
+### 10.3 When something fails
+
+| Seen | Meaning | Do |
+|---|---|---|
+| build/check failed | nothing written | fix forward, a new tag |
+| `state_conflict` | another lifecycle moved `pages-state` | run again after it |
+| deploy or smoke failed, version `pending` | the checkpoint has the exact bytes | `retry` the same tag (no build); if live shows the candidate, or it can't be deployed: `resolve` |
+| `deployment_in_progress` | its deployment may still finish | wait, `resolve` again |
+| `deployment_unknown` / `live_ambiguous` | no evidence either way | look at the Actions run and the site; `retry` or wait; never edit `pages-state` by hand |
+| `history_lost`, `history_rollback`, `history_foreign`, `history_missing` | `pages-state` was reset, replaced or deleted | stop; restore the branch (its history is in every clone) — never `initialize` again |
+| `ruleset_missing` | a protection is off or bypassable | restore §10.1 step 4 |
+| `version_*`, `tag_*`, `pin_*` | the tag or number is not acceptable | a new, higher tag on main |
+| `content_conflict` | the engine's SRD changed under the same `content/srd-5.2.1/` path | the engine needs a new content id/version; the publisher never overwrites published SRD bytes |
+| `site_too_large` | the complete site would pass 900 MiB | no automatic removal of old releases: a separate retention decision |
+
+Diagnosis: the receipt (`state.json` → `versions[v].receipt`: run, checkpoint commit, page URL,
+artifact digest), `versions/<v>.json` (every file's SHA-256 of the checkpointed site) and the smoke's
+list of served hashes. `git clone --single-branch --branch pages-state <repo>` gets the archive
+alone; it grows with every release (all earlier files are kept).
+
+### 10.4 Data and origins
+
+- **Shared origin.** `mcavity.github.io` is also is-it-dark-yet's origin. A service worker's scope
+  is `/srd-table/`, but IndexedDB, Cache Storage, localStorage and storage quota belong to the whole
+  origin: another page of it can read them, and "clear website data" for `mcavity.github.io` clears
+  the app's data too (keep a full copy). The app only touches its own database (`srd-table`) and its
+  own caches (`srd-table:/srd-table/:<release>`); the T04 trial checks another app's database, cache
+  and localStorage stay untouched through prepare, update and restarts.
+- **Moving a character between hostings** (Tailscale `/dnd/` ↔ Pages): Characters → **Export
+  character** (a full copy with state and history) on one, **Import character** with the file on
+  the other. Different origins never share data; nothing has to be copied otherwise, and the private
+  library is not needed on the public site. Importing by URL from the private Tailscale address on
+  the public site may be blocked by the browser (CORS / private-network access); the file import
+  always works.
+- The version number is the product's (§1); data formats and the database version keep their own
+  rules (dnd5 F-007 `offline.md`, F-002 `progression.md`): a higher number never permits a data
+  downgrade, and a published version's files never change.
+

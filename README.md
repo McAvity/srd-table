@@ -46,6 +46,16 @@ npm run dev          # copy the SRD content, start Vite on http://localhost:5173
 
 After the engine's `main` moves, `npm run engine:update`; the app uses the worktree's `dist/`.
 
+## Releases and hosting
+
+The public app is at **https://mcavity.github.io/srd-table/**, published by GitHub Actions
+(`.github/workflows/pages-release.yml`) from a version tag on `main`: `vMAJOR.MINOR.PATCH` or
+`vMAJOR.MINOR.PATCH-rc.N`. Each release is immutable, earlier ones stay on the site, and an installed
+app updates only when asked (Settings → App updates). The footer and About show the running version
+and its commits. The contract and the operator's guide — setup, publishing, retry/resolve, what each
+refusal means, shared-origin data — are in [docs/deployment.md](docs/deployment.md). Read-only CI
+(`.github/workflows/ci.yml`) builds and tests every push and pull request.
+
 ## How it's built
 
 Vite + React 19 + TypeScript; the engine runs in a Web Worker behind a JSON facade (Comlink);
