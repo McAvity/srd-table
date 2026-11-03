@@ -288,6 +288,91 @@ live site is read over HTTP from the state's site URL, or from `--live-dir` in a
 
 ## 8. Not covered here
 
-The workflow, its permissions, the tag-on-main check, rulesets and deployment facts from the GitHub
-API, the real Pages upload and HTTP smoke (T03); the first public publications and the device test
-(T05). The local rehearsal (`rehearse.ts`) uses a fake Pages host and stated facts.
+The first public publications, the repository settings (Pages `build_type=workflow`, the
+`github-pages` environment limited to `main`, `PAGES_STATE_ANCHOR`, the rulesets) and the device
+test are T05, after the authorized public operations. Until then nothing below has run on GitHub.
+
+## 9. Workflows (kenli F-014 T03)
+
+### 9.1 CI (`.github/workflows/ci.yml`)
+
+`push` (main, `feature/**`) and `pull_request` only — never `pull_request_target` — with
+`contents: read`, no secrets and no publication. A fresh checkout of this repository and of the
+engine at the pin read from it (`pages-ci.ts pin`), then `scripts/ci/build.sh`: lockfile installs,
+the engine build, `engine:verify`, content, lint, typecheck, Vitest and an unnumbered release build.
+
+### 9.2 `pages-release.yml`
+
+Only `workflow_dispatch` on `main` (every job also checks `github.ref == 'refs/heads/main'`), inputs
+`mode` (`publish`, `retry`, `resolve`, `initialize`) and `tag`; `run-name: pages <mode> <tag>`
+(the facts adapter finds the version's runs by it). Top-level `permissions: {}`, one concurrency
+group `pages-release` with `cancel-in-progress: false` for every mode (GitHub keeps at most one
+pending run and gives no FIFO order; the compare-and-swap on `pages-state` catches the rest).
+Every action is pinned to a full commit SHA checked against its upstream tag; every checkout has
+`persist-credentials: false`; inputs reach shell code only as environment variables.
+
+| Job | Permissions | Runs | Does |
+|---|---|---|---|
+| `prepare` | `contents: read` | main's code | `pages-ci.ts resolve`: the mode; for all but initialize a tag `v<version>` of the T01 subset that exists, its full commit contained in main (`tag_not_on_main`), and the engine pin at that commit (`pin_missing`, `pin_invalid`) |
+| `build` (publish) | `contents: read` | the tag's commit | the tag's commit and the engine at its pin, `build.sh` (fresh installs, all checks, the numbered release, both checkouts clean), the release and the engine's SRD as a run-local artifact (`candidate`, 1 day; never a durable source) |
+| `state` | `contents: write`, `deployments: read`, `actions: read` | main's code | the facts (§9.3), then `state-op.sh`: initialize / publish (checkpoint, export) / retry (archived bytes) / resolve, and for a deployment the exact tar with its canary (§9.4) uploaded as `github-pages` |
+| `deploy` | `pages: write`, `id-token: write`, environment `github-pages` | — | `actions/deploy-pages` |
+| `receipt` | `contents: write`, `deployments: read`, `actions: read` | main's code | `receipt.sh` (§9.5) |
+
+The write jobs never run a PR's or a tag's code: they check out `github.sha` (main) and read the
+build's output only as data the publisher verifies byte by byte (and by ownership, §5.1). Git uses
+the job token through an `http.extraheader` passed in the environment (masked), never in a URL or
+file. Initialize only creates the empty first commit; the operator then sets `PAGES_STATE_ANCHOR`
+(the runner has no token for repository variables).
+
+### 9.3 Facts from GitHub (`scripts/publish/github.ts`)
+
+Read-only REST calls with the job token; any failed read is no fact (the step fails). Response
+shapes were taken from real read-only calls, not assumed (T03 ledger).
+
+- Rulesets: `GET /repos/{o}/{r}/rules/branches/pages-state` (effective rules: `deletion`,
+  `non_fast_forward`); active tag rulesets from `GET …/rulesets?includes_parents=true&targets=tag`
+  and `GET …/rulesets/{id}` whose `conditions.ref_name` include a `v*` tag (`update`, `deletion`).
+  The workflow may bypass when any ruleset used says `current_user_can_bypass` other than `never`
+  (bypass actors are visible to admins only: the operator confirms them, R02-02).
+- Deployments: every `github-pages` deployment and all its statuses (newest first; all pages read,
+  more than the page limit is no fact). `everSucceeded` = any `success` ever, also one later
+  `inactive`. The candidate's deployments are those whose status `log_url`/`target_url`
+  (`…/actions/runs/<run>/job/<job>`) names a run of `pages-release.yml` titled
+  `pages publish <tag>` or `pages retry <tag>`, or the current run. The deployment SHA is never
+  used (it is main's: 0.2.0-rc.1 and 0.2.0 from one commit share it). Aggregation per §6:
+  `success` if any; else in progress if any deployment's latest status is queued/pending/waiting/
+  in_progress (or unknown); else the terminal failure; `inactive` alone stays `inactive`; `none`.
+
+### 9.4 The artifact (`scripts/publish/artifact.ts`)
+
+Not `upload-pages-artifact`: the site exported from the archive is packed into one deterministic
+ustar `artifact.tar` (`./`, the needed directories, then the manifest's files sorted; mode 0644,
+owner 0, mtime 0), so the hidden marker is in it and equal sites give equal bytes. It is read back by
+our own reader (regular files and directories only: a link or any other type refuses) and must hold
+exactly the site manifest — every file once with its hash, nothing else. The pre-upload canary then
+plants synthetic parent-workspace and private files (unique per run) outside the checkout and
+refuses the artifact if any of them, or any tracked source/config file of the checkout (not
+`public/`, whose icons ship renamed), is in it by content (or, for the planted ones, by name), or
+any entry has a path a site never has (`.git`, `.github`, `node_modules`, `src`, `scripts`,
+`private`, `library`, sources, maps, configs). It is uploaded with `actions/upload-artifact` as
+`github-pages` (1 day), which `deploy-pages` deploys.
+
+### 9.5 Receipt
+
+The receipt job downloads the deployed artifact, re-exports the pending version from `pages-state`
+(`retry`: verified, never built), re-packs it and requires the same SHA-256 as the deployed tar and
+an exact `verify-tar`; then the HTTP smoke fetches every served file of the site manifest past
+caches and compares hashes (bounded rounds); then this run's github-pages deployment must report
+success (bounded wait); only then `receipt`. A failed smoke leaves the version pending: `retry` or
+`resolve` (§7.3) settles it from the real live site.
+
+### 9.6 Dry run
+
+`bun scripts/ci/dry-run.ts --table-repo … --table-commit … --engine-repo … --work <new dir>` runs
+the same scripts on fresh clones in an empty directory (empty HOME and npm cache, no dnd5): resolve
+(and its refusals), `build.sh`, `state-op.sh` for initialize, publish 0.2.0-rc.1, publish 0.2.0
+with the runner lost after the checkpoint, retry (archived bytes, same tar), retry of a deployed and
+an older version, resolve with nothing pending; `receipt.sh` against the tar served over local HTTP.
+It stands in for GitHub only: `pages-state` is a local bare repository, Pages a local directory,
+the facts are stated. It is not a run on GitHub.
