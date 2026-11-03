@@ -270,6 +270,7 @@ try {
 
   const runs: Record<string, unknown>[] = [];
   let anchor = "";
+  let builds = 0;
   const ghRun = async (
     n: number,
     mode: string,
@@ -345,7 +346,8 @@ try {
         "--report",
         join(tmp, "release-report.json"),
       ];
-      if (values["skip-tests"] || n > 1) args.push("--skip-tests");
+      // the full checks (lint, typecheck, Vitest) in the first build; the second repeats the release
+      if (values["skip-tests"] || builds++ > 0) args.push("--skip-tests");
       await run(`run ${n}: build.sh`, "bash", args);
       cpSync(join(build, "srd-rules-engine-main/dist/srd-5.2.1"), join(tmp, "candidate/srd"), {
         recursive: true,
