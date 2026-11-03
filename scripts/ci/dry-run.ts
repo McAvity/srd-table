@@ -141,6 +141,7 @@ const server = createServer((req, res) => {
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const smokeUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}/srd-table/`;
 const deployTar = (tar: string) => {
+  deployedCount++;
   rmSync(live, { recursive: true, force: true });
   mkdirSync(live);
   for (const e of readTar(readFileSync(tar))) {
@@ -154,13 +155,15 @@ const RULES = {
   tags: { update: true, deletion: true },
   workflowBypass: false,
 };
+/** Stated facts for a step; the deployment count is the fake host's (every deployment so far). */
+let deployedCount = 0;
 const factsFile = (name: string, deployments: { everSucceeded: boolean; candidate: string }) => {
   const f = join(work, `facts-${name}.json`);
   writeFileSync(
     f,
     JSON.stringify({
       rulesets: RULES,
-      deployments,
+      deployments: { ...deployments, deployments: deployedCount },
       stated: "dry run: stated facts, not the GitHub API",
     }),
   );

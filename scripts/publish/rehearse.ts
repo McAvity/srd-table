@@ -62,7 +62,7 @@ const server = createServer((req, res) => {
 });
 await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
 const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-const facts = { everSucceeded: false, candidate: "none" as DeploymentState };
+const facts = { everSucceeded: false, deployments: 0, candidate: "none" as DeploymentState };
 const witnesses: Witnesses = {
   rulesets: async () => ({
     pagesState: { deletion: true, nonFastForward: true },
@@ -83,6 +83,7 @@ const deploy = (site: string) => {
   });
   facts.candidate = "success";
   facts.everSucceeded = true;
+  facts.deployments++;
 };
 let n = 0;
 const open = (fault?: (at: string) => void) =>

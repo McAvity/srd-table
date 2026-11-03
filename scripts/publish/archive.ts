@@ -57,7 +57,9 @@ import {
   siteProblems,
 } from "./site";
 import {
+  candidateSince,
   type DeploymentFacts,
+  type DeploymentState,
   type Expected,
   FAILED,
   IN_PROGRESS,
@@ -379,27 +381,25 @@ export class Archive {
     const everServed = Object.values(s.versions).some(
       (v) => v.status === "deployed" || v.status === "observed-unverified",
     );
+    if (!Number.isSafeInteger(deployments.deployments) || deployments.deployments < 0)
+      fail("witness_invalid", "the deployment facts have no deployment count");
     if (deployments.everSucceeded && !everServed && !s.pending)
       fail(
         "history_lost",
         "the site has been deployed, but the archive has no served version (archive reset or replaced)",
       );
-    // R03-02: a version the archive saw succeed (receipt, or observed with a successful deployment)
-    // needs github-pages to remember a success. A version observed live under a failed or missing
-    // deployment status (e.g. the first one, served although its job or smoke failed) is backed by
-    // its recorded live evidence instead, and the live checks below still apply to it.
-    const confirmed = Object.entries(s.versions).filter(
-      ([, v]) =>
-        v.status === "deployed" ||
-        (v.status === "observed-unverified" && v.resolution?.deployment === "success"),
-    );
-    if (confirmed.length && !deployments.everSucceeded)
+    // R04-01: an archive that reserved nothing while github-pages has deployments (of any state:
+    // old statuses expire, a missing success proves nothing) is a lost archive, not a first one
+    if (Object.keys(s.versions).length === 0 && deployments.deployments > 0)
       fail(
-        "witness_mismatch",
-        `the archive has confirmed deployments (${confirmed.map(([v]) => v).join(", ")}), but github-pages has no successful deployment`,
+        "history_lost",
+        `github-pages has ${deployments.deployments} deployments, but the archive reserved no version`,
       );
+    // R04-01: no "no success visible ⇒ never deployed" check: GitHub keeps deployment statuses for a
+    // limited time, so a long-lived receipt would be refused for ever. A served version is held to
+    // the live site instead (live_missing / live_mismatch / history_rollback below and per operation).
     const errors = Object.entries(live).filter(([, l]) => l.status === "error");
-    if ((deployments.everSucceeded || everServed) && errors.length)
+    if ((deployments.everSucceeded || everServed || deployments.deployments > 0) && errors.length)
       fail(
         "live_unavailable",
         errors.map(([p, l]) => `${p}: ${l.status === "error" ? l.detail : ""}`).join("; "),
@@ -418,6 +418,16 @@ export class Archive {
         "live_mismatch",
         `live is not ${this.state.served ?? "an empty site"}: ${JSON.stringify(liveSummary(live))}`,
       );
+  }
+
+  /**
+   * The pending version's deployment state (R04-01): from the adapter's records created since its
+   * checkpoint commit (10 minutes of margin for clocks), else the facts' own `candidate`.
+   */
+  pendingDeployment(d: DeploymentFacts): DeploymentState {
+    if (!this.state.pending || !d.records) return d.candidate;
+    const at = Date.parse(this.git.run("log", "-1", "--format=%cI", this.head));
+    return candidateSince(d.records, Number.isNaN(at) ? Number.NEGATIVE_INFINITY : at - 600_000);
   }
 
   /** Commit everything under the archive and push it as a compare-and-swap on `head`. */
@@ -518,8 +528,12 @@ export async function initialize(
   const rules = rulesetProblems(await opts.witnesses.rulesets());
   if (rules.length) fail("ruleset_missing", rules.join("; "));
   const dep = await opts.witnesses.deployments();
-  if (dep.everSucceeded)
-    fail("history_lost", "github-pages was deployed before: the archive is lost, not new");
+  if (!Number.isSafeInteger(dep.deployments)) fail("witness_invalid", "no deployment count");
+  if (dep.everSucceeded || dep.deployments > 0)
+    fail(
+      "history_lost",
+      `github-pages has ${dep.deployments} deployments: the archive is lost, not new (initialize never recovers)`,
+    );
   const live = await readLive(opts.witnesses);
   const present = Object.entries(live).filter(([, l]) => l.status !== "absent");
   if (present.length)
@@ -677,8 +691,8 @@ export async function receipt(
   )
     fail("receipt_invalid", JSON.stringify(r));
   const { deployments, live } = await a.witness();
-  if (deployments.candidate !== "success")
-    fail("not_deployed", `the deployment is ${deployments.candidate}`);
+  const dep = a.pendingDeployment(deployments);
+  if (dep !== "success") fail("not_deployed", `the deployment is ${dep}`);
   if (!liveMatches(live, a.expectedLive(version)))
     fail("live_mismatch", `live is not ${version}: ${JSON.stringify(liveSummary(live))}`);
   const e = s.versions[version] as VersionEntry;
@@ -719,7 +733,7 @@ export async function resolve(
   if (s.pending !== version)
     fail("not_pending", `${version} is not pending (${s.pending ?? "none"})`);
   const { deployments, live } = await a.witness();
-  const dep = deployments.candidate;
+  const dep = a.pendingDeployment(deployments);
   if (IN_PROGRESS.includes(dep))
     fail("deployment_in_progress", `the deployment of ${version} is ${dep}: wait, then resolve`);
   if (Object.values(live).some((l) => l.status === "error"))
@@ -743,6 +757,13 @@ export async function resolve(
       commit: a.checkpoint(`pages-state: ${tagOf(version)} observed-unverified`),
     };
   }
+  // R04-01: no evidence either way (a deployment of this period not tied to a run, only expired or
+  // unknown statuses) never becomes "abandoned"
+  if (dep === "unknown" && isPrevious)
+    fail(
+      "deployment_unknown",
+      `the deployment of ${version} can't be told (statuses missing, expired or not tied to its run): nothing written`,
+    );
   if (FAILED.includes(dep) && isPrevious) {
     const prev: MutableState = s.served
       ? a.record(s.served).mutable

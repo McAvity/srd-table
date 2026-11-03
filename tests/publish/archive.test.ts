@@ -424,13 +424,11 @@ describe("resolve (R01-04, R02-01)", () => {
     const B = makeRelease("fix", { version: "0.2.1", data: DATA5 });
     await ctx.ship(B);
     expect(livePointer(ctx.pages, LEGACY_POINTER)).toBe(B.id);
-    // from now on the archive has a confirmed deployment: github-pages forgetting it is refused
+    // R04-01: years later github-pages keeps the deployments but no retained success: a confirmed
+    // receipt is held to the live site, not refused for ever
     ctx.pages.everSucceeded = false;
-    await unchanged(
-      ctx,
-      () => ctx.stageRel(makeRelease("c", { version: "0.2.2" })),
-      "witness_mismatch",
-    );
+    ctx.pages.candidate = "none";
+    await ctx.ship(makeRelease("c", { version: "0.2.2" }));
   });
 
   it("a deployment still running, success with the old live, or a mixed live: refused", async () => {
@@ -531,9 +529,10 @@ describe("history and witnesses", () => {
     const live = tree(ctx.pages.liveDir);
     rmSync(ctx.pages.liveDir, { recursive: true });
     await refused(() => ctx.stageRel(B), "live_missing");
+    // a garbage live site is not the archive's history; an archive claiming a served version while
+    // the site serves nothing is refused by the live witness (no API "success" needed)
     for (const p of Object.keys(live)) put(ctx.pages.liveDir, p, "x");
-    ctx.pages.everSucceeded = false;
-    await refused(() => ctx.stageRel(B), "witness_mismatch");
+    await refused(() => ctx.stageRel(B), "history_rollback");
   });
 
   it("an archive byte off its manifest is refused", async () => {

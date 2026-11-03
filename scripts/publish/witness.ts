@@ -25,7 +25,7 @@ export interface RulesetFacts {
   /** Whether the workflow's identity may bypass any of them (must be false). */
   readonly workflowBypass: boolean;
 }
-/** github-pages deployment states (GitHub deployment statuses and Pages deployment status). */
+/** github-pages deployment states (GitHub deployment statuses), plus `unknown`: no evidence either way. */
 export type DeploymentState =
   | "none"
   | "queued"
@@ -36,12 +36,32 @@ export type DeploymentState =
   | "failure"
   | "error"
   | "inactive"
-  | "cancelled";
+  | "cancelled"
+  | "unknown";
+/**
+ * One github-pages deployment as the adapter read it (R04-01): when it was created, the run its
+ * statuses name (`null`: none, or not a run of this repository), its own state (`success` if any
+ * retained status was; `unknown` when only `inactive` or no status is left — GitHub keeps statuses
+ * for a limited time, so an old success may be gone), and whether the run is the candidate's.
+ */
+export interface DeploymentRecord {
+  readonly created_at: string;
+  readonly run: number | null;
+  readonly state: DeploymentState;
+  readonly candidate: boolean;
+}
 export interface DeploymentFacts {
-  /** Any successful github-pages deployment ever (this site has been live). */
+  /**
+   * A success is visible in the retained statuses. A lower bound only: `false` proves nothing
+   * (old statuses expire), so it is never evidence that the site was not deployed.
+   */
   readonly everSucceeded: boolean;
-  /** The deployment of the pending candidate (by its run/artifact); `none` when it never started. */
+  /** github-pages deployment objects that exist (any state): > 0 means the site may have history. */
+  readonly deployments: number;
+  /** The candidate's state over all deployments (no time bound). The archive prefers `records`. */
   readonly candidate: DeploymentState;
+  /** Every deployment read, for the archive to judge the pending version from its checkpoint on. */
+  readonly records?: readonly DeploymentRecord[];
 }
 /** A live file: its bytes, `absent` (HTTP 404) or `error` (anything else: not a witness). */
 export type LiveFile =
@@ -61,13 +81,36 @@ export const IN_PROGRESS: readonly DeploymentState[] = [
   "waiting",
   "in_progress",
 ];
-export const FAILED: readonly DeploymentState[] = [
-  "none",
-  "failure",
-  "error",
-  "inactive",
-  "cancelled",
-];
+/**
+ * Terminal evidence that a deployment did not succeed. `inactive` is not (an earlier success may
+ * have expired), nor is `unknown`.
+ */
+export const FAILED: readonly DeploymentState[] = ["none", "failure", "error", "cancelled"];
+
+const PROGRESS_ORDER: readonly DeploymentState[] = ["in_progress", "pending", "waiting", "queued"];
+/**
+ * The pending version's deployment state from the records created since `sinceMs` (its checkpoint,
+ * with a margin): `success` if any candidate deployment succeeded; else in progress if any is; else
+ * `unknown` if any candidate deployment is unknown or any deployment of that period can't be tied to
+ * a run of this repository (it could be the candidate's); else the terminal failure; else `none`.
+ * A deployment tied to another run of this workflow is not the candidate's.
+ */
+export function candidateSince(
+  records: readonly DeploymentRecord[],
+  sinceMs: number,
+): DeploymentState {
+  const recent = records.filter((r) => {
+    const t = Date.parse(r.created_at);
+    return Number.isNaN(t) || t >= sinceMs; // an unreadable date: can't be excluded
+  });
+  const mine = recent.filter((r) => r.candidate);
+  if (mine.some((r) => r.state === "success")) return "success";
+  for (const p of PROGRESS_ORDER) if (mine.some((r) => r.state === p)) return p;
+  if (mine.some((r) => !FAILED.includes(r.state)) || recent.some((r) => r.run === null))
+    return "unknown";
+  const failed = mine.find((r) => FAILED.includes(r.state));
+  return failed ? failed.state : "none";
+}
 
 export function rulesetProblems(r: RulesetFacts): string[] {
   const out: string[] = [];

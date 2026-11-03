@@ -20,6 +20,7 @@ import { dirname, join, relative } from "node:path";
 import { PublishError, releaseIdOf, sha256 } from "../../scripts/publish/lib";
 import {
   type DeploymentFacts,
+  type DeploymentRecord,
   type DeploymentState,
   dirLive,
   type LiveFile,
@@ -219,13 +220,22 @@ export class FakePages implements Witnesses {
   rules: RulesetFacts = OK_RULES;
   everSucceeded = false;
   candidate: DeploymentState = "none";
+  /** github-pages deployment objects so far (every deploy call, whatever its outcome). */
+  deploymentCount = 0;
+  /** Per-deployment records, when a test states them (R04-01); else only `candidate`. */
+  records: DeploymentRecord[] | undefined = undefined;
   liveError: string | null = null;
   private readonly fromDir = dirLive(this.liveDir);
   async rulesets() {
     return this.rules;
   }
   async deployments(): Promise<DeploymentFacts> {
-    return { everSucceeded: this.everSucceeded, candidate: this.candidate };
+    return {
+      everSucceeded: this.everSucceeded,
+      deployments: this.deploymentCount,
+      candidate: this.candidate,
+      ...(this.records ? { records: this.records } : {}),
+    };
   }
   async live(path: string): Promise<LiveFile> {
     if (this.liveError) return { status: "error", detail: this.liveError };
@@ -234,6 +244,7 @@ export class FakePages implements Witnesses {
   /** A deployment of `site`: `success` replaces the live site; `failure` leaves it. */
   deploy(site: string, outcome: "success" | "failure" | "in_progress" = "success") {
     this.candidate = outcome;
+    this.deploymentCount++;
     if (outcome !== "success") return;
     rmSync(this.liveDir, { recursive: true, force: true });
     cpSync(site, this.liveDir, {

@@ -5,13 +5,13 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  aggregate,
   deploymentFacts,
+  deploymentState,
   GithubError,
-  refMatches,
   rulesetFacts,
   runOfStatus,
 } from "../../scripts/publish/github";
+import { candidateSince } from "../../scripts/publish/witness";
 
 type Routes = Record<
   string,
@@ -121,25 +121,43 @@ describe("rulesets", () => {
     });
   });
 
-  it("a ruleset not saying `never` counts as a bypass; tag patterns are matched, not assumed", async () => {
-    const { o } = fakeApi({
+  // R04-02: only a ruleset covering the whole release tag space counts, never one sample tag
+  const tagApi = (include: string[], exclude: string[] = [], bypass: string | null = "never") =>
+    fakeApi({
       [`${R}/rules/branches/pages-state`]: [],
       [`${R}/rulesets`]: [{ id: 12, target: "tag", enforcement: "active" }],
       [`${R}/rulesets/12`]: {
         id: 12,
         target: "tag",
         enforcement: "active",
-        conditions: { ref_name: { include: ["refs/tags/release-*"], exclude: [] } },
+        conditions: { ref_name: { include, exclude } },
         rules: [{ type: "update" }, { type: "deletion" }],
+        ...(bypass === null ? {} : { current_user_can_bypass: bypass }),
       },
+    }).o;
+  it.each([
+    ["refs/tags/v0.0.0 only (a sample tag)", ["refs/tags/v0.0.0"], []],
+    ["refs/tags/v0.2.0 only (the current release)", ["refs/tags/v0.2.0"], []],
+    ["v* minus an older release", ["refs/tags/v*"], ["refs/tags/v0.1.*"]],
+    ["v* minus the current release", ["refs/tags/v*"], ["refs/tags/v0.2.0"]],
+    ["another namespace", ["refs/tags/release-*"], []],
+    ["a pattern not in the operator's instructions", ["refs/tags/v**"], []],
+  ])("tag protection of %s is not protection of the releases", async (_, include, exclude) => {
+    expect((await rulesetFacts(tagApi(include, exclude))).tags).toEqual({
+      update: false,
+      deletion: false,
     });
-    const f = await rulesetFacts(o);
-    expect(f.tags).toEqual({ update: false, deletion: false });
-    expect(refMatches("refs/tags/v*", "refs/tags/v0.2.0-rc.1")).toBe(true);
-    expect(refMatches("refs/tags/v*", "refs/heads/v1")).toBe(false);
-    expect(refMatches("~DEFAULT_BRANCH", "refs/tags/v1")).toBe(false);
-    expect(refMatches("refs/**", "refs/tags/v1")).toBe(true);
   });
+  it.each([["refs/tags/v*"], ["~ALL"]])(
+    "%s without exclusion protects every release tag",
+    async (p) => {
+      const f = await rulesetFacts(tagApi([p]));
+      expect(f.tags).toEqual({ update: true, deletion: true });
+      expect(f.workflowBypass).toBe(false);
+      expect((await rulesetFacts(tagApi([p], [], "always"))).workflowBypass).toBe(true);
+      expect((await rulesetFacts(tagApi([p], [], null))).workflowBypass).toBe(true);
+    },
+  );
 
   it("any failed read is no fact (throws)", async () => {
     const { o } = fakeApi({
@@ -231,18 +249,90 @@ describe("deployments: correlation by run, aggregation (§6)", () => {
     ).toBe("success");
   });
 
-  it("aggregate: inactive alone is not a failure of a success; unknown states are not terminal", () => {
-    expect(aggregate([])).toBe("none");
-    expect(aggregate([[{ state: "inactive" }]])).toBe("inactive");
-    expect(aggregate([[{ state: "inactive" }, { state: "success" }]])).toBe("success");
-    expect(aggregate([[{ state: "brand_new_state" }]])).toBe("pending");
-    expect(aggregate([[{ state: "cancelled" }], [{ state: "waiting" }]])).toBe("waiting");
+  it("one deployment's state: success if any retained; inactive only, none or unknown → unknown", () => {
+    expect(deploymentState([])).toBe("unknown");
+    expect(deploymentState([{ state: "inactive" }])).toBe("unknown");
+    expect(deploymentState([{ state: "inactive" }, { state: "success" }])).toBe("success");
+    expect(deploymentState([{ state: "brand_new_state" }])).toBe("unknown");
+    expect(deploymentState([{ state: "cancelled" }])).toBe("cancelled");
+    expect(deploymentState([{ state: "waiting" }, { state: "queued" }])).toBe("waiting");
+    const repo = "McAvity/srd-table";
     expect(
-      runOfStatus({ state: "x", log_url: "https://github.com/o/r/actions/runs/123/job/4" }),
+      runOfStatus(
+        { state: "x", log_url: "https://github.com/McAvity/srd-table/actions/runs/123/job/4" },
+        repo,
+      ),
     ).toBe(123);
     expect(
-      runOfStatus({ state: "x", log_url: null, target_url: "https://example.invalid/x" }),
+      runOfStatus(
+        { state: "x", log_url: "https://github.com/someone/else/actions/runs/123/job/4" },
+        repo,
+      ),
     ).toBeNull();
+    expect(
+      runOfStatus({ state: "x", log_url: null, target_url: "https://example.invalid/x" }, repo),
+    ).toBeNull();
+  });
+
+  // R04-01 (manager repro evidence/T03/manager/api-repro.json): an existing deployment the adapter
+  // can't tie to a run is not "none"; a deployment with only `inactive` left is not a failure
+  it.each([
+    ["in_progress, no log/target URL", [{ state: "in_progress" }]],
+    ["no status at all", []],
+    [
+      "another repository's run URL",
+      [{ state: "failure", log_url: "https://github.com/o/r/actions/runs/502/job/1" }],
+    ],
+  ])("an untied deployment (%s) makes the candidate unknown", async (_, statuses) => {
+    const { o } = api({ 9: statuses });
+    const f = await deploymentFacts(o, { workflow: "pages-release.yml", tag: "v0.2.0" });
+    expect(f.candidate).toBe("unknown");
+    expect(f.deployments).toBe(1);
+    expect(f.records).toEqual([
+      { created_at: "", run: null, state: expect.any(String), candidate: false },
+    ]);
+  });
+  it("a deployment with statuses of two different runs is not tied to either", async () => {
+    const { o } = api({ 9: [status("failure", 502), status("in_progress", 501)] });
+    expect(
+      (await deploymentFacts(o, { workflow: "pages-release.yml", tag: "v0.2.0" })).candidate,
+    ).toBe("unknown");
+  });
+  it("inactive after retention plus a failure: unknown, not failure", async () => {
+    const { o } = api({ 2: [status("inactive", 502)], 3: [status("failure", 503)] });
+    const f = await deploymentFacts(o, { workflow: "pages-release.yml", tag: "v0.2.0" });
+    expect(f).toMatchObject({ everSucceeded: false, deployments: 2, candidate: "unknown" });
+  });
+  it("candidateSince: deployments before the checkpoint can't be the candidate's", () => {
+    const old = {
+      created_at: "2026-01-01T00:00:00Z",
+      run: null,
+      state: "unknown" as const,
+      candidate: false,
+    };
+    const fresh = {
+      created_at: "2026-11-03T12:00:00Z",
+      run: 9,
+      state: "failure" as const,
+      candidate: true,
+    };
+    const since = Date.parse("2026-11-03T11:00:00Z");
+    expect(candidateSince([old, fresh], since)).toBe("failure");
+    expect(candidateSince([old], since)).toBe("none");
+    expect(candidateSince([old], Number.NEGATIVE_INFINITY)).toBe("unknown");
+    expect(candidateSince([{ ...old, created_at: "2026-11-03T12:05:00Z" }, fresh], since)).toBe(
+      "unknown",
+    );
+    expect(
+      candidateSince(
+        [
+          { ...fresh, state: "success" },
+          { ...old, created_at: "2026-11-03T12:05:00Z" },
+        ],
+        since,
+      ),
+    ).toBe("success");
+    expect(candidateSince([{ ...fresh, state: "inactive" }], since)).toBe("unknown");
   });
 
   it("all pages are read (Link rel=next); more than the limit or an error is no fact", async () => {
@@ -259,7 +349,7 @@ describe("deployments: correlation by run, aggregation (§6)", () => {
       [`${R}/actions/workflows/pages-release.yml/runs`]: runs,
     });
     const f = await deploymentFacts(o, { workflow: "pages-release.yml", tag: "v0.2.0" });
-    expect(f).toMatchObject({ deployments_read: 2, candidate: "success" });
+    expect(f).toMatchObject({ deployments: 2, candidate: "success" });
     const broken = fakeApi({ [`${R}/deployments`]: () => ({ body: {}, status: 502 }) });
     await expect(
       deploymentFacts(broken.o, { workflow: "pages-release.yml", tag: "v0.2.0" }),

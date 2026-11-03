@@ -205,11 +205,13 @@ async function main(): Promise<unknown> {
       }
       const facts = {
         rulesets,
-        deployments: { everSucceeded: deployments.everSucceeded, candidate: deployments.candidate },
-        read: {
-          candidate_runs: deployments.candidate_runs,
-          deployments: deployments.deployments_read,
+        deployments: {
+          everSucceeded: deployments.everSucceeded,
+          deployments: deployments.deployments,
+          candidate: deployments.candidate,
+          records: deployments.records,
         },
+        read: { candidate_runs: deployments.candidate_runs },
       };
       writeFileSync(need("out"), `${JSON.stringify(facts, null, 2)}\n`);
       return facts;

@@ -57,7 +57,10 @@ describe("cli", () => {
     const writeFacts = (everSucceeded: boolean, candidate: string) =>
       writeFileSync(
         facts,
-        JSON.stringify({ rulesets: OK_RULES, deployments: { everSucceeded, candidate } }),
+        JSON.stringify({
+          rulesets: OK_RULES,
+          deployments: { everSucceeded, deployments: everSucceeded ? 1 : 0, candidate },
+        }),
       );
     writeFacts(false, "none");
     const common = (work: string) => [
@@ -229,7 +232,10 @@ describe("cli over HTTPS (R03-01: the default live reader, no --live-dir)", () =
       const writeFacts = (everSucceeded: boolean, candidate: string) =>
         writeFileSync(
           facts,
-          JSON.stringify({ rulesets: OK_RULES, deployments: { everSucceeded, candidate } }),
+          JSON.stringify({
+            rulesets: OK_RULES,
+            deployments: { everSucceeded, deployments: everSucceeded ? 1 : 0, candidate },
+          }),
         );
       writeFacts(false, "none");
       const common = (w: string) => [
