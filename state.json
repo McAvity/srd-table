@@ -4,13 +4,20 @@
   "site_url": "https://mcavity.github.io/srd-table/",
   "versions": {
     "0.2.0-rc.1": {
-      "status": "pending",
+      "status": "deployed",
       "record": "versions/0.2.0-rc.1.json",
       "record_sha256": "db2d171699eb0d1c0b95ba98257aa0ec1936b6bf0d13db0fd713abaaf170d2f9",
-      "release_id": "r-71e64410f7a78e1d"
+      "release_id": "r-71e64410f7a78e1d",
+      "checkpoint": "744b8997d03787d23244e6845e67fce0f7219581",
+      "receipt": {
+        "run_id": "41729648891",
+        "page_url": "https://mcavity.github.io/srd-table/",
+        "artifact_digest": "sha256:1881abc6244c19cec18394bb1709c6ef2e871e70b4df776507f948b5ca1df13a",
+        "state_commit": "744b8997d03787d23244e6845e67fce0f7219581"
+      }
     }
   },
-  "pending": "0.2.0-rc.1",
-  "served": null,
+  "pending": null,
+  "served": "0.2.0-rc.1",
   "site_manifest_sha256": "5e015b6b9399e3034a78055cd4ab0f2da92aca43f64f721d3ecc80f014abe605"
 }
