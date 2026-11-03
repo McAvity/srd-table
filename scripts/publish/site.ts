@@ -128,22 +128,39 @@ export function readSrd(dir: string, pack: string = SRD_PACKS[0]): SrdPack {
   const { files, symlinks, dirs, hardlinks } = walk(dir);
   if (symlinks.length || hardlinks.length || dirs.length)
     fail("srd_invalid", `only plain files: ${[...symlinks, ...hardlinks, ...dirs].join(", ")}`);
+  let manifest: { name?: unknown; tables?: Record<string, { file?: unknown }> };
+  try {
+    manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
+  } catch {
+    return fail("srd_invalid", "manifest.json is not JSON");
+  }
+  if (manifest.name !== pack) fail("srd_invalid", `manifest name ${String(manifest.name)}`);
+  // exactly the files the pack's own manifest names (a closed list: nothing else in the directory,
+  // e.g. a private or parent-workspace file dropped next to it, reaches the site)
+  const tables = manifest.tables;
+  if (typeof tables !== "object" || tables === null || Array.isArray(tables))
+    fail("srd_invalid", "manifest.json has no tables");
+  const named = new Set(["manifest.json"]);
+  for (const [t, v] of Object.entries(tables as object)) {
+    const file = (v as { file?: unknown })?.file;
+    if (typeof file !== "string" || !sitePathAllowed(`content/${pack}/${file}`))
+      fail("srd_invalid", `table ${t}: file ${String(file)}`);
+    named.add(file as string);
+  }
+  const unlisted = files.filter((f) => !named.has(f));
+  if (unlisted.length) fail("srd_unlisted", `not in the pack's manifest: ${unlisted.join(", ")}`);
+  const missing = [...named].filter((f) => !files.includes(f));
+  if (missing.length) fail("srd_missing", missing.join(", "));
   const refs: FileRef[] = [];
   for (const f of files) {
-    const path = `content/${pack}/${f}`;
-    if (!sitePathAllowed(path)) fail("srd_invalid", f);
     const bytes = readFileSync(join(dir, f));
     try {
       JSON.parse(bytes.toString("utf8"));
     } catch {
       fail("srd_invalid", `${f} is not JSON`);
     }
-    refs.push({ path, sha256: sha256(bytes), size: bytes.byteLength });
+    refs.push({ path: `content/${pack}/${f}`, sha256: sha256(bytes), size: bytes.byteLength });
   }
-  const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8")) as {
-    name?: unknown;
-  };
-  if (manifest.name !== pack) fail("srd_invalid", `manifest name ${String(manifest.name)}`);
   return { dir, pack, files: refs };
 }
 

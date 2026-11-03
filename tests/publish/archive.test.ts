@@ -380,6 +380,58 @@ describe("resolve (R01-04, R02-01)", () => {
     await ctx.ship(makeRelease("c", { version: "0.3.1", data: DATA5 }));
   });
 
+  it("R03-02: the first release live under a failed status → observed-unverified → a higher fix", async () => {
+    const ctx = await setup();
+    const A = makeRelease("first", { version: "0.2.0", data: DATA5 });
+    const sa = await ctx.stageRel(A);
+    // Pages serves it, but the job/smoke failed and github-pages records no success at all
+    ctx.pages.deploy(sa.artifact, "success");
+    ctx.pages.everSucceeded = false;
+    ctx.pages.candidate = "failure";
+    expect((await resolve(await ctx.open(), "0.2.0")).outcome).toBe("observed-unverified");
+    const s = await ctx.state();
+    expect(s).toMatchObject({ served: "0.2.0", pending: null });
+    expect(s.versions["0.2.0"]?.resolution?.deployment).toBe("failure");
+    expect(s.versions["0.2.0"]?.resolution?.live[LEGACY_POINTER]).toMatch(/^sha256:/);
+    // the live evidence still has to hold: a missing or unreadable live site is refused
+    const live = tree(ctx.pages.liveDir);
+    ctx.pages.liveError = "HTTP 502";
+    await unchanged(
+      ctx,
+      () => ctx.stageRel(makeRelease("x", { version: "0.2.1" })),
+      "live_unavailable",
+    );
+    ctx.pages.liveError = null;
+    rmSync(ctx.pages.liveDir, { recursive: true });
+    await refused(() => ctx.stageRel(makeRelease("x", { version: "0.2.1" })), "live_missing");
+    ctx.pages.deploy(sa.artifact, "success");
+    ctx.pages.everSucceeded = false;
+    expect(tree(ctx.pages.liveDir)).toEqual(live);
+    // no database downgrade from it, no lower or equal number
+    await unchanged(
+      ctx,
+      () => ctx.stageRel(makeRelease("down", { version: "0.2.1", data: DATA4 })),
+      "release_downgrade",
+    );
+    await unchanged(
+      ctx,
+      () => ctx.stageRel(makeRelease("same", { version: "0.2.0" })),
+      "version_conflict",
+    );
+    // the forward fix goes through
+    ctx.pages.candidate = "none";
+    const B = makeRelease("fix", { version: "0.2.1", data: DATA5 });
+    await ctx.ship(B);
+    expect(livePointer(ctx.pages, LEGACY_POINTER)).toBe(B.id);
+    // from now on the archive has a confirmed deployment: github-pages forgetting it is refused
+    ctx.pages.everSucceeded = false;
+    await unchanged(
+      ctx,
+      () => ctx.stageRel(makeRelease("c", { version: "0.2.2" })),
+      "witness_mismatch",
+    );
+  });
+
   it("a deployment still running, success with the old live, or a mixed live: refused", async () => {
     const ctx = await setup();
     await ctx.ship(makeRelease("a", { version: "0.2.0" }));

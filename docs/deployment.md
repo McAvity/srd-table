@@ -105,8 +105,14 @@ pack, `library/`, `f005/`, a dotfile, a stray file — a symlink, a hard link or
 (`site_foreign_file`, `site_symlink`). The release staging directory must be exactly what
 `scripts/release.ts` wrote (`staging_invalid` for any extra, missing or changed byte), clean
 (`release_dirty`), not a variant, and numbered with the version asked (`version_mismatch`). The SRD
-directory is the engine's `dist/srd-5.2.1/`: flat JSON files with `manifest.json` naming the pack
-(`srd_missing`, `srd_invalid`).
+directory is the engine's `dist/srd-5.2.1/`: flat JSON files, exactly `manifest.json` (naming the
+pack) and the files its `tables` name — nothing else in the directory is published (`srd_unlisted`,
+`srd_missing`, `srd_invalid`).
+
+Only srd-table's own files reach the site: the release `scripts/release.ts` built from this
+repository and the engine's SRD pack. No file of a parent workspace (dnd5), no private pack, character,
+library or history, whatever its name; the publisher imports nothing outside `scripts/publish/`
+and Node (a test checks both).
 
 ### 5.2 Nothing is overwritten or deleted
 
@@ -114,16 +120,23 @@ directory is the engine's `dist/srd-5.2.1/`: flat JSON files with `manifest.json
   `immutable_conflict`; a listed release with another descriptor `release_conflict`. Every release the
   manifest lists keeps its files byte-exact forever (`site_invalid` if not).
 - SRD files are immutable by path: `content/srd-5.2.1/<file>` with other bytes than already kept is
-  `content_conflict` — a changed SRD needs a new content version, never an overwrite. A file only a
-  newer engine has is added; old files stay.
+  `content_conflict` — a changed SRD (also a new table, which changes the pack's `manifest.json`)
+  needs a new content version, never an overwrite; that is outside this feature. The same pack again
+  is kept as it is.
 - Root HTML, pointers and marker change only by the existing protocol (dnd5 F-007 §4, F-002 T07):
   `release.json` (legacy) and `release-current.json`, the bridge (`--bridge`, once:
   `bridge_exists`), `bridge_required` for a newer database without a bridge, `release_downgrade` for an
   older database than the newest pointer's, and — new — `version_not_newer` for a numbered release
   not above the numbered release the site points at. Each write is temp + rename; an interrupted
   publication is finished by a rerun.
-- The Pages artifact is the complete site (all earlier releases, the SRD and the marker; hidden
-  files included), never a fresh `dist/`.
+- The Pages artifact is the complete site exported from the archive (all earlier releases, the SRD,
+  the marker), never a fresh `dist/`. Note for T03: `actions/upload-pages-artifact` at
+  `7b1f4a764d45c48632c6b24a0339c27f5614fb0b` tars with `--exclude=.[^/]*` and has no
+  `include-hidden-files` input, so the marker would be dropped. The workflow builds the tar itself
+  from the exported site (checked against `site-manifest.json`, marker included) and uploads it with
+  the official upload-artifact under the name/format deploy-pages expects, or uses an upload step
+  whose hidden-file support is verified at its pinned SHA; it never assumes a flag. Whether Pages
+  serves the dotfile is not relied on (the live checks never read it); it is kept in the archive.
 - The size guard refuses a site above 900 MiB (`site_too_large`) before the checkpoint; old releases
   are never removed automatically.
 
@@ -137,8 +150,22 @@ witnesses. They only refuse; files always come from the archive, never from the 
   effective rules the runner's token can see, R02-02; the operator confirms the full configuration.)
 - **github-pages deployments** (`DeploymentFacts`): whether any deployment ever succeeded, and the
   state of the pending candidate's deployment. A deployed site with an archive that served nothing is
-  `history_lost` (archive reset or replaced); served versions without any successful deployment is
-  `witness_mismatch`.
+  `history_lost` (archive reset or replaced). A **confirmed** deployment in the archive (a receipt, or
+  observed-unverified with a successful deployment) without any successful github-pages deployment is
+  `witness_mismatch`. A version observed live under a failed or missing deployment status (R03-02:
+  e.g. the first release served although its job or smoke failed) is backed by the live evidence
+  recorded in its resolution instead; the live checks keep applying to it, so a higher forward fix
+  can follow while a lost or rolled-back history is still refused.
+- **Aggregating deployment statuses (for the T03 adapter; safety rules):**
+  - `everSucceeded` is true when any github-pages deployment of this repository ever had a `success`
+    status — also one later marked `inactive` (superseded) or older than the latest. A deployment
+    becoming `inactive` never erases an earlier success.
+  - `candidate` is about the deployments of the pending version's run/artifact only: `success` if
+    any of them ever reported success (later `inactive` included); else in progress (`queued`,
+    `pending`, `waiting`, `in_progress`) if any is not terminal; else `failure`/`error`/`cancelled`
+    when all of them ended so; `none` only when the run never created one. Never report `failure`
+    just because the latest status is `inactive`, and when the API can't be read, fail the
+    witness (no facts) rather than guessing.
 - **Live** (`httpLive`: `cache: "no-store"`, a unique query, `cache-control: no-cache`; 404 =
   absent, anything else = error): `index.html`, both pointers and `releases/index.json`. Once anything
   is served, an unreadable file is `live_unavailable`, a missing root or manifest `live_missing`.
@@ -193,9 +220,10 @@ with its bytes, also after it was abandoned.
 
 - The candidate's deployment queued, pending, waiting or in progress → `deployment_in_progress` (it
   may still succeed; resolve later).
-- Live is the candidate (whatever the deployment says, a failed smoke included) →
-  **observed-unverified**: `served` = v, its data direction stays (a later release can't lower the
-  database); a higher version follows as a forward fix.
+- Live is the candidate (whatever the deployment says, a failed smoke or a failed first deployment
+  included) → **observed-unverified**: `served` = v, its data direction stays (a later release can't
+  lower the database), the deployment state and a summary of live are recorded; a higher version
+  follows as a forward fix (§6: no confirmed success needed for that).
 - The deployment never started or ended terminally (`none`, `failure`, `error`, `inactive`,
   `cancelled`) and live is exactly the previous served site → **abandoned**: only the root, pointers
   and marker go back to the served version's (or are removed before the first deployment); the

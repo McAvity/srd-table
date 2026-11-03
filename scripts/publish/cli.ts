@@ -21,7 +21,7 @@ import { resolve as resolvePath } from "node:path";
 import { parseArgs } from "node:util";
 import { Archive, initialize, receipt, resolve, retry, stage } from "./archive";
 import { fail, PublishError } from "./lib";
-import { dirLive, httpLive, type Witnesses } from "./witness";
+import { dirLive, httpLive, type LiveFile, type Witnesses } from "./witness";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -45,17 +45,26 @@ const { positionals, values } = parseArgs({
   },
 });
 
-function witnesses(siteUrl: string | null): Witnesses {
+/**
+ * The witnesses. The live reader is built on its first read, from the site URL known by then
+ * (initialize: `--site-url`; every other command: the archive's state, read after the clone) — so
+ * the default HTTP path never needs the URL before the archive is open (R03-01).
+ */
+function witnesses(siteUrl: () => string | null): Witnesses {
   const factsPath = values.facts ?? fail("usage", "--facts <file> is required");
   const facts = JSON.parse(readFileSync(factsPath, "utf8"));
   if (!facts.rulesets || !facts.deployments) fail("usage", "--facts needs {rulesets, deployments}");
-  const live = values["live-dir"]
-    ? dirLive(resolvePath(values["live-dir"]))
-    : httpLive(siteUrl ?? fail("usage", "the site URL is unknown"));
+  const liveDir = values["live-dir"];
+  let reader: ((path: string) => Promise<LiveFile>) | null = liveDir
+    ? dirLive(resolvePath(liveDir))
+    : null;
   return {
     rulesets: async () => facts.rulesets,
     deployments: async () => facts.deployments,
-    live,
+    live: (path) => {
+      reader ??= httpLive(siteUrl() ?? fail("usage", "the site URL is unknown"));
+      return reader(path);
+    },
   };
 }
 
@@ -67,18 +76,16 @@ async function main(): Promise<unknown> {
   const base = { remote: need("remote"), workDir: resolvePath(need("work")) };
   if (command === "initialize") {
     const siteUrl = need("site-url");
-    return initialize({ ...base, witnesses: witnesses(siteUrl) }, { base: need("base"), siteUrl });
+    return initialize(
+      { ...base, witnesses: witnesses(() => siteUrl) },
+      { base: need("base"), siteUrl },
+    );
   }
-  // the site URL comes from the archive's own state (read after the clone)
-  let siteUrl: string | null = null;
-  const w = witnesses(null);
-  const lazy: Witnesses = {
-    rulesets: w.rulesets,
-    deployments: w.deployments,
-    live: values["live-dir"] ? w.live : (p) => httpLive(siteUrl as string)(p),
-  };
-  const a = await Archive.open({ ...base, anchor: need("anchor"), witnesses: lazy });
-  siteUrl = a.state.site_url;
+  // the site URL comes from the archive's own state (read after the clone, before any witness)
+  let a: Archive | null = null;
+  const w = witnesses(() => a?.state.site_url ?? null);
+  a = await Archive.open({ ...base, anchor: need("anchor"), witnesses: w });
+
   switch (command) {
     case "verify": {
       await a.witness();

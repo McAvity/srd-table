@@ -3,7 +3,15 @@
 // kept: legacy/current/bridge, database downgrade, foreign pointer), plus the SRD pack, the closed
 // allowlist, conflicts and an interruption at every write.
 
-import { cpSync, existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CURRENT_POINTER, LEGACY_POINTER, MANIFEST } from "../../scripts/publish/lib";
@@ -165,12 +173,62 @@ describe("refusals before any write", () => {
     writeFileSync(join(changed, "assets/icon-r.png"), "other");
     await refused(() => pub(changed, makeRelease("r5", { version: "0.2.1" })), "site_invalid");
     expect(tree(site)).toEqual(before);
-    // an SRD file only the newer engine has is added; the old ones stay
-    pub(site, makeRelease("r6", { version: "0.2.1" }), {
-      srd: makeSrd("a", { "feats.json": "[]" }),
-    });
-    expect(existsSync(join(site, "content/srd-5.2.1/feats.json"))).toBe(true);
+    // a newer engine's pack with another table changes the pack's manifest.json: refused too
+    await refused(
+      () =>
+        pub(site, makeRelease("r6", { version: "0.2.1" }), {
+          srd: makeSrd("a", { "feats.json": "[]" }),
+        }),
+      "content_conflict",
+    );
+    expect(tree(site)).toEqual(before);
+    // the same pack again (byte-identical) is kept, not rewritten
+    pub(site, makeRelease("r7", { version: "0.2.1" }));
     expect(siteProblems(site)).toEqual([]);
+  });
+
+  it("only srd-table's own files reach the site: a parent-workspace or private file is refused", async () => {
+    // in the SRD directory, not named by the pack's manifest (even with an allowed-looking name)
+    for (const [name, bytes] of [
+      ["kenli-character.json", '{"name":"Kenli"}'],
+      ["library.json", "[]"],
+      ["notes.txt", "x"],
+    ] as [string, string][])
+      await refused(() => readSrd(makeSrd("p", {}, { [name]: bytes })), "srd_unlisted");
+    // a manifest naming a file outside the pack's flat JSON layout
+    const odd = tmp("odd");
+    put(
+      odd,
+      "manifest.json",
+      JSON.stringify({ name: "srd-5.2.1", tables: { x: { file: "../x.json" } } }),
+    );
+    await refused(() => readSrd(odd), "srd_invalid");
+    // in the release staging directory (what scripts/release.ts did not write)
+    for (const extra of [
+      "docs/features/F-014/brief.md",
+      "private/kenli.json",
+      "content/srd-5.2.1/x.json",
+      ".env",
+    ]) {
+      const d = tmp("stg");
+      cpSync(R.dir, d, { recursive: true });
+      put(d, extra, "x");
+      await refused(() => readStaging(d), "staging_invalid");
+    }
+  });
+
+  it("the publisher imports nothing outside this repository's scripts/publish (no parent runtime)", () => {
+    const dir = join(process.cwd(), "scripts/publish");
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".ts"))) {
+      const src = readFileSync(join(dir, f), "utf8");
+      const specs = [
+        ...src.matchAll(/^\s*(?:import|export)\b[^;]*?\bfrom\s+"([^"]+)"/gm),
+        ...src.matchAll(/\bimport\(\s*"([^"]+)"\s*\)/g),
+      ].map((m) => m[1] as string);
+      expect(specs.length, f).toBeGreaterThan(0);
+      for (const spec of specs)
+        expect(spec.startsWith("node:") || spec.startsWith("./"), `${f}: ${spec}`).toBe(true);
+    }
   });
 
   it("the full manifest lists every file, the marker too", () => {

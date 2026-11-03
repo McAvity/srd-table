@@ -357,10 +357,19 @@ export class Archive {
         "history_lost",
         "the site has been deployed, but the archive has no served version (archive reset or replaced)",
       );
-    if (everServed && !deployments.everSucceeded)
+    // R03-02: a version the archive saw succeed (receipt, or observed with a successful deployment)
+    // needs github-pages to remember a success. A version observed live under a failed or missing
+    // deployment status (e.g. the first one, served although its job or smoke failed) is backed by
+    // its recorded live evidence instead, and the live checks below still apply to it.
+    const confirmed = Object.entries(s.versions).filter(
+      ([, v]) =>
+        v.status === "deployed" ||
+        (v.status === "observed-unverified" && v.resolution?.deployment === "success"),
+    );
+    if (confirmed.length && !deployments.everSucceeded)
       fail(
         "witness_mismatch",
-        "the archive has served versions, but github-pages has no successful deployment",
+        `the archive has confirmed deployments (${confirmed.map(([v]) => v).join(", ")}), but github-pages has no successful deployment`,
       );
     const errors = Object.entries(live).filter(([, l]) => l.status === "error");
     if ((deployments.everSucceeded || everServed) && errors.length)

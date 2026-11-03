@@ -143,11 +143,21 @@ export function makeRelease(
 }
 
 /** An SRD pack directory (the engine's `dist/srd-5.2.1/`, synthetic). */
-export function makeSrd(variant = "a", extra: Record<string, string> = {}): string {
+/**
+ * An SRD pack directory (the engine's `dist/srd-5.2.1/`, synthetic): its manifest names its tables'
+ * files. `extra` tables are named too; `unlisted` files are dropped in without being named.
+ */
+export function makeSrd(
+  variant = "a",
+  extra: Record<string, string> = {},
+  unlisted: Record<string, string> = {},
+): string {
   const dir = tmp(`srd-${variant}`);
-  put(dir, "manifest.json", JSON.stringify({ name: "srd-5.2.1", variant: "base" }));
+  const tables: Record<string, { file: string }> = { spells: { file: "spells.json" } };
+  for (const f of Object.keys(extra)) tables[f.replace(/\.json$/, "")] = { file: f };
+  put(dir, "manifest.json", JSON.stringify({ name: "srd-5.2.1", tables }));
   put(dir, "spells.json", JSON.stringify([{ id: "fire-bolt", v: variant === "changed" ? 2 : 1 }]));
-  for (const [f, b] of Object.entries(extra)) put(dir, f, b);
+  for (const [f, b] of Object.entries({ ...extra, ...unlisted })) put(dir, f, b);
   return dir;
 }
 
