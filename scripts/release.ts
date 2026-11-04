@@ -1,12 +1,16 @@
 /**
  * kenli F-007 T02: build one immutable app release (dnd5 contracts/offline.md §2).
  *
- *   bun scripts/release.ts --base /dnd/ --out /tmp/rel [--variant name] [--allow-dirty] [--report r.json]
+ *   bun scripts/release.ts --base /dnd/ --out /tmp/rel [--app-version 0.2.0] [--variant name] [--allow-dirty]
+ *     [--report r.json]
  *     [--declare-db-version N]   (T05 probes only: a candidate declaring other data, never published)
  *
  * 1. Inputs known before the build (Table/engine commits, base, protocol, data formats, Bun/Vite
  *    versions) → release id `r-<16 hex>`; a dirty tree is refused (or marked `dirty`, never publishable).
- * 2. `vite build` with that id (`__RELEASE_ID__`), base and the Vite manifest.
+ *    kenli F-014 T01 (docs/deployment.md): `--app-version` (no `v`; the tag is `v<version>`) adds
+ *    `inputs.app_version`, so it is part of the id; never read from package.json, never on a dirty tree.
+ * 2. `vite build` with that id (`__RELEASE_ID__`), base and the Vite manifest, and the build metadata
+ *    `{version, release_id, table_commit, engine_commit}` (`__BUILD_INFO__`, src/offline/build-info.ts).
  * 3. App files only: `content/` (the SRD/private packs Vite copies from public/) is removed; the
  *    public favicon/icons get hashed names under assets/; the web manifest and the HTML snapshot go
  *    to releases/<id>/ (the root index.html is the same bytes).
@@ -30,6 +34,7 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { type BuildInfo, buildInfoProblems } from "../src/offline/build-info";
 import {
   descriptorPathOf,
   descriptorProblems,
@@ -45,6 +50,7 @@ import {
   swPathOf,
   swReleaseOf,
 } from "../src/offline/descriptor";
+import { isAppVersion } from "../src/offline/version";
 import { buildGraph, sortedAssets, type ViteChunk } from "./release/graph";
 
 // Run with Bun (its bundler builds the SW); the app's tsconfig has no Bun types.
@@ -68,6 +74,8 @@ const { values: args } = parseArgs({
   options: {
     base: { type: "string", default: "/dnd/" },
     out: { type: "string" },
+    // kenli F-014 T01: the readable version (`0.2.0`, `0.2.0-rc.1`), an input of the id.
+    "app-version": { type: "string" },
     variant: { type: "string" },
     // kenli F-007 T05 probes only: declare another DB version (an incompatible candidate). Never
     // for a published release (the data the code really reads is DB 4).
@@ -81,12 +89,19 @@ if (!isBase(base)) fail(`invalid base ${base} (want /segment/)`);
 if (!args.out) fail("--out is required");
 const out = resolve(args.out as string);
 if (existsSync(out)) fail(`${out} exists (a release is built into a new directory)`);
+const appVersion = args["app-version"] as string | undefined;
+if (appVersion !== undefined && !isAppVersion(appVersion))
+  fail(
+    `invalid --app-version ${JSON.stringify(appVersion)} (want MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-rc.N, no leading v)`,
+  );
 
 // ── 1. inputs and id ──
 const git = (dir: string, ...a: string[]) =>
   execFileSync("git", ["-C", dir, ...a], { encoding: "utf8" }).trim();
 const tableCommit = git(root, "rev-parse", "HEAD");
 const dirty = git(root, "status", "--porcelain", "--untracked-files=all") !== "";
+if (dirty && appVersion !== undefined)
+  fail("a versioned release needs a clean tree (--app-version with uncommitted changes)");
 if (dirty && !args["allow-dirty"])
   fail(
     "Table has uncommitted changes: commit first (or --allow-dirty for a never-publishable build)",
@@ -124,10 +139,20 @@ const inputs: ReleaseInputs = {
     state_versions: [1, 2, 3],
   },
   toolchain: { bun: bunVersion, vite: viteVersion },
+  ...(appVersion !== undefined ? { app_version: appVersion } : {}),
   ...(args.variant ? { variant: args.variant as string } : {}),
   ...(dirty ? { dirty: true as const } : {}),
 };
 const releaseId = releaseIdOf(inputs, sha256);
+const buildInfo: BuildInfo = {
+  version: appVersion ?? null,
+  release_id: releaseId,
+  table_commit: tableCommit,
+  engine_commit: pin,
+  ...(dirty ? { dirty: true as const } : {}),
+};
+const infoProblems = buildInfoProblems(buildInfo);
+if (infoProblems.length) fail(`build metadata: ${infoProblems.join(", ")}`);
 
 // ── 2. vite build ──
 const vite = spawnSync(
@@ -143,7 +168,7 @@ const vite = spawnSync(
   ],
   {
     cwd: root,
-    env: { ...process.env, F007_RELEASE_ID: releaseId },
+    env: { ...process.env, F007_RELEASE_ID: releaseId, F014_BUILD_INFO: JSON.stringify(buildInfo) },
     encoding: "utf8",
   },
 );
@@ -206,6 +231,27 @@ writeFileSync(join(out, manifestPathOf(releaseId)), manifestText);
 // ── 4. graph, SW, descriptor ──
 const assets = new Map<string, Uint8Array>();
 for (const abs of walk(join(out, "assets"))) assets.set(relative(out, abs), readFileSync(abs));
+// kenli F-014 T01: the metadata the running JS shows is this release's (embedded, never fetched).
+// Each field as `key:<string literal>` (any quote the minifier picks), in one file.
+const literal = (key: string, value: string | null) =>
+  new RegExp(
+    value === null
+      ? `\\b${key}:\\s*null\\b`
+      : `\\b${key}:\\s*([\`"'])${value.replace(/[.+]/g, "\\$&")}\\1`,
+  );
+const fields = [
+  literal("version", buildInfo.version),
+  literal("release_id", releaseId),
+  literal("table_commit", tableCommit),
+  literal("engine_commit", pin),
+];
+const embedded = [...assets]
+  .filter(([p]) => p.endsWith(".js"))
+  .some(([, bytes]) => {
+    const text = Buffer.from(bytes).toString("utf8");
+    return fields.every((re) => re.test(text));
+  });
+if (!embedded) fail("the build metadata is not embedded in the app's JS");
 const graph = buildGraph({
   assets,
   html: { path: htmlPathOf(releaseId), text: html },
@@ -281,8 +327,10 @@ if (extra.length) fail(`unexpected files in the release: ${extra.join(", ")}`);
 
 const report = {
   release_id: releaseId,
+  app_version: appVersion ?? null,
   base,
   inputs,
+  build_info: buildInfo,
   files: expected.size,
   total_bytes: descriptor.total_bytes,
   sw: descriptor.sw,

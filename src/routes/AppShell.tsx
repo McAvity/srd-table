@@ -14,10 +14,13 @@ import { cx, Spinner } from "@/components/ui";
 import { HistoryControl, HistoryPanel, HistoryRoot } from "@/features/history/HistoryPanel";
 import { UpdateBanner } from "@/features/settings/UpdatePanel";
 import { t } from "@/i18n";
+import { BUILD_INFO, versionLabel } from "@/offline/build-info";
 import { useDocuments } from "@/store/documents";
 import { useUi } from "@/store/ui";
 import { useCharacterTarget, useTableTarget } from "./paneTargets";
 
+/** The footer's version: the app version, else the release id, else "development build". */
+const FOOTER_VERSION_OF = () => versionLabel(BUILD_INFO) ?? t("about.build.dev");
 const NAV: readonly {
   to: "/encounters" | "/characters" | "/compendium";
   label: () => string;
@@ -29,6 +32,7 @@ const NAV: readonly {
 ];
 
 export function AppShell() {
+  const FOOTER_VERSION = FOOTER_VERSION_OF();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const table = useTableTarget();
   const character = useCharacterTarget();
@@ -132,6 +136,16 @@ export function AppShell() {
             SRD 5.2.1 © Wizards of the Coast LLC · CC-BY-4.0 ·{" "}
             <Link to="/about" className="underline hover:text-ink">
               {t("nav.about")}
+            </Link>{" "}
+            ·{" "}
+            {/* kenli F-014 T01: the running build's version (its release id without one), to About. */}
+            <Link
+              to="/about"
+              className="underline hover:text-ink"
+              data-testid="footer-version"
+              aria-label={t("about.build.footerLabel", { version: FOOTER_VERSION })}
+            >
+              {FOOTER_VERSION}
             </Link>
           </footer>
           <Toasts />
